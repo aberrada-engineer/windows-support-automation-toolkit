@@ -1,0 +1,349 @@
+{
+  "schema_version": "1.0",
+  "description": "Base de connaissances incidents ESN-Toolkit. Mapping statique symptom -> cause -> remediation.",
+  "patterns": [
+
+    {
+      "id": "NET-P001",
+      "domain": "Network",
+      "symptom": "APIPA",
+      "keywords": ["169.254", "APIPA", "adresse IP automatique", "pas d'IP"],
+      "severity": "CRITICAL",
+      "likely_cause": "Serveur DHCP injoignable ou bail DHCP expiré",
+      "remediation_steps": [
+        "Vérifier le câble réseau (témoin lumineux du port switch)",
+        "Tester sur un autre port switch",
+        "Vérifier que le service DHCP Client est démarré : Start-Service Dhcp",
+        "Renouveler l'IP : ipconfig /release puis ipconfig /renew",
+        "Vérifier la disponibilité du serveur DHCP depuis un autre poste",
+        "Contrôler les plages DHCP disponibles (épuisement possible)"
+      ],
+      "powershell_fix": "Stop-Service Dhcp; Start-Service Dhcp; ipconfig /release; ipconfig /renew"
+    },
+
+    {
+      "id": "NET-P002",
+      "domain": "Network",
+      "symptom": "DNS resolution failure",
+      "keywords": ["DNS", "résolution", "impossible résoudre", "name resolution", "serveur DNS"],
+      "severity": "CRITICAL",
+      "likely_cause": "Cache DNS corrompu, serveur DNS injoignable, mauvaise configuration",
+      "remediation_steps": [
+        "Vider le cache DNS : ipconfig /flushdns",
+        "Tester la résolution manuelle : Resolve-DnsName google.com -Server 8.8.8.8",
+        "Vérifier les serveurs DNS configurés : Get-DnsClientServerAddress",
+        "Tester la connectivité vers le serveur DNS (ping)",
+        "Vérifier la configuration DNS dans les propriétés de la carte réseau",
+        "Si AD : vérifier que le DNS du domaine est le premier serveur configuré"
+      ],
+      "powershell_fix": "Clear-DnsClientCache; ipconfig /flushdns"
+    },
+
+    {
+      "id": "NET-P003",
+      "domain": "Network",
+      "symptom": "High latency",
+      "keywords": ["latence", "lent", "lenteur réseau", "ping élevé", "ms", "timeout"],
+      "severity": "WARNING",
+      "likely_cause": "Saturation réseau, problème FAI, mauvais câble, driver carte réseau",
+      "remediation_steps": [
+        "Lancer tracert vers 8.8.8.8 pour identifier le saut problématique",
+        "Vérifier la vitesse et duplex de la carte réseau (1Gbps full-duplex attendu)",
+        "Tester sur un câble réseau différent",
+        "Vérifier la charge du switch (port errors, collisions)",
+        "Désactiver et réactiver la carte réseau",
+        "Mettre à jour les drivers réseau"
+      ],
+      "powershell_fix": "Get-NetAdapter | Restart-NetAdapter"
+    },
+
+    {
+      "id": "SYS-P001",
+      "domain": "System",
+      "symptom": "High RAM usage",
+      "keywords": ["RAM", "mémoire", "memory", "saturation", "lent", "paginé", "swap"],
+      "severity": "WARNING",
+      "likely_cause": "Processus consommateur de mémoire, fuite mémoire applicative",
+      "remediation_steps": [
+        "Identifier les processus RAM : Get-Process | Sort-Object WorkingSet64 -Desc | Select-Object -First 10",
+        "Redémarrer les applications les plus gourmandes",
+        "Vider le cache de travail : [System.GC]::Collect()",
+        "Vérifier la RAM physique (slots, fréquence) si RAM < 8 Go",
+        "Analyser les fuites avec Process Monitor (Sysinternals)",
+        "Planifier un redémarrage si uptime > 7 jours"
+      ],
+      "powershell_fix": "Get-Process | Sort-Object WorkingSet64 -Desc | Select-Object -First 10 Name, @{N='RAM_Mo';E={[math]::Round($_.WorkingSet64/1MB,0)}}"
+    },
+
+    {
+      "id": "SYS-P002",
+      "domain": "System",
+      "symptom": "BSOD / crash dump",
+      "keywords": ["BSOD", "écran bleu", "crash", "minidump", "kernel", "stop error", "0x"],
+      "severity": "CRITICAL",
+      "likely_cause": "Driver défaillant, hardware défectueux, corruption mémoire",
+      "remediation_steps": [
+        "Analyser le dump avec WinDbg ou BlueScreenView (Nirsoft)",
+        "Vérifier les events System : Get-WinEvent -LogName System | Where-Object Id -eq 41",
+        "Identifier le driver fautif dans le rapport de crash",
+        "Désinstaller/mettre à jour le driver incriminé",
+        "Lancer un test mémoire : mdsched.exe (redémarrage requis)",
+        "Vérifier la température CPU (throttling possible)",
+        "En dernier recours : repair Windows : sfc /scannow puis DISM /Online /Cleanup-Image /RestoreHealth"
+      ],
+      "powershell_fix": "Get-WinEvent -LogName System | Where-Object {$_.Id -eq 41} | Select-Object -First 5 TimeCreated, Message"
+    },
+
+    {
+      "id": "SYS-P003",
+      "domain": "System",
+      "symptom": "High CPU",
+      "keywords": ["CPU", "processeur", "100%", "lent", "freeze", "gel", "chauffe"],
+      "severity": "WARNING",
+      "likely_cause": "Processus en boucle, mise à jour en cours, virus/malware, driver défaillant",
+      "remediation_steps": [
+        "Identifier le processus : Get-Process | Sort-Object CPU -Desc | Select-Object -First 5",
+        "Vérifier si Windows Update est en cours (TiWorker.exe, WmiPrvSE.exe)",
+        "Vérifier avec l'antivirus (scan en cours peut saturer CPU)",
+        "Redémarrer les services suspects",
+        "Si MsMpEng.exe (Defender) : exclure les dossiers non système de l'analyse",
+        "Scanner pour malwares (Windows Defender offline scan)"
+      ],
+      "powershell_fix": "Get-Process | Sort-Object CPU -Desc | Select-Object -First 10 Name, Id, @{N='CPU_s';E={[math]::Round($_.CPU,1)}}"
+    },
+
+    {
+      "id": "SEC-P001",
+      "domain": "Security",
+      "symptom": "SMBv1 enabled",
+      "keywords": ["SMBv1", "EternalBlue", "WannaCry", "partage fichier", "SMB"],
+      "severity": "CRITICAL",
+      "likely_cause": "SMBv1 non désactivé (configuration legacy ou compatibility mode)",
+      "remediation_steps": [
+        "Désactiver immédiatement SMBv1 côté serveur",
+        "Désactiver SMBv1 côté client",
+        "Redémarrer le service LanmanServer",
+        "Vérifier qu'aucune application legacy ne requiert SMBv1"
+      ],
+      "powershell_fix": "Set-SmbServerConfiguration -EnableSMB1Protocol $false -Force; Set-SmbClientConfiguration -EnableSMB1Protocol $false -Force"
+    },
+
+    {
+      "id": "SEC-P002",
+      "domain": "Security",
+      "symptom": "WDigest enabled",
+      "keywords": ["WDigest", "credentials", "LSASS", "Pass-the-Hash", "mémoire", "clair"],
+      "severity": "CRITICAL",
+      "likely_cause": "Clé de registre WDigest UseLogonCredential = 1 (legacy ou post-attaque)",
+      "remediation_steps": [
+        "Désactiver WDigest immédiatement",
+        "Forcer les utilisateurs à se reconnecter (tokens mémoire révoqués)",
+        "Vérifier les connexions réseau suspectes",
+        "Analyser les logs d'authentification LSASS"
+      ],
+      "powershell_fix": "Set-ItemProperty 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\SecurityProviders\\WDigest' -Name UseLogonCredential -Value 0"
+    },
+
+    {
+      "id": "SEC-P003",
+      "domain": "Security",
+      "symptom": "Defender disabled",
+      "keywords": ["Defender", "antivirus", "désactivé", "protection", "malware", "EDR"],
+      "severity": "CRITICAL",
+      "likely_cause": "Désactivation manuelle, conflit avec un autre AV, ou indicateur de compromission",
+      "remediation_steps": [
+        "Vérifier si un autre AV est installé et actif",
+        "Réactiver Defender : Set-MpPreference -DisableRealtimeMonitoring $false",
+        "Vérifier la clé de registre DisableAntiSpyware",
+        "Si compromission suspectée : isoler le poste du réseau"
+      ],
+      "powershell_fix": "Set-MpPreference -DisableRealtimeMonitoring $false -DisableBehaviorMonitoring $false"
+    },
+
+    {
+      "id": "SEC-P004",
+      "domain": "Security",
+      "symptom": "Firewall disabled",
+      "keywords": ["firewall", "pare-feu", "désactivé", "GPO", "exposition"],
+      "severity": "CRITICAL",
+      "likely_cause": "GPO de désactivation, application tierce, ou modification manuelle",
+      "remediation_steps": [
+        "Réactiver tous les profils firewall",
+        "Vérifier la GPO : rsop.msc → Configuration ordinateur → Pare-feu",
+        "Journaliser les connexions entrantes pour audit"
+      ],
+      "powershell_fix": "Set-NetFirewallProfile -Profile Domain,Private,Public -Enabled True"
+    },
+
+    {
+      "id": "STO-P001",
+      "domain": "Storage",
+      "symptom": "Disk full",
+      "keywords": ["disque plein", "espace insuffisant", "full", "storage", "C:", "stockage"],
+      "severity": "CRITICAL",
+      "likely_cause": "Accumulation de fichiers temp, logs volumineux, sauvegardes locales, WinSxS",
+      "remediation_steps": [
+        "Nettoyage fichiers temp : Remove-Item $env:TEMP\\* -Recurse -Force",
+        "Nettoyage disque Windows : cleanmgr /sagerun:1",
+        "Vérifier les logs IIS/applicatifs volumineux",
+        "Identifier les plus gros dossiers : dir C:\\ /s | sort",
+        "Nettoyer WinSxS : DISM /Online /Cleanup-Image /StartComponentCleanup",
+        "Supprimer les anciennes mises à jour Windows",
+        "Vérifier les shadow copies : vssadmin list shadows"
+      ],
+      "powershell_fix": "Get-ChildItem C:\\ -Recurse -ErrorAction SilentlyContinue | Sort-Object Length -Desc | Select-Object -First 20 FullName, @{N='Mo';E={[math]::Round($_.Length/1MB,1)}}"
+    },
+
+    {
+      "id": "STO-P002",
+      "domain": "Storage",
+      "symptom": "SMART failure",
+      "keywords": ["SMART", "disque défaillant", "bad sector", "panne disque", "HDD", "SSD"],
+      "severity": "CRITICAL",
+      "likely_cause": "Disque physique en fin de vie, chocs mécaniques, surchauffe",
+      "remediation_steps": [
+        "SAUVEGARDER IMMÉDIATEMENT toutes les données",
+        "Vérifier les détails SMART avec CrystalDiskInfo",
+        "Planifier le remplacement du disque",
+        "Vérifier si Veeam/backup a une copie récente valide",
+        "Préparer un nouveau disque et migrer l'OS si besoin"
+      ],
+      "powershell_fix": "Get-PhysicalDisk | Select-Object FriendlyName, HealthStatus, OperationalStatus, Size"
+    },
+
+    {
+      "id": "SVC-P001",
+      "domain": "Services",
+      "symptom": "Critical service stopped",
+      "keywords": ["service arrêté", "service stopped", "Spooler", "WinDefend", "EventLog", "BITS"],
+      "severity": "CRITICAL",
+      "likely_cause": "Crash applicatif, dépendance manquante, corruption, modification GPO",
+      "remediation_steps": [
+        "Identifier le service arrêté et sa raison : Get-Service + Event 7034/7023",
+        "Tenter le redémarrage : Start-Service <Nom>",
+        "Vérifier les dépendances du service : sc qc <Nom>",
+        "Consulter les logs : Get-WinEvent -LogName System | Where-Object Id -in 7034,7023,7036",
+        "Si récurrent : vérifier l'intégrité du binaire (sfc /scannow)"
+      ],
+      "powershell_fix": "Get-Service | Where-Object {$_.StartType -eq 'Automatic' -and $_.Status -ne 'Running'} | Start-Service"
+    },
+
+    {
+      "id": "AD-P001",
+      "domain": "AD",
+      "symptom": "Account locked",
+      "keywords": ["verrouillé", "locked", "BadLogonCount", "compte bloqué", "impossible connexion"],
+      "severity": "WARNING",
+      "likely_cause": "Mauvais mot de passe répété, session ouverte ailleurs avec ancien MDP, script ou service avec MDP expiré",
+      "remediation_steps": [
+        "Identifier la source du verrouillage : Get-ADUser -Identity <sam> -Properties LockedOut,BadLogonCount",
+        "Déverrouiller : Unlock-ADAccount -Identity <sam>",
+        "Identifier l'IP source des échecs : eventvwr → Security → Event 4740",
+        "Vérifier les sessions RDS/services configurés avec ce compte",
+        "Si répétitif : forcer le changement de MDP"
+      ],
+      "powershell_fix": "Unlock-ADAccount -Identity '<SamAccountName>'; Get-ADUser -Identity '<SamAccountName>' -Properties LockedOut,BadLogonCount,LastBadPasswordAttempt"
+    },
+
+    {
+      "id": "AD-P002",
+      "domain": "AD",
+      "symptom": "Replication failure",
+      "keywords": ["réplication", "replication", "AD sync", "DC", "domain controller", "KCC"],
+      "severity": "CRITICAL",
+      "likely_cause": "Connectivité réseau inter-sites, service NTDS dégradé, USN rollback",
+      "remediation_steps": [
+        "Vérifier l'état : repadmin /replsummary",
+        "Détail des erreurs : repadmin /showrepl",
+        "Forcer la réplication : repadmin /syncall /AdeP",
+        "Vérifier les services NTDS, KDC, Netlogon sur tous les DCs",
+        "Tester la connectivité inter-DC sur les ports requis (88, 135, 389, 445, 464, 636, 3268, 49152-65535)"
+      ],
+      "powershell_fix": "repadmin /syncall /AdeP"
+    },
+
+    {
+      "id": "AD-P003",
+      "domain": "AD",
+      "symptom": "Password expired",
+      "keywords": ["mot de passe expiré", "password expired", "MDP", "changer mot de passe"],
+      "severity": "WARNING",
+      "likely_cause": "Politique de mot de passe, utilisateur n'a pas changé son MDP dans les délais",
+      "remediation_steps": [
+        "Réinitialiser le MDP et forcer le changement à la connexion",
+        "Communiquer le MDP temporaire de manière sécurisée (téléphone, gestionnaire de secrets)",
+        "Vérifier la politique de MDP du domaine : Get-ADDefaultDomainPasswordPolicy"
+      ],
+      "powershell_fix": "Set-ADAccountPassword -Identity '<SamAccountName>' -Reset -NewPassword (ConvertTo-SecureString 'TempMdp@123' -AsPlainText -Force); Set-ADUser -Identity '<SamAccountName>' -ChangePasswordAtLogon $true"
+    },
+
+    {
+      "id": "OUT-P001",
+      "domain": "Outlook",
+      "symptom": "Outlook slow or offline",
+      "keywords": ["Outlook", "lent", "hors ligne", "offline", "OST", "messagerie", "PST"],
+      "severity": "WARNING",
+      "likely_cause": "OST corrompu ou volumineux, add-ins bloquants, mode hors-ligne activé, cache saturé",
+      "remediation_steps": [
+        "Lancer en mode sans échec : outlook.exe /safe",
+        "Désactiver les add-ins : Fichier > Options > Compléments",
+        "Supprimer l'OST (sera recréé) : %LOCALAPPDATA%\\Microsoft\\Outlook\\*.ost",
+        "Vider le cache RoamCache : %LOCALAPPDATA%\\Microsoft\\Outlook\\RoamCache",
+        "Vérifier le mode hors-ligne : Envoi/Réception > Travailler hors connexion",
+        "Réparer via SCANPST.EXE"
+      ],
+      "powershell_fix": "Stop-Process -Name OUTLOOK -Force -EA SilentlyContinue; Set-ItemProperty 'HKCU:\\Software\\Microsoft\\Office\\16.0\\Outlook' -Name 'Work Offline' -Value 0 -EA SilentlyContinue"
+    },
+
+    {
+      "id": "VPN-P001",
+      "domain": "Network",
+      "symptom": "VPN connection failure",
+      "keywords": ["VPN", "déconnecté", "tunnel", "FortiClient", "AnyConnect", "connexion VPN"],
+      "severity": "WARNING",
+      "likely_cause": "Certificat VPN expiré, credentials invalides, port bloqué par firewall, serveur VPN injoignable",
+      "remediation_steps": [
+        "Vérifier l'accès internet de base (sans VPN)",
+        "Tester depuis un réseau 4G (exclure un blocage FAI/entreprise)",
+        "Vérifier les ports : UDP 500, UDP 4500 (IKEv2), TCP 443 (SSTP/SSL VPN)",
+        "Supprimer et recréer le profil VPN",
+        "Vérifier le certificat du serveur VPN (expiration ?)",
+        "Redémarrer le service RasMan : Restart-Service RasMan"
+      ],
+      "powershell_fix": "Restart-Service RasMan; Clear-DnsClientCache"
+    },
+
+    {
+      "id": "WU-P001",
+      "domain": "System",
+      "symptom": "Windows Update stuck",
+      "keywords": ["Windows Update", "mise à jour", "bloqué", "WSUS", "wuauserv", "update loop"],
+      "severity": "WARNING",
+      "likely_cause": "Cache Windows Update corrompu, service BITS arrêté, WSUS injoignable",
+      "remediation_steps": [
+        "Arrêter les services WU et BITS",
+        "Vider le cache : supprimer C:\\Windows\\SoftwareDistribution\\Download",
+        "Redémarrer les services",
+        "Tenter wuauclt /detectnow",
+        "Si WSUS : vérifier la GPO et la connexion au serveur WSUS"
+      ],
+      "powershell_fix": "Stop-Service wuauserv,BITS -Force; Remove-Item 'C:\\Windows\\SoftwareDistribution\\Download\\*' -Recurse -Force -EA SilentlyContinue; Start-Service BITS,wuauserv"
+    },
+
+    {
+      "id": "MIG-P001",
+      "domain": "Migration",
+      "symptom": "Missing user data after migration",
+      "keywords": ["migration", "données manquantes", "bureau vide", "documents perdus", "profil"],
+      "severity": "WARNING",
+      "likely_cause": "Copie incomplète, chemin de profil non standard, dossiers exclus",
+      "remediation_steps": [
+        "Vérifier le dossier de backup : explorer le chemin de capture",
+        "Relancer une copie Robocopy des dossiers manquants",
+        "Vérifier les permissions sur les dossiers source",
+        "Contrôler le manifest.json de la capture pour les dossiers couverts"
+      ],
+      "powershell_fix": "robocopy '<SOURCE>' '<DEST>' /E /COPY:DAT /R:3 /W:5 /LOG:C:\\Migration\\robocopy_retry.log"
+    }
+  ]
+}

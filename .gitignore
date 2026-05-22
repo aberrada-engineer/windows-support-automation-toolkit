@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # macOS
 .DS_Store
 
@@ -19,3 +20,44 @@
 # Temp
 temp/
 cache/
+=======
+# ── Logs et rapports générés ──────────────────────────────
+Logs/
+Reports/
+ZipIncidents/
+*.log
+
+# ── Données de migration (sensibles) ──────────────────────
+Migrations/
+*_BACKUP_*/
+*manifest*.json
+
+# ── Résultats de tests ────────────────────────────────────
+TestResults.xml
+*.Tests.xml
+
+# ── Secrets et credentials ────────────────────────────────
+*.cred
+*.credential
+secrets.json
+config.local.json
+
+# ── PowerShell temporaire ─────────────────────────────────
+*.ps1xml
+!*.Format.ps1xml
+!*.Types.ps1xml
+
+# ── Modules installés localement ─────────────────────────
+Modules/External/
+
+# ── Windows / IDE ─────────────────────────────────────────
+Thumbs.db
+Desktop.ini
+.vscode/settings.json
+*.suo
+*.user
+.DS_Store
+
+# ── Pester / Coveralls ────────────────────────────────────
+coverage.xml
+>>>>>>> ec870e7 (feat: ESN-Toolkit v3.0.0)
