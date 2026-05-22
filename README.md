@@ -1,5 +1,5 @@
 <<<<<<< HEAD
-# Enterprise-Automation-Toolkit-e
+# windows-support-automation-toolkit
 Enterprise Infrastructure &amp; Automation Framework
 =======
 <div align="center">
