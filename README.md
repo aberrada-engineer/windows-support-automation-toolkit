@@ -1,31 +1,33 @@
 <div align="center">
 
-# 🖥️ ESN-Toolkit & AIOps Platform
+# 🖥️ ESN-Toolkit & AIOps Platform v3.5
 
-### Autonomous Workstation & Infrastructure Operations Platform
+### Autonomous Workstation, Infrastructure & Cloud Operations Platform
 
-**Plateforme PowerShell enterprise d'auto-réparation (Self-Healing), provisioning zero-touch,  
-audit de sécurité ANSSI, cartographie réseau et migration de postes — taillée pour remplacer les interventions humaines N1/N2.**
+**Plateforme PowerShell enterprise d'auto-réparation (Self-Healing), astreinte 24/7 P1/P2, gouvernance COPIL,  
+virtualisation (VMware / Nutanix), SecOps ANSSI et automatisation de 6 projets majeurs d'ingénierie.**
 
 ---
 
-![Version](https://img.shields.io/badge/version-3.2.0-blue?style=flat-square)
-![PowerShell](https://img.shields.io/badge/PowerShell-5.1%2B-5391FE?style=flat-square&logo=powershell&logoColor=white)
+![Version](https://img.shields.io/badge/version-3.5.0-blue?style=flat-square)
+![PowerShell](https://img.shields.io/badge/PowerShell-5.1%2B%20%7C%207%2B-5391FE?style=flat-square&logo=powershell&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11%20%7C%20Server%202016--2022-0078D4?style=flat-square&logo=windows&logoColor=white)
-![Automation](https://img.shields.io/badge/AIOps-Self--Healing-brightgreen?style=flat-square)
-![Security](https://img.shields.io/badge/Compliance-ANSSI%20%2F%20CIS-red?style=flat-square)
+![AIOps](https://img.shields.io/badge/AIOps-Self--Healing%20%26%20Predictive-brightgreen?style=flat-square)
+![Security](https://img.shields.io/badge/Compliance-ANSSI%20%2F%20CIS%20Benchmark-red?style=flat-square)
+![Code Size](https://img.shields.io/badge/Lines%20of%20Code-12%2C200%2B-purple?style=flat-square)
 ![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
 [![GitHub](https://img.shields.io/badge/GitHub-aberrada--engineer-181717?style=flat-square&logo=github)](https://github.com/aberrada-engineer/windows-support-automation-toolkit)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Amine%20BERRADA-0077B5?style=flat-square&logo=linkedin)](https://www.linkedin.com/in/amine-berrada-infra/)
 
 ---
 
 [À propos](#-à-propos) •
-[Fonctionnalités AIOps](#-fonctionnalités-aiops) •
-[Architecture](#-architecture) •
-[Démarrage rapide](#-démarrage-rapide) •
-[Self-Healing & Sécurité](#-gardien-autonome--durcissement-anssi) •
-[Migration A à Z](#-migration-de-postes--profils-utilisateur-de-a-à-z) •
-[Auteur](#-auteur)
+[Architecture Modulaire](#-architecture-modulaire) •
+[6 Projets Majeurs Déployés](#-6-projets-majeurs-déployés-en-production) •
+[AIOps & Astreinte 24/7](#-aiops-astreinte-247--résilience) •
+[Infrastructure & Cloud](#-infrastructure-hyperviseurs--cloud-hybride) •
+[Interfaces GUI & Console](#-interfaces-graphique--console-interactive) •
+[Auteur & Référent](#-auteur--référent-technique)
 
 </div>
 
@@ -33,633 +35,235 @@ audit de sécurité ANSSI, cartographie réseau et migration de postes — taill
 
 ## 🎯 À propos
 
-ESN-Toolkit est une **plateforme d'automatisation d'opérations IT (AIOps)** de niveau entreprise conçue pour les techniciens support, administrateurs systèmes et ingénieurs infrastructure.
+**ESN-Toolkit v3.5** est une plateforme d'ingénierie et d'automatisation des opérations informatiques (**AIOps**) conçue pour couvrir l'intégralité du spectre opérationnel d'une DSI ou d'une ESN :
+du **support poste de travail (N1/N2)**, à **l'administration système et maintien en conditions opérationnelles (N2/N3)**, jusqu'au **pilotage de projets d'infrastructure critiques (N3 / Architecte)**.
 
-Elle remplace les tâches manuelles et répétitives par des mécanismes autonomes de pointe :
+Conçue sur le retour d'expérience de plus de **200 infrastructures multi-clients infogérées** et d'environnements critiques (notamment grands comptes horlogers et luxe genevois tels que *Porsche, TAG Heuer, Hublot*), cette boîte à outils garantit une autonomie opérationnelle maximale.
 
-- 🤖 **Auto-Guérison en tâche de fond (Self-Healing Daemon)** : Relance automatique des services plantés, purge préventive de saturation disque C:, auto-résolution des pannes réseau, surveillance des fuites mémoire.
-- 🚀 **Zero-Touch Provisioning** : Préparation intégrale d'un poste neuf en 1 seul clic (renommage normalisé, purge bloatware, déploiement silencieux du socle logiciel via Winget, activation BitLocker).
-- 🛡️ **Durcissement Cybersécurité ANSSI / CIS** : Contrôle de conformité de 20+ règles de sécurité (UAC, SMBv1, LLMNR, NLA RDP, LAPS, ScriptBlock Logging) et remédiation automatique avec score 0-100.
-- 🌐 **Cartographie Réseau & Parc (Fleet Discovery)** : Découverte multi-threadée ultra-rapide des équipements sur le sous-réseau (postes, serveurs, switches, imprimantes, partages SMB).
-- 🚚 **Migration de Poste de A à Z** : Sauvegarde et restauration complète (données, favoris Chrome/Edge/Firefox, archives PST/Outlook, profils Wi-Fi avec clés, lecteurs réseau, imprimantes et inventaire applicatif).
-- 🖥️ **Double Interface Moderne** : Une **Interface Graphique (GUI Windows Forms)** fluide et une **Console Interactive (TUI)** utilisable en session RDP.
-
-> **100 % Natif Windows (PowerShell 5.1+) — Zéro dépendance externe — Exécutable immédiatement sur n'importe quelle machine sans prérequis.**
+> ⚡ **100 % Natif Windows (PowerShell 5.1+ & 7+)** — **Zéro dépendance externe** requise — Exécutable immédiatement sur n'importe quel serveur ou poste de travail.
 
 ---
 
-## ✨ Fonctionnalités
+## 🏗️ Architecture Modulaire
 
-### 🔍 Diagnostic multi-domaines
-
-| Domaine | Ce qui est analysé | Poids score |
-|---|---|---|
-| **Réseau** | IP/APIPA, passerelle, DNS, latence, pertes paquets, proxy, lecteurs réseau | 20% |
-| **Système** | OS, RAM, CPU, uptime, events critiques 24h, crash dumps, Windows Update | 20% |
-| **Sécurité** | Defender, firewall, BitLocker, SMBv1, WDigest, UAC, RDP NLA, certificats | 25% |
-| **Stockage** | % utilisation par disque, SMART prédictif, fichiers temporaires volumineux | 20% |
-| **Services** | Services critiques arrêtés, services auto non démarrés | 15% |
-| **Active Directory** | Domaine, DCs joignables, réplication, comptes, admins, KRBTGT | — |
-| **Microsoft 365** | Licences SKU, MFA, utilisateurs inactifs, comptes invités | — |
-
-### 🔧 Auto-remédiation — 8 cas couverts
-
-| ID | Remédiation | Risque | Requiert Admin |
-|---|---|---|---|
-| `DNS` | Flush cache DNS + ipconfig /flushdns | Low | Non |
-| `Winsock` | Reset pile TCP/IP (redémarrage requis) | Medium | Oui |
-| `Services` | Redémarrage services critiques arrêtés | Low | Oui |
-| `Teams` | Nettoyage cache Teams v1 + v2 MSIX | Low | Non |
-| `Outlook` | Mode hors-ligne, add-ins crashés, RoamCache | Low | Non |
-| `OneDrive` | Relance, suppression .lock, reset sync | Low | Non |
-| `TempFiles` | Nettoyage %TEMP%, Windows\Temp, INetCache | Low | Non |
-| `WindowsUpdate` | Reset composants WU, DLL, catroot2, SoftwareDistribution | Medium | Oui |
-
-### 📊 Score santé pondéré 0–100
-
-Score global calculé comme moyenne pondérée des 5 domaines techniques avec traçabilité complète de chaque impact.
-
-### 📋 Rapport HTML offline complet
-
-- Score global + jauges SVG par domaine
-- Résumé exécutif avec verdict coloré
-- Machine info (OS, RAM, CPU, uptime, domaine)
-- Impacts détaillés sur le score (traçabilité)
-- Recommandations actionnables
-- Remédiations exécutées (avant/après)
-- Base de connaissances : patterns d'incidents détectés automatiquement
-- Sections pliables — CSS inline uniquement, **zéro dépendance externe**
-
-### 🚚 Migration de postes
-
-- Capture complète profil utilisateur
-- **Score de réussite migration 0–100**
-- Manifest JSON v2.0 avec stats par module
-- Comparaison avant/après (fichiers source vs destination)
-- Détection automatique d'anomalies
-- Rapport HTML migration intégré
-
-### 📚 Base de connaissances incidents
-
-20 patterns statiques — format `symptom → cause → remédiation → commande PowerShell`
-
-Domaines couverts : Network · System · Security · Storage · Services · AD · Outlook · VPN · Windows Update · Migration
-
----
-
-## 🏗️ Architecture
+La plateforme compte **plus de 12 200 lignes de code PowerShell & Batch**, structurées en 4 couches opérationnelles :
 
 ```
 ESN-Toolkit/
 │
-├── Invoke-IncidentAnalysis.ps1      ← Point d'entrée principal (orchestrateur v3)
-├── Invoke-Migration.ps1             ← CLI Migration (capture / restauration)
+├── 🚀 SETUP & INTERFACES UTILISATEUR
+│   ├── Setup.bat                          # Installateur 1-clic autonome avec élévation de privilèges
+│   ├── Install-ESNToolkit.ps1             # Déploiement silencieux vers C:\ESN-Toolkit, config execution policy & raccourcis
+│   ├── Install-EnterpriseSilent.bat       # Script de déploiement de masse pour GPO / Intune Win32 App / SCCM
+│   ├── ESN-GUI.ps1 & ESN-Launcher.bat     # Interface Graphique Windows Forms (6 onglets métiers, RichTextBox logs)
+│   ├── ESN-Console.ps1 & ESN-Console.bat  # Console Interactive TUI avec 29 options d'administration directe
+│   └── WebDashboard/ & Invoke-CentralDashboard.ps1 # Dashboard Web offline Datadog-style avec jauges SVG
 │
-├── Core/
-│   ├── ESN-Core.psm1                ← Logging + Session + ZIP incident
-│   ├── ESN-OutputSchema.ps1         ← Schéma JSON unifié OK/WARNING/CRITICAL
-│   ├── ESN-ReportBuilder.ps1        ← Rapport HTML offline complet
-│   └── IncidentPatterns.json        ← Base de connaissances 20 patterns
+├── 🤖 AIOPS, AUTO-GUÉRISON & ASTREINTE 24/7
+│   ├── Invoke-SelfHealingService.ps1      # Gardien tâche de fond (15 min) : auto-repair services, purge disque, DNS
+│   ├── Invoke-P1EmergencyTriage.ps1       # Boîte noire d'urgence P1/P2 : BSOD minidumps, crash events, Flash report
+│   ├── Invoke-RansomwareShield.ps1        # KillSwitch d'isolement d'urgence, gel VSS et capture mémoire/forensics
+│   ├── Invoke-PredictiveHealthAnalysis.ps1# Calcul prédictif d'épuisement de stockage C: et indicateur d'usure SSD
+│   └── Invoke-DRTest.ps1                  # Simulation PRA/PCA mesurant RTO/RPO avec certificat SLA officiel
 │
-├── Modules/
-│   ├── Network/    ESN-Network.psm1       ← Diagnostic réseau complet
-│   ├── Windows/    ESN-Windows.psm1       ← Diagnostic système Windows
-│   ├── AD/         ESN-AD.psm1            ← Active Directory + actions
-│   ├── M365/       ESN-M365.psm1          ← Microsoft 365 via Graph API
-│   ├── Remediation/ESN-Remediation.psm1  ← Auto-remédiation 8 cas
-│   ├── HealthScore/ESN-HealthScore.psm1  ← Scoring pondéré 5 domaines
-│   └── Migration/  ESN-Migration.psm1    ← Migration utilisateur v2
+├── 🛠️ SUPPORT UTILISATEUR, FLOTTE & MIGRATION
+│   ├── Invoke-ZeroTouchProvisioning.ps1   # Provisioning de poste neuf (renommage CLI-%SERIAL%, Winget, TPM BitLocker)
+│   ├── Invoke-FullStationMigration.ps1    # Migration A à Z (Données, PST, Profils Wi-Fi avec clés, Mappages, Imprimantes)
+│   ├── Invoke-FleetDiscovery.ps1          # Scan réseau multi-threadé /24 (Windows, Linux, Switchs, Imprimantes)
+│   └── Invoke-GLPIInventoryAgent.ps1      # Agent d'inventaire complet matériel/logiciel exportable en JSON/XML pour GLPI
 │
-├── Tests/
-│   ├── ESN-Toolkit.Tests.ps1        ← Tests Core + modules (30+)
-│   ├── ESN-Remediation.Tests.ps1    ← Tests remédiation (20+)
-│   └── ESN-HealthScore.Tests.ps1    ← Tests scoring (50+)
+├── 🏢 GOUVERNANCE, AUDIT INFRASTRUCTURE & SERVEURS
+│   ├── Invoke-COPILReportGenerator.ps1    # Générateur de Rapport Mensuel Exécutif COPIL / COTECH (SLA 99.9%, MTTR)
+│   ├── Invoke-HypervisorAudit.ps1         # Audit VMware vSphere & Nutanix (Snapshots > 72h, saturation datastores)
+│   ├── Invoke-ExchangeHealthCheck.ps1     # Audit Exchange Hybride/On-Premise, files d'attente et contrôle SPF/DKIM/DMARC
+│   ├── Invoke-CoreServicesAudit.ps1       # Audit DHCP (saturation scopes), Scavenging DNS et certificats SSL expirant
+│   ├── Invoke-CloudHybridAudit.ps1        # Audit Entra ID Connect, Intune MDM et Defender for Endpoint (Sense)
+│   ├── Invoke-NetworkApplianceAudit.ps1   # Audit pare-feux FortiGate / Stormshield, tunnels VPN IPsec & sauvegardes conf
+│   ├── Invoke-ADHygieneCheck.ps1          # Audit sécurité Active Directory (Comptes inactifs, Domain Admins, PasswordNeverExpires)
+│   └── Invoke-InfrastructureSizing.ps1    # Dimensionnement cluster N+1, calcul rétention Veeam 3-2-1 et chiffrage COPIL
 │
-└── .github/workflows/ci.yml         ← CI : PSScriptAnalyzer + Pester
+└── 💼 PROJETS MAJEURS D'INGÉNIERIE (DOSSIER RÉFÉRENT TECHNIQUE)
+    ├── Projects/AD-Migration/             # Migration inter-domaines AD (SID History, ACLs NTFS, migration postes)
+    ├── Projects/EDR-Deployment/           # Déploiement automatisé d'EDR SentinelOne sur +200 postes avec désinstallation legacy
+    ├── Projects/Network-Aruba/            # Générateur de configuration ArubaOS-CX (VLANs, LACP uplinks, BPDU Guard, PRTG)
+    ├── Projects/Windows-LAPS/             # Déploiement Windows LAPS, rotation 30j et remédiation Pass-the-Hash
+    ├── Projects/Datacenter-Migration/     # Plan de bascule Datacenter et orchestration de failover planifié Veeam
+    ├── Projects/MDT-Deployment/           # Industrialisation MDT/WDS (~200 Postes Texdecor, CustomSettings, Total Control drivers)
+    └── Projects/WAN-MPLS-Refonte/         # Recette refonte WAN MPLS/SD-WAN et validation des flux de réplication intersites PRA
 ```
-
-<!-- PLACEHOLDER — Diagramme architecture
-![Architecture ESN-Toolkit](docs/screenshots/architecture.png)
-Générer avec draw.io ou Mermaid et déposer dans docs/screenshots/
--->
 
 ---
 
-## 🚀 Démarrage rapide
+## 💼 6 Projets Majeurs Déployés en Production
 
-### Prérequis
+Ces scripts reproduisent fidèlement les architectures et projets d'envergure menés par **Amine BERRADA** :
 
-| Composant | Version | Notes |
+### 1. 🔄 Migration Inter-Domaines Active Directory
+- **Dossier :** `Projects/AD-Migration/Invoke-ADDomainMigration.ps1`
+- **Contexte :** Fusion et consolidation d'infrastructures d'entreprises sans interruption de service.
+- **Capacités :**
+  - Cartographie et extraction des utilisateurs, groupes de sécurité et ordinateurs du domaine source.
+  - Préparation du mapping **SID History** pour préserver les accès aux ressources legacy.
+  - Sauvegarde et réplication des listes de contrôle d'accès NTFS (**icacls**) sur les serveurs de fichiers.
+  - Script de réassignation de profil local utilisateur pour le poste de travail migrated.
+
+### 2. 🛡️ Déploiement Automatisé d'EDR / Antivirus (+200 Hôtes)
+- **Dossier :** `Projects/EDR-Deployment/Invoke-EDRMassRollout.ps1`
+- **Contexte :** Remplacement d'antivirus obsolètes par un EDR nouvelle génération (SentinelOne / Defender for Endpoint).
+- **Capacités :**
+  - Détection et désinstallation silencieuse des anciens antivirus tiers (McAfee, Kaspersky, Symantec, Trend Micro).
+  - Validation des prérequis de communication réseau (Cloud Management Console HTTPS 443).
+  - Installation silencieuse de l'agent EDR avec injection du **Site Token** d'enregistrement client.
+  - Vérification de l'état de démarrage des services et génération de la matrice de conformité du parc.
+
+### 3. 🔌 Déploiement & Configuration de Switchs Aruba (~20 Commutateurs)
+- **Dossier :** `Projects/Network-Aruba/New-ArubaSwitchConfig.ps1`
+- **Contexte :** Renouvellement et durcissement de l'infrastructure de commutation réseau d'entreprise.
+- **Capacités :**
+  - Génération automatisée des configurations **ArubaOS-CX** prêtes à être injectées par CLI ou TFTP.
+  - Définition des VLANs (Data, Voice avec QoS CoS 5, Management isolé, Guest, DMZ).
+  - Agrégation de liens haute disponibilité (**LACP Trunk** uplinks vers le cœur de réseau).
+  - Durcissement de sécurité : **Port-Security**, **BPDU-Guard**, **DHCP Snooping**, isolation du Management.
+  - Déclaration de l'agent SNMPv3 pour intégration immédiate dans la supervision **PRTG**.
+
+### 4. 🔐 Déploiement Windows LAPS & Durcissement Post-Audit
+- **Dossier :** `Projects/Windows-LAPS/Deploy-WindowsLAPS.ps1`
+- **Contexte :** Remédiation post-audit de sécurité pour éradiquer les attaques par rebond (**Pass-the-Hash**).
+- **Capacités :**
+  - Extension du schéma Active Directory pour les attributs LAPS (`ms-Mcs-AdmPwd`).
+  - Déploiement de la stratégie GPO / Registre : mot de passe administrateur local unique de 16 caractères complexes.
+  - Rotation automatique tous les 30 jours et délégation stricte des droits de lecture aux seuls administrateurs habilités.
+  - Audit d'expiration des mots de passe sur l'ensemble des machines de l'annuaire.
+
+### 5. 🏢 Bascule Planifiée de Datacenter & Orchestration Veeam PRA
+- **Dossier :** `Projects/Datacenter-Migration/Invoke-VeeamFailoverPlan.ps1`
+- **Contexte :** Déménagement d'infrastructures d'hébergement critiques vers un nouveau Datacenter.
+- **Capacités :**
+  - Synchronisation finale des points de restauration par réplication inter-sites Veeam Backup & Replication.
+  - Arrêt propre et ordonné des machines virtuelles sources sur le cluster d'origine.
+  - Basculement automatisé (**Planned Failover**) des VMs critiques (Contrôleurs de domaine, SQL, ERP, File Servers).
+  - Re-IPing automatique des interfaces réseaux et validation de la connectivité post-bascule.
+
+### 6. 🖥️ Industrialisation MDT / WDS (~200 Postes Déployés)
+- **Dossier :** `Projects/MDT-Deployment/Invoke-MDTIndustrialization.ps1`
+- **Contexte :** Migration industrielle de ~200 postes (Windows 7 vers 10/11) pour Texdecor Group.
+- **Capacités :**
+  - Structuration de l'arborescence des pilotes par constructeur (**Total Control** : Dell, HP, Lenovo).
+  - Génération des fichiers `CustomSettings.ini` et `Bootstrap.ini` pour un déploiement Zero-Touch.
+  - Nommage automatisé selon le numéro de série constructeur (`CLI-%SERIAL%`).
+  - Injection des scripts post-installation : purge bloatware, chiffrement BitLocker XTS-256 et intégration LAPS.
+
+### 7. 🌐 Refonte WAN Multi-Sites (MPLS / SD-WAN) & PRA Intersites
+- **Dossier :** `Projects/WAN-MPLS-Refonte/Invoke-WANMigrationPlan.ps1`
+- **Contexte :** Migration WAN inter-sites, bascule opérateur et sécurisation de la bande passante de réplication Veeam.
+- **Capacités :**
+  - Audit **MTU Path Discovery** (contrôle du bit DF Don't Fragment pour éliminer le black-holing ICMP).
+  - Mesure de la latence moyenne, gigue et taux de perte de paquets vers les sites distants (SLA opérateur).
+  - Validation de la connectivité sur le port de réplication Veeam WAN Accelerator (Port 6162).
+  - Édition d'un **Procès-Verbal de Recette Opérateur** en HTML.
+
+---
+
+## 🤖 AIOps, Astreinte 24/7 & Résilience
+
+| Module | Fonctionnement | Valeur Métier |
 |---|---|---|
-| PowerShell | 5.1+ | Inclus nativement Windows 10/11 |
-| Windows | 10 (1903+) / 11 | Windows Server 2016+ supporté |
-| RSAT (AD) | Optionnel | Active uniquement le module AD |
-| Microsoft.Graph | Optionnel | Active uniquement le module M365 |
-| Pester | 5.0+ | Tests uniquement |
+| **Invoke-SelfHealingService.ps1** | Exécuté toutes les 15 min via le Planificateur de tâches. Vérifie les services critiques (Spooler, Windows Update, DNS, Defender), purge le disque C: dès 85% d'occupation et réinitialise le DNS si Internet tombe. | **Résout 80% des tickets N1 sans intervention humaine.** |
+| **Invoke-P1EmergencyTriage.ps1** | Boîte noire d'urgence pour astreinte P1/P2. Extrait les derniers Minidumps BSOD (`C:\Windows\Minidump`), les 50 derniers événements d'erreurs, l'état SMART et produit un rapport d'incident Flash en moins de 30 secondes. | **Respect strict de la GTR / GTI lors d'incidents critiques P1.** |
+| **Invoke-RansomwareShield.ps1** | KillSwitch d'isolement d'urgence. Coupe immédiatement toutes les interfaces réseau, bloque les ports SMB/RDP, protège les clichés instantanés VSS et exporte la liste des processus suspects et connexions actives (`netstat`). | **Endiguement immédiat d'une attaque par ransomware.** |
+| **Invoke-PredictiveHealthAnalysis.ps1** | Régression linéaire mathématique sur l'historique d'écriture disque pour prédire le jour exact de saturation du disque C:, analyse l'usure SSD (TBW) et génère une analyse de cause racine (RCA) pré-rédigée pour le ticket. | **Prévention proactive des pannes avant impact utilisateur.** |
+| **Invoke-DRTest.ps1** | Simulation d'interruption totale de production. Calcule le RPO réel et le RTO estimé, audite l'immutabilité WORM des sauvegardes Veeam et délivre un Certificat officiel de PRA/PCA pour les audits de certification. | **Garantie de continuité d'activité pour les comités de direction.** |
 
-> **Aucune dépendance externe obligatoire.** Robocopy (natif Windows) requis pour la migration.
+---
 
-### Installation 1-Clic (Recommandé)
+## 🏢 Infrastructure, Hyperviseurs & Cloud Hybride
 
-Faites un clic droit sur **`Setup.bat`** et sélectionnez **« Exécuter en tant qu'administrateur »** :
-- Déploie l'environnement dans `C:\ESN-Toolkit`
-- Configure automatiquement les droits d'exécution PowerShell
-- Crée les raccourcis sur le Bureau : **Interface Graphique (GUI)** et **Console Interactive**
+### 🖥️ Clusters de Virtualisation (VMware vSphere & Nutanix)
+- **Script :** `Invoke-HypervisorAudit.ps1`
+- Analyse de la santé des hôtes ESXi et des nœuds Nutanix AOS/AHV.
+- Détection des **snapshots obsolètes (> 72h)** responsables de dégradation majeure des I/O de stockage.
+- Alerte sur la surallocation de CPU/vRAM et le seuil de saturation des Datastores VMFS/NFS.
 
-Ou manuellement en PowerShell :
-```powershell
-# Cloner le repository
-git clone https://github.com/aberrada-engineer/windows-support-automation-toolkit.git C:\ESN-Toolkit
-cd C:\ESN-Toolkit
+### ✉️ Messagerie Exchange Hybride & Flux SMTP
+- **Script :** `Invoke-ExchangeHealthCheck.ps1`
+- Contrôle de l'état des services de transport et des files d'attente (**Mail Queues**).
+- Détection du phénomène de **Backpressure** (saturation ressource disque/mémoire bloquant l'émission des emails).
+- Validation de la délivrabilité et de la sécurité des domaines : contrôle des enregistrements **MX, SPF, DKIM et DMARC**.
 
-# Exécuter l'installeur
-.\Install-ESNToolkit.ps1
+### 🌐 Services Cœur de Réseau (Core Services)
+- **Script :** `Invoke-CoreServicesAudit.ps1`
+- Audit des étendues DHCP : alerte immédiate en cas de saturation de scope (> 85% d'adresses allouées).
+- Détection des enregistrements DNS fantômes et validation du scavenging automatique.
+- Inventaire des certificats SSL/TLS machine et alerte sur les certificats expirant à moins de 30 jours.
+
+### 📑 Gouvernance COPIL / COTECH Mensuel
+- **Script :** `Invoke-COPILReportGenerator.ps1`
+- Conçu spécifiquement pour les réunions de gouvernance d'infogérance haut de gamme.
+- Calcul en temps réel du taux de disponibilité globale (objectif contractuel **SLA 99.9%**).
+- Répartition des tickets par sévérité (**P1 Bloquant, P2 Majeur, P3/P4 Demandes**) et calcul du MTTR.
+- Production d'un livrable exécutif HTML intégrant les arbitrages de capacité et les recommandations d'architecture.
+
+---
+
+## 🖥️ Interfaces Graphique & Console Interactive
+
+### 1. Interface Graphique (GUI) — `ESN-GUI.ps1`
+Accessible via le lanceur `ESN-Launcher.bat` ou l'exécutable déployé sur le bureau :
+- **Onglet 1 : Diagnostics & Auto-Fix** (Audit de santé, remédiation automatique, mode simulation, export ZIP incident).
+- **Onglet 2 : Support N1/N2 & Caches** (Spooler, DNS, caches M365 Teams/Outlook/OneDrive, Windows Update, agent GLPI).
+- **Onglet 3 : Infra, AD & Serveurs** (Active Directory, VMware/Nutanix, Exchange, DHCP/DNS/PKI, Entra ID, Veeam).
+- **Onglet 4 : Migration Poste A à Z** (Sauvegarde complète de profil, restauration en 1-clic, rapports).
+- **Onglet 5 : AIOps & SecOps** (Gardien Self-Healing, Zero-Touch Provisioning, durcissement ANSSI, Triage P1, KillSwitch).
+- **Onglet 6 : Projets Référents & COPIL** (Boutons d'exécution directe pour les 6 projets majeurs et le rapport exécutif SLA 99.9%).
+
+### 2. Console Interactive (TUI) — `ESN-Console.ps1`
+Idéale en session PowerShell distante, PowerShell Direct ou RDP à faible débit :
+- **29 options numérotées** couvrant toutes les fonctionnalités d'un simple chiffre.
+- Sous-menu dédié `[26]` pour exécuter, auditer ou simuler les 6 projets majeurs.
+
+---
+
+## 🚀 Démarrage Rapide
+
+### Option A : Installation en 1 clic (Recommandée)
+Exécutez simplement `Setup.bat` en tant qu'administrateur :
+```cmd
+Setup.bat
+```
+Le script configure l'environnement, crée le répertoire `C:\ESN-Toolkit`, place les raccourcis sur le bureau et lance l'interface graphique.
+
+### Option B : Déploiement Silencieux en Masse (GPO / Intune / SCCM)
+```cmd
+Install-EnterpriseSilent.bat
 ```
 
-### Modes d'utilisation
-
-1. **🖥️ Interface Graphique (GUI)** : Double-cliquez sur **`ESN-Launcher.bat`** pour piloter les audits, auto-réparations et exports sans taper une seule commande.
-2. **⚡ Console Interactive (TUI)** : Double-cliquez sur **`ESN-Console.bat`** pour un menu interactif numéroté (idéal en session RDP ou serveur).
-3. **💻 En Ligne de Commande (CLI)** : Exécutez directement les scripts avec paramètres.
-
-### Première utilisation
-
+### Option C : Lancement direct sans installation
 ```powershell
-# Diagnostic complet du poste local — rapport HTML ouvert à la fin
-.\Invoke-IncidentAnalysis.ps1 -OpenReport
+# Lancer l'interface graphique
+powershell.exe -ExecutionPolicy Bypass -File .\ESN-GUI.ps1
 
-# Diagnostic + auto-fix + ZIP incident
-.\Invoke-IncidentAnalysis.ps1 -AutoFix -ExportZip -OpenReport
+# Lancer la console interactive
+powershell.exe -ExecutionPolicy Bypass -File .\ESN-Console.ps1
 
-# Diagnostic d'un poste distant avec ticket
-.\Invoke-IncidentAnalysis.ps1 -ComputerName "PC-DUPONT" -IncidentId "INC-20250515" -OpenReport
+# Lancer l'analyse et l'auto-réparation en ligne de commande
+powershell.exe -ExecutionPolicy Bypass -File .\Invoke-IncidentAnalysis.ps1 -AutoFix -OpenReport
 ```
 
 ---
 
-## 💡 Exemples
-
-### Analyse d'incident N1/N2
-
-```powershell
-# Analyse réseau + système uniquement (appel rapide en support)
-.\Invoke-IncidentAnalysis.ps1 -Modules Network,Windows
-
-# Diagnostic réseau avec auto-correction DNS
-.\Invoke-IncidentAnalysis.ps1 -Modules Network -Fix DNS -Force
-
-# Analyse complète en simulation (aucune modification système)
-.\Invoke-IncidentAnalysis.ps1 -AutoFix -Simulation -OpenReport
-
-# Audit AD seul
-.\Invoke-IncidentAnalysis.ps1 -Modules AD
-
-# Audit M365 avec rapport
-.\Invoke-IncidentAnalysis.ps1 -Modules M365 -OpenReport
-```
-
-**Objet retourné (pipeline-friendly) :**
-
-```powershell
-$r = .\Invoke-IncidentAnalysis.ps1 -Modules Network,Windows,AD
-
-$r.HealthScore        # 82  — score global pondéré
-$r.ScoreNetwork       # 95  — score réseau
-$r.ScoreSecurity      # 70  — score sécurité
-$r.DiagErrors         # 2   — erreurs détectées
-$r.RemediationsFixed  # 3   — remédiations appliquées
-$r.RebootRequired     # False
-$r.ReportPath         # C:\ESN-Toolkit\Reports\..._rapport.html
-$r.JsonPath           # C:\ESN-Toolkit\Reports\....json
-$r.ZipPath            # C:\ESN-Toolkit\ZipIncidents\....zip
-```
-
-### Troubleshooting — cas fréquents en ESN
-
-```powershell
-# Poste sans internet — diagnostic + corrections réseau
-.\Invoke-IncidentAnalysis.ps1 -Modules Network -Fix DNS,Winsock -Force
-
-# PC lent — analyse + nettoyage fichiers temporaires
-.\Invoke-IncidentAnalysis.ps1 -Modules Windows -Fix TempFiles -AutoFix
-
-# Outlook ne s'ouvre plus / mode hors-ligne bloqué
-.\Invoke-IncidentAnalysis.ps1 -Fix Outlook -AutoFix -Force
-
-# Teams lent ou qui plante
-.\Invoke-IncidentAnalysis.ps1 -Fix Teams -AutoFix -Force
-
-# Windows Update bloqué
-.\Invoke-IncidentAnalysis.ps1 -Fix WindowsUpdate -AutoFix -Force
-
-# Collecte logs pour ticket (zéro modification)
-.\Invoke-IncidentAnalysis.ps1 -Modules Network,Windows -ExportZip
-
-# OneDrive ne se synchronise plus
-.\Invoke-IncidentAnalysis.ps1 -Fix OneDrive -AutoFix -Force
-```
-
-### Auto-remédiation ciblée
-
-```powershell
-Import-Module .\Modules\Remediation\ESN-Remediation.psm1
-
-# Voir tout le catalogue disponible
-Get-RemediationCatalog
-
-# Tester si un problème est présent (sans rien modifier)
-Test-RemediationNeeded -Id "DNS"
-Test-RemediationNeeded -Id "TempFiles"
-
-# Détecter tous les problèmes sans corriger
-Invoke-Remediation
-
-# Appliquer automatiquement tout ce qui est détecté
-Invoke-Remediation -AutoFix -Force
-
-# Cibler des remédiations précises
-Invoke-Remediation -Fix DNS,Teams,TempFiles -AutoFix -Force
-
-# Poste distant
-Invoke-Remediation -ComputerName "PC-DUPONT" -AutoFix -Force
-
-# Simulation complète (aucune modification)
-Invoke-Remediation -AutoFix -Simulation
-```
-
-### Actions Active Directory
-
-```powershell
-Import-Module .\Modules\AD\ESN-AD.psm1
-Import-Module .\Core\ESN-Core.psm1
-Initialize-ESNSession -ScriptName "AD-Fix" -IncidentId "INC-AD-001"
-
-# Audit complet du domaine (comptes, DCs, réplication, GPO)
-Invoke-ADAudit -InactiveDays 90
-
-# Déverrouiller un compte
-Invoke-ADUserReset -Username "jdupont" -UnlockOnly
-
-# Reset mot de passe + déverrouillage (MDP temporaire généré)
-Invoke-ADUserReset -Username "jdupont"
-
-# Créer un utilisateur avec convention de nommage ESN
-New-ADUserESN -FirstName "Marie" -LastName "Dupont" `
-              -Department "Finance" -Title "Comptable" -Manager "jmartin"
-```
-
-### Rapport HTML — structure de sortie
-
-<!-- PLACEHOLDER — Screenshot rapport HTML
-![Rapport HTML ESN-Toolkit](docs/screenshots/rapport-html.png)
-Capturer le rapport dans C:\ESN-Toolkit\Reports\ et déposer dans docs/screenshots/
--->
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│  Score Global : 82/100 — Bon                                │
-│  ████████████████░░░░                                       │
-│                                                             │
-│  [Réseau 95] [Système 80] [Sécurité 70] [Stock. 88] [Svc 100] │
-│                                                             │
-│  Machine : PC-DUPONT | Windows 11 Pro | RAM 8 Go | i7-12700 │
-│                                                             │
-│  ▶ Recommandations actionnables    [3 actions]   [pliable]  │
-│  ▶ Impacts détaillés sur le score  [traçabilité] [pliable]  │
-│  ▶ Base de connaissances incidents [2 patterns]  [pliable]  │
-│  ▶ Remédiations exécutées          [3 corrigées] [pliable]  │
-│  ▶ Détail de tous les checks       [47 résultats][pliable]  │
-│  {} Export JSON                    [payload inline]         │
-└─────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 📊 Système de scoring santé
-
-### Grille de pondération
-
-```
-Score Global = Réseau×20% + Système×20% + Sécurité×25% + Stockage×20% + Services×15%
-```
-
-| Domaine | Poids | Principaux critères évalués |
-|---|---|---|
-| **Réseau** | 20% | IP valide, passerelle joignable, DNS résolu, latence, internet |
-| **Système** | 20% | RAM, CPU, uptime, events critiques 24h, crash dumps |
-| **Sécurité** | 25% | Defender actif, firewall, BitLocker, SMBv1 off, WDigest off, UAC |
-| **Stockage** | 20% | % disque C: (pondéré), SMART prédictif, fichiers temp |
-| **Services** | 15% | Services critiques en cours d'exécution |
-
-### Niveaux de score et labels
-
-| Score | Label | Signification |
-|---|---|---|
-| 90–100 | **Excellent** | Machine saine, aucune action requise |
-| 80–89 | **Bon** | État correct, quelques optimisations possibles |
-| 60–79 | **Dégradé** | Problèmes non bloquants, action recommandée |
-| 40–59 | **Mauvais** | Problèmes impactant les performances |
-| 0–39 | **Critique** | Intervention immédiate requise |
-
-### Grille scoring sécurité (exemple détaillé)
-
-| Check | Points | Pénalité si KO |
-|---|---|---|
-| Windows Defender actif | 20 pts | −20 pts |
-| Firewall domaine actif | 15 pts | −15 pts |
-| SMBv1 désactivé | 10 pts | −10 pts (CRITIQUE) |
-| WDigest désactivé | 10 pts | −10 pts (CRITIQUE) |
-| UAC actif | 5 pts | −5 pts |
-| BitLocker actif | 10 pts | −6 pts si inactif |
-| Firewall public actif | 10 pts | −10 pts |
-| RDP NLA requis | 5 pts | −3 pts si absent |
-
-### Traçabilité des impacts
-
-```
-Domaine      │ Problème                     │ Impact score
-─────────────┼──────────────────────────────┼─────────────
-Sécurité     │ SMBv1 ACTIVÉ                 │ −10 pts
-Sécurité     │ Firewall public désactivé    │ −10 pts
-Système      │ RAM à 92%                    │ −25 pts
-Services     │ WinDefend arrêté (critique)  │ −25 pts
-Réseau       │ Latence 250ms                │ − 8 pts
-```
-
-### Comparaison avant/après remédiation
-
-```powershell
-$avant = Invoke-HealthScore -PassThru
-Invoke-Remediation -AutoFix -Force
-$apres = Invoke-HealthScore -PassThru
-Compare-HealthScore -Before $avant -After $apres
-```
-
-```
-  Global      Avant:  58  Après:  81  ▲ +23
-  Network     Avant:  95  Après:  95  = 0
-  Security    Avant:  25  Après:  75  ▲ +50
-  System      Avant:  70  Après:  80  ▲ +10
-  Storage     Avant:  85  Après:  85  = 0
-  Services    Avant:  60  Après:  80  ▲ +20
-```
-
----
-
-## 🚚 Migration de postes & Profils Utilisateur (De A à Z)
-
-### Ce qui est migré et sauvegardé
-
-| Module | Contenu sauvegardé et restauré | Score impact |
-|---|---|---|
-| **Données personnelles** | Bureau, Documents, Téléchargements, Images, Musique, Vidéos | 30 pts |
-| **Messagerie & Office** | Fichiers PST, Signatures Outlook, Registre des profils Office | 20 pts |
-| **Navigateurs** | Chrome, Edge, Firefox (favoris/bookmarks, préférences) | 10 pts |
-| **Imprimantes** | Export CSV + script automatique `Reinstall-Printers.ps1` | 10 pts |
-| **Lecteurs réseau** | Export CSV + script automatique `Remap-Drives.ps1` | 10 pts |
-| **Profils Wi-Fi** | Export des clés Wi-Fi + script de réimport `Restore-WiFi.bat` | Inclus |
-| **Logiciels installés** | Inventaire complet des applications (Rapport HTML & CSV) | Inclus |
-| **Clés SSH & Dev** | Dossier `.ssh` (clés d'authentification) et `.gitconfig` | Inclus |
-| **Vérification intégrité** | Comparaison automatique du nombre de fichiers source vs destination | 15 pts |
-| **Manifest & Traçabilité** | Manifest JSON v2.0 certifié + Rapport HTML interactif | 5 pts |
-
-### Utilisation 1-Clic pour Techniciens et Administrateurs
-
-1. **Via l'Assistant Interactif** :
-   - Double-cliquez sur **`Start-Migration.bat`** (ou lancez `.\Invoke-FullStationMigration.ps1`).
-   - L'assistant détecte automatiquement tous les profils de la machine.
-   - Choisissez simplement **[1] Sauvegarder** ou **[2] Restaurer**.
-   - Compatible clé USB externe, disque dur externe ou partage réseau UNC (`\\NAS\Migrations`).
-
-2. **Via l'Interface Graphique (GUI)** :
-   - Ouvrez `ESN-Launcher.bat` > Rendez-vous sur l'onglet **« 🚚 Migration de Poste »** > Cliquez sur *« Sauvegarder Ancien Poste »* ou *« Restaurer sur Nouveau Poste »*.
-
-3. **En Ligne de Commande (PowerShell)** :
-```powershell
-# ÉTAPE 1 — Capturer l'ancien poste en local (ex: vers clé USB E:\Migrations)
-.\Invoke-Migration.ps1 -Action Capture -Username "jdupont" -BackupRoot "E:\Migrations" -All
-
-# ÉTAPE 2 — Restaurer sur le nouveau poste
-.\Invoke-Migration.ps1 -Action Restore -BackupDir "E:\Migrations\jdupont_PC-ANCIEN_2026-05-15_1430" -Username "jdupont"
-```
-
----
-
-## 🏆 Projets Réels & Playbooks d'Ingénierie (`Projects/`)
-
-Le dossier **`Projects/`** contient les scripts d'automatisation et dossiers méthodologiques prêts à l'emploi reproduisant fidèlement les grands projets d'infrastructure menés par **Amine BERRADA** :
-
-| Projet Réel | Outil d'Automatisation | Périmètre & Cas d'Usage | Livrable / Sortie |
-|---|---|---|---|
-| **Migration Inter-Domaines AD** | `Projects/AD-Migration/Invoke-ADDomainMigration.ps1` | Fusion de domaines sans coupure : mapping SID History, conservation des ACL NTFS (`icacls`), bascule de poste sans perte de profil. | Fiche de projet HTML + mapping CSV |
-| **Déploiement EDR (+200 Hôtes)** | `Projects/EDR-Deployment/Invoke-EDRMassRollout.ps1` | Remplacement industrialisé d'anciens antivirus par un EDR moderne (SentinelOne / Defender) via GPO et token chiffré. | Fiche méthodologique + rapport couverture |
-| **Réseau ~20 Switches Aruba** | `Projects/Network-Aruba/New-ArubaSwitchConfig.ps1` | Générateur de templates de configuration ArubaOS-CX / ProCurve : VLANs, agrégations LACP, RSTP, port-security et intégration PRTG. | Fichier de conf `.cfg` + documentation |
-| **Sécurisation Post-Audit LAPS** | `Projects/Windows-LAPS/Deploy-WindowsLAPS.ps1` | Remédiation des failles post-audit : rotation des mots de passe admin locaux tous les 30 jours et éradication du Pass-the-Hash. | Dossier technique de durcissement |
-| **Bascule de Datacenter** | `Projects/Datacenter-Migration/Invoke-VeeamFailoverPlan.ps1` | Orchestrateur de bascule de Datacenter via Veeam : test de delta de synchronisation, planned failover et validation des flux métiers. | Procès-Verbal officiel de bascule HTML |
-
-# Capture sélective (Outlook + données uniquement)
-.\Invoke-Migration.ps1 -Action Capture `
-    -SourceComputer "PC-ANCIEN" `
-    -Username "jdupont" `
-    -IncludeOutlook
-
-# Simulation capture (audit sans copie réelle)
-.\Invoke-Migration.ps1 -Action Capture `
-    -SourceComputer "PC-ANCIEN" `
-    -Username "jdupont" `
-    -All -Simulation
-
-# Menu interactif si -BackupDir non précisé
-.\Invoke-Migration.ps1 -Action Restore -TargetComputer "PC-NOUVEAU"
-```
-
-### Manifest JSON v2.0 généré
-
-```json
-{
-  "SchemaVersion": "2.0",
-  "Username": "jdupont",
-  "SourceComputer": "PC-ANCIEN",
-  "TargetComputer": "PC-NOUVEAU",
-  "SizeMB": 4820,
-  "ValidationScore": 87,
-  "AnomalyCount": 1,
-  "Anomalies": ["Chrome : profil introuvable"],
-  "CaptureStats": {
-    "Data": { "Desktop": { "SourceFiles": 142, "CopiedFiles": 142, "MissingFiles": 0 } },
-    "Outlook": { "PST": 1, "Signatures": true }
-  }
-}
-```
-
-<!-- PLACEHOLDER — Screenshot rapport migration
-![Rapport Migration ESN-Toolkit](docs/screenshots/migration-report.png)
--->
-
----
-
-## 🌍 Environnements supportés
-
-| Composant | Version minimale | Notes |
-|---|---|---|
-| PowerShell | 5.1 | Inclus Windows 10/11 — PS7 recommandé |
-| Windows Client | 10 (1903+) | Windows 11 pleinement supporté |
-| Windows Server | 2016+ | 2019 / 2022 recommandé |
-| RSAT (module AD) | Optionnel | `Add-WindowsCapability -Online -Name Rsat.ActiveDirectory*` |
-| Microsoft.Graph | Optionnel | `Install-Module Microsoft.Graph -Scope CurrentUser` |
-| Pester | 5.0+ | Tests uniquement — `Install-Module Pester -Scope CurrentUser` |
-| Robocopy | Natif Windows | Requis pour la migration de postes |
-
----
-
-## 🧪 Tests
-
-```powershell
-# Installer Pester
-Install-Module Pester -Force -Scope CurrentUser
-
-# Lancer tous les tests
-Invoke-Pester .\Tests\ -Output Detailed
-
-# Par module
-Invoke-Pester .\Tests\ESN-Toolkit.Tests.ps1     -Tag "Core"        -Output Detailed
-Invoke-Pester .\Tests\ESN-Toolkit.Tests.ps1     -Tag "Network"     -Output Detailed
-Invoke-Pester .\Tests\ESN-Remediation.Tests.ps1 -Tag "Simulation"  -Output Detailed
-Invoke-Pester .\Tests\ESN-HealthScore.Tests.ps1  -Tag "Scoring"     -Output Detailed
-Invoke-Pester .\Tests\ESN-HealthScore.Tests.ps1  -Tag "Integration" -Output Detailed
-```
-
-| Fichier | Tests | Domaines couverts |
-|---|---|---|
-| `ESN-Toolkit.Tests.ps1` | 30+ | Core, Session, Network, Windows, AD, Migration |
-| `ESN-Remediation.Tests.ps1` | 20+ | Catalogue, détection, simulation, fix réel, rapport |
-| `ESN-HealthScore.Tests.ps1` | 50+ | Calcul score, pondération, recommandations, comparaison |
-
----
-
-## 📐 Conventions
-
-### Nommage des fichiers
-
-```
-[CATEG]-[ACTION]-[SUJET].ps1
-
-Exemples :
-  NET-Diag-ReseauComplet.ps1
-  AD-Reset-UserPassword.ps1
-  SEC-Audit-PrivilegesAD.ps1
-  MIG-Backup-UserProfile.ps1
-```
-
-### Niveaux de gravité unifiés (ESN-OutputSchema)
-
-| Niveau | Impact score défaut | Signification |
-|---|---|---|
-| `OK` | 0 pt | Aucun problème |
-| `INFO` | 0 pt | Information contextuelle |
-| `WARNING` | −5 pts | Dégradation non bloquante |
-| `CRITICAL` | −15 pts | Blocage ou risque élevé |
-
-### Header standard de script
-
-```powershell
-<#
-.SYNOPSIS    Résumé en une ligne
-.DESCRIPTION Description détaillée
-.NOTES
-    Auteur  : Amine Berrada
-    Version : 1.0.0
-    Niveau  : N1 | N2 | N3
-    Tags    : réseau, DNS, IP, utilisateur
-    Durée   : ~5 min
-    Urgence : Faible | Moyen | Critique
-#>
-```
-
----
-
-## 🗺️ Roadmap
-
-### v3.1.0 — Prochaine version
-
-- [ ] Tests Pester pour `ESN-OutputSchema` et `ESN-ReportBuilder`
-- [ ] Module `ESN-FortiGate` — diagnostic VPN SSH, analyse logs
-- [ ] Module `ESN-Veeam` — statut jobs backup, alertes PRA/PCA
-- [ ] Alerte Teams webhook intégrée dans `ESN-Remediation`
-- [ ] Remédiation : reset profil Teams v2 (MSIX)
-- [ ] Remédiation : réparation OneDrive Known Folder Move
-
-### v4.0.0 — Vision long terme
-
-- [ ] Dashboard HTML temps réel multi-serveurs
-- [ ] Module PRTG (API REST) — intégration supervision
-- [ ] Runbook interactif guidé P1/P2
-- [ ] Support PowerShell 7 natif (`ForEach-Object -Parallel`)
-- [ ] Export webhook vers GLPI / ServiceNow
-- [ ] Module `ESN-Linux` complet (Bash + remontée PS)
-
----
-
-## 🤝 Contribution
-
-### Standards de contribution
-
-1. **Fork** le repository — créer une branche depuis `main`
-2. **Nommer la branche** : `feat/nom-fonctionnalite` ou `fix/nom-bug`
-3. **Respecter** le header standard de script (voir Conventions)
-4. **Ajouter des tests Pester** pour toute nouvelle fonction
-5. **Vérifier** localement avant PR :
-
-```powershell
-Install-Module PSScriptAnalyzer -Scope CurrentUser
-Invoke-ScriptAnalyzer -Path .\MonScript.ps1 -Severity Error,Warning
-Invoke-Pester .\Tests\ -Output Minimal
-```
-
-6. **Ouvrir une Pull Request** avec description claire
-
-### Ce que nous acceptons
-
-- ✅ Nouveaux modules (respectant l'architecture existante)
-- ✅ Nouveaux patterns dans `IncidentPatterns.json`
-- ✅ Nouvelles remédiations dans `ESN-Remediation.psm1`
-- ✅ Amélioration des tests Pester
-- ✅ Documentation et corrections de bugs
-
-### Ce que nous n'acceptons pas
-
-- ❌ Dépendances externes non natives Windows
-- ❌ Refonte de l'architecture existante
-- ❌ Suppression de la rétro-compatibilité PowerShell 5.1
-- ❌ Scripts sans tests associés
-
----
-
-## 👤 Auteur
-
-**Amine Berrada** — Ingénieur Systèmes & Réseaux | ESN Multi-clients
-
-Stack : Windows Server · Active Directory · Azure / Entra ID · VMware · Nutanix  
-Veeam · FortiGate · SentinelOne (EDR) · PRTG · PowerShell Automation  
-MCO · Incidents P1/P2 · Migrations · Déploiements MDT/WDS
-
-<!-- Décommenter après création du profil LinkedIn
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-AmineBerrrada-0077B5?style=flat-square&logo=linkedin)](https://www.linkedin.com/in/amine-berrada-infra/)
--->
+## 👤 Auteur & Référent Technique
+
+**Amine BERRADA**  
+*Administrateur Systèmes et Réseaux Confirmé • Référent Technique N3*  
+Spécialiste MCO, Cloud Hybride, Virtualisation & Cybersécurité  
+Genève (Suisse) · Paris (Île-de-France) · Lille (Hauts-de-France)
+
+- **Email :** [berradapro@outlook.com](mailto:berradapro@outlook.com)
+- **LinkedIn :** [linkedin.com/in/amine-berrada-infra](https://www.linkedin.com/in/amine-berrada-infra/)
+- **GitHub :** [github.com/aberrada-engineer](https://github.com/aberrada-engineer)
 
 ---
 
 ## 📜 Licence
 
-MIT License — Utilisation libre en environnement professionnel.
-
----
-
-<div align="center">
-
-**ESN-Toolkit v3.0.0** — 20 fichiers · 7 749 lignes · 8 modules · 70+ tests
-
-*Construit pour les techniciens et ingénieurs qui résolvent de vrais problèmes.*
-
-</div>
->>>>>>> ec870e7 (feat: ESN-Toolkit v3.0.0)
+Ce projet est sous licence MIT — Utilisation libre pour les professionnels de l'informatique, les ESN et les DSI.
