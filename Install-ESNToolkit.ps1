@@ -98,6 +98,16 @@ if ($CreateDesktopShortcut) {
         $CliShortcut.IconLocation = "shell32.dll,27" # Icône terminal
         $CliShortcut.Save()
         Write-Host "  [+] Raccourci Console Interactive cree sur le Bureau" -ForegroundColor Green
+
+        # Raccourci Migration de Poste
+        $MigShortcutPath = Join-Path $DesktopPath "ESN-Toolkit (Migration de Poste).lnk"
+        $MigShortcut = $WshShell.CreateShortcut($MigShortcutPath)
+        $MigShortcut.TargetPath = "$TargetDir\Start-Migration.bat"
+        $MigShortcut.WorkingDirectory = $TargetDir
+        $MigShortcut.Description = "ESN-Toolkit - Assistant de migration de poste et profil utilisateur"
+        $MigShortcut.IconLocation = "shell32.dll,13" # Icône disque / transfert
+        $MigShortcut.Save()
+        Write-Host "  [+] Raccourci Migration de Poste cree sur le Bureau" -ForegroundColor Green
     } catch {
         Write-Host "  [AVERTISSEMENT] Erreur lors de la creation des raccourcis : $($_.Exception.Message)" -ForegroundColor Yellow
     }

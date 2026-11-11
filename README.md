@@ -409,34 +409,42 @@ Compare-HealthScore -Before $avant -After $apres
 
 ---
 
-## 🚚 Migration de postes
+## 🚚 Migration de postes & Profils Utilisateur (De A à Z)
 
-### Ce qui est migré
+### Ce qui est migré et sauvegardé
 
-| Module | Contenu | Score impact |
+| Module | Contenu sauvegardé et restauré | Score impact |
 |---|---|---|
-| **Données** | Bureau, Documents, Téléchargements, Images, Musique, Vidéos | 30 pts |
-| **Outlook** | PST, signatures Outlook, registre Office | 20 pts |
-| **Navigateurs** | Chrome, Edge, Firefox (favoris, extensions, préférences) | 10 pts |
-| **Imprimantes** | Documentation CSV + script `Reinstall-Printers.ps1` | 10 pts |
-| **Lecteurs réseau** | Documentation CSV + script `Remap-Drives.ps1` | 10 pts |
-| **Intégrité** | Comparaison fichiers source vs destination | 15 pts |
-| **Manifest** | JSON v2.0 validé avec stats complètes | 5 pts |
+| **Données personnelles** | Bureau, Documents, Téléchargements, Images, Musique, Vidéos | 30 pts |
+| **Messagerie & Office** | Fichiers PST, Signatures Outlook, Registre des profils Office | 20 pts |
+| **Navigateurs** | Chrome, Edge, Firefox (favoris/bookmarks, préférences) | 10 pts |
+| **Imprimantes** | Export CSV + script automatique `Reinstall-Printers.ps1` | 10 pts |
+| **Lecteurs réseau** | Export CSV + script automatique `Remap-Drives.ps1` | 10 pts |
+| **Profils Wi-Fi** | Export des clés Wi-Fi + script de réimport `Restore-WiFi.bat` | Inclus |
+| **Logiciels installés** | Inventaire complet des applications (Rapport HTML & CSV) | Inclus |
+| **Clés SSH & Dev** | Dossier `.ssh` (clés d'authentification) et `.gitconfig` | Inclus |
+| **Vérification intégrité** | Comparaison automatique du nombre de fichiers source vs destination | 15 pts |
+| **Manifest & Traçabilité** | Manifest JSON v2.0 certifié + Rapport HTML interactif | 5 pts |
 
-### Exemples de commandes migration
+### Utilisation 1-Clic pour Techniciens et Administrateurs
 
+1. **Via l'Assistant Interactif** :
+   - Double-cliquez sur **`Start-Migration.bat`** (ou lancez `.\Invoke-FullStationMigration.ps1`).
+   - L'assistant détecte automatiquement tous les profils de la machine.
+   - Choisissez simplement **[1] Sauvegarder** ou **[2] Restaurer**.
+   - Compatible clé USB externe, disque dur externe ou partage réseau UNC (`\\NAS\Migrations`).
+
+2. **Via l'Interface Graphique (GUI)** :
+   - Ouvrez `ESN-Launcher.bat` > Rendez-vous sur l'onglet **« 🚚 Migration de Poste »** > Cliquez sur *« Sauvegarder Ancien Poste »* ou *« Restaurer sur Nouveau Poste »*.
+
+3. **En Ligne de Commande (PowerShell)** :
 ```powershell
-# ÉTAPE 1 — Capturer l'ancien poste (tout inclus)
-.\Invoke-Migration.ps1 -Action Capture `
-    -SourceComputer "PC-ANCIEN" `
-    -Username "jdupont" `
-    -All
+# ÉTAPE 1 — Capturer l'ancien poste en local (ex: vers clé USB E:\Migrations)
+.\Invoke-Migration.ps1 -Action Capture -Username "jdupont" -BackupRoot "E:\Migrations" -All
 
 # ÉTAPE 2 — Restaurer sur le nouveau poste
-.\Invoke-Migration.ps1 -Action Restore `
-    -BackupDir "C:\ESN-Toolkit\Migrations\jdupont_PC-ANCIEN_2025-05-15_1430" `
-    -TargetComputer "PC-NOUVEAU" `
-    -Username "jdupont"
+.\Invoke-Migration.ps1 -Action Restore -BackupDir "E:\Migrations\jdupont_PC-ANCIEN_2026-05-15_1430" -Username "jdupont"
+```
 
 # Capture sélective (Outlook + données uniquement)
 .\Invoke-Migration.ps1 -Action Capture `

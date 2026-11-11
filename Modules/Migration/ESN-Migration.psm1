@@ -206,14 +206,21 @@ function Invoke-UserStateCapture {
     L "Source : $SourceComputer | User : $Username | Backup : $backupDir" "INFO"
     if ($Simulation) { L "MODE SIMULATION — aucune copie réelle" "WARN" }
 
-    # Vérification profil source
-    $sourcePath = "\\$SourceComputer\C$\Users\$Username"
+    # Détection Local vs Distant pour compatibilité clé USB / réseau
+    $isLocal = [string]::IsNullOrWhiteSpace($SourceComputer) -or ($SourceComputer -in @(".", "localhost", "127.0.0.1", $env:COMPUTERNAME))
+    if ($isLocal) {
+        $SourceComputer = $env:COMPUTERNAME
+        $sourcePath = "$env:SystemDrive\Users\$Username"
+    } else {
+        $sourcePath = "\\$SourceComputer\C$\Users\$Username"
+    }
+
     if (-not (Test-Path $sourcePath)) {
         L "Profil source introuvable : $sourcePath" "ERROR"
         $anomalies.Add("Profil source introuvable : $sourcePath")
         return $null
     }
-    L "Profil source accessible : $sourcePath" "OK"
+    L "Profil source accessible : $sourcePath (Local: $isLocal)" "OK"
 
     # ── 1. DONNÉES UTILISATEUR ────────────────────────────────
     $folders = [ordered]@{
@@ -406,6 +413,56 @@ function Invoke-UserStateCapture {
         }
     }
 
+    # ── 6. PROFILS WI-FI ──────────────────────────────────────
+    $wifiDst = Join-Path $backupDir "WiFi"
+    New-Item $wifiDst -ItemType Directory -Force | Out-Null
+    if (-not $Simulation) {
+        netsh wlan export profile folder="$wifiDst" key=clear 2>&1 | Out-Null
+        $wifiFiles = Get-ChildItem $wifiDst -Filter "*.xml" -ErrorAction SilentlyContinue
+        if ($wifiFiles) {
+            $wifiRestoreCmds = @("@echo off", "echo Restauration des profils Wi-Fi...")
+            foreach ($wf in $wifiFiles) {
+                $wifiRestoreCmds += "netsh wlan add profile filename=`"%~dp0$($wf.Name)`" user=all"
+            }
+            $wifiRestoreCmds += "echo [OK] Profils Wi-Fi restaures."
+            $wifiRestoreCmds | Out-File (Join-Path $wifiDst "Restore-WiFi.bat") -Encoding ASCII
+            L "$(@($wifiFiles).Count) profil(s) Wi-Fi exporte(s)" "OK"
+        }
+    }
+
+    # ── 7. INVENTAIRE DES LOGICIELS INSTALLÉS ──────────────────
+    $appsDst = Join-Path $backupDir "Applications"
+    New-Item $appsDst -ItemType Directory -Force | Out-Null
+    $installedApps = @()
+    $regPaths = @(
+        "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*",
+        "HKLM:\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*",
+        "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*"
+    )
+    foreach ($rp in $regPaths) {
+        $installedApps += Get-ItemProperty $rp -ErrorAction SilentlyContinue |
+            Where-Object { $_.DisplayName -and $_.DisplayName -notmatch "^(KB[0-9]+|Update for)" } |
+            Select-Object @{N="Nom";E={$_.DisplayName}}, @{N="Version";E={$_.DisplayVersion}}, @{N="Editeur";E={$_.Publisher}}
+    }
+    $installedApps = $installedApps | Sort-Object Nom -Unique
+    if ($installedApps) {
+        $installedApps | Export-Csv (Join-Path $appsDst "Applications_Installees.csv") -NoTypeInformation -Encoding UTF8
+        L "$(@($installedApps).Count) application(s) inventoriee(s)" "OK"
+    }
+
+    # ── 8. CLÉS SSH & CONFIGURATION SYSTÈME ───────────────────
+    $sshSrc = Join-Path $sourcePath ".ssh"
+    if (Test-Path $sshSrc) {
+        $sshDst = Join-Path $backupDir "SSH_Keys"
+        if (-not $Simulation) { robocopy $sshSrc $sshDst /E /COPY:DAT /NP /NFL /NDL 2>&1 | Out-Null }
+        L "Cles SSH (.ssh) sauvegardees" "OK"
+    }
+    $gitConfig = Join-Path $sourcePath ".gitconfig"
+    if (Test-Path $gitConfig) {
+        if (-not $Simulation) { Copy-Item $gitConfig (Join-Path $backupDir ".gitconfig") -Force -EA SilentlyContinue }
+        L "Configuration Git (.gitconfig) sauvegardee" "OK"
+    }
+
     # ── TAILLE TOTALE ─────────────────────────────────────────
     $totalMB = if (-not $Simulation) {
         [math]::Round((Get-ChildItem $backupDir -Recurse -EA SilentlyContinue |
@@ -530,7 +587,13 @@ function Invoke-UserStateRestore {
         ManifestValid = $true
     }
 
-    $targetProfile = "\\$TargetComputer\C$\Users\$Username"
+        $isLocalTarget = [string]::IsNullOrWhiteSpace($TargetComputer) -or ($TargetComputer -in @(".", "localhost", "127.0.0.1", $env:COMPUTERNAME))
+    if ($isLocalTarget) {
+        $TargetComputer = $env:COMPUTERNAME
+        $targetProfile = "$env:SystemDrive\Users\$Username"
+    } else {
+        $targetProfile = "\\$TargetComputer\C$\Users\$Username"
+    }
 
     # ── 1. DONNÉES UTILISATEUR ────────────────────────────────
     $folderMap = [ordered]@{

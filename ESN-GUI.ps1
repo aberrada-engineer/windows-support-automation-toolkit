@@ -203,6 +203,44 @@ $btnVeeam = Create-ModernButton -Text "💾 Audit Sauvegardes Veeam" -X 600 -Y 2
 $tab3.Controls.Add($btnVeeam)
 
 $tabControl.Controls.Add($tab3)
+
+# --- ONGLET 4 : MIGRATION DE POSTE DE A A Z ---
+$tab4 = New-Object System.Windows.Forms.TabPage
+$tab4.Text = "🚚 Migration de Poste (A à Z)"
+$tab4.BackColor = [System.Drawing.Color]::White
+
+$btnMigWizard = Create-ModernButton -Text "📤 Sauvegarder Ancien Poste (Capture A-Z)" -X 20 -Y 20 -Width 270 -Height 50 -BgColor ([System.Drawing.Color]::FromArgb(16, 124, 65)) -Action {
+    Append-Log "Lancement de l'Assistant de Sauvegarde / Migration..." "Cyan"
+    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-FullStationMigration.ps1`""
+}
+$tab4.Controls.Add($btnMigWizard)
+
+$btnMigRestore = Create-ModernButton -Text "📥 Restaurer sur Nouveau Poste (1-Clic)" -X 310 -Y 20 -Width 270 -Height 50 -BgColor ([System.Drawing.Color]::FromArgb(0, 120, 212)) -Action {
+    Append-Log "Lancement de la Restauration Nouveau Poste..." "Cyan"
+    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-FullStationMigration.ps1`""
+}
+$tab4.Controls.Add($btnMigRestore)
+
+$btnOpenMigDir = Create-ModernButton -Text "📂 Ouvrir Dossier Migrations" -X 600 -Y 20 -Width 270 -Height 50 -BgColor ([System.Drawing.Color]::FromArgb(85, 85, 85)) -Action {
+    $migDir = "C:\ESN-Toolkit\Migrations"
+    if (-not (Test-Path $migDir)) { New-Item $migDir -ItemType Directory -Force | Out-Null }
+    Start-Process "explorer.exe" $migDir
+    Append-Log "Dossier ouvert : $migDir" "Green"
+}
+$tab4.Controls.Add($btnOpenMigDir)
+
+$btnLastMigReport = Create-ModernButton -Text "📄 Consulter Dernier Rapport Migration" -X 20 -Y 85 -Width 270 -Height 45 -BgColor ([System.Drawing.Color]::FromArgb(43, 87, 154)) -Action {
+    $latestReport = Get-ChildItem "C:\ESN-Toolkit\Migrations\*\Migration-Report.html" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    if ($latestReport) {
+        Start-Process $latestReport.FullName
+        Append-Log "Rapport ouvert : $($latestReport.FullName)" "Green"
+    } else {
+        Append-Log "Aucun rapport de migration trouvé." "Yellow"
+    }
+}
+$tab4.Controls.Add($btnLastMigReport)
+
+$tabControl.Controls.Add($tab4)
 $form.Controls.Add($tabControl)
 
 # ─────────────────────────────────────────────
