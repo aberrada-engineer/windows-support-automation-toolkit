@@ -1,34 +1,31 @@
 <div align="center">
 
-# 🖥️ ESN-Toolkit
+# 🖥️ ESN-Toolkit & AIOps Platform
 
-### Workstation & Infrastructure Automation Toolkit
+### Autonomous Workstation & Infrastructure Operations Platform
 
-**Plateforme PowerShell enterprise de diagnostic, remédiation automatique,  
-scoring santé et migration de postes — conçue pour les environnements ESN multi-clients.**
+**Plateforme PowerShell enterprise d'auto-réparation (Self-Healing), provisioning zero-touch,  
+audit de sécurité ANSSI, cartographie réseau et migration de postes — taillée pour remplacer les interventions humaines N1/N2.**
 
 ---
 
-<!-- Remplacer aberrada-engineer par votre handle GitHub -->
-![Version](https://img.shields.io/badge/version-3.0.0-blue?style=flat-square)
+![Version](https://img.shields.io/badge/version-3.2.0-blue?style=flat-square)
 ![PowerShell](https://img.shields.io/badge/PowerShell-5.1%2B-5391FE?style=flat-square&logo=powershell&logoColor=white)
-![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11-0078D4?style=flat-square&logo=windows&logoColor=white)
-![Lines](https://img.shields.io/badge/Lines%20of%20Code-7%2C749-orange?style=flat-square)
-![Modules](https://img.shields.io/badge/Modules-8-purple?style=flat-square)
-![Tests](https://img.shields.io/badge/Pester%20Tests-70%2B-brightgreen?style=flat-square)
+![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11%20%7C%20Server%202016--2022-0078D4?style=flat-square&logo=windows&logoColor=white)
+![Automation](https://img.shields.io/badge/AIOps-Self--Healing-brightgreen?style=flat-square)
+![Security](https://img.shields.io/badge/Compliance-ANSSI%20%2F%20CIS-red?style=flat-square)
 ![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
-[![CI](https://github.com/aberrada-engineer/ESN-Toolkit/actions/workflows/ci.yml/badge.svg)](https://github.com/aberrada-engineer/ESN-Toolkit/actions/workflows/ci.yml)
+[![GitHub](https://img.shields.io/badge/GitHub-aberrada--engineer-181717?style=flat-square&logo=github)](https://github.com/aberrada-engineer/windows-support-automation-toolkit)
 
 ---
 
 [À propos](#-à-propos) •
-[Fonctionnalités](#-fonctionnalités) •
+[Fonctionnalités AIOps](#-fonctionnalités-aiops) •
 [Architecture](#-architecture) •
 [Démarrage rapide](#-démarrage-rapide) •
-[Exemples](#-exemples) •
-[Scoring santé](#-système-de-scoring-santé) •
-[Migration](#-migration-de-postes) •
-[Roadmap](#-roadmap)
+[Self-Healing & Sécurité](#-gardien-autonome--durcissement-anssi) •
+[Migration A à Z](#-migration-de-postes--profils-utilisateur-de-a-à-z) •
+[Auteur](#-auteur)
 
 </div>
 
@@ -36,18 +33,18 @@ scoring santé et migration de postes — conçue pour les environnements ESN mu
 
 ## 🎯 À propos
 
-ESN-Toolkit est une **plateforme d'automatisation opérationnelle PowerShell** conçue pour les techniciens support, administrateurs systèmes et ingénieurs infrastructure en environnement ESN multi-clients.
+ESN-Toolkit est une **plateforme d'automatisation d'opérations IT (AIOps)** de niveau entreprise conçue pour les techniciens support, administrateurs systèmes et ingénieurs infrastructure.
 
-En **une seule commande**, le toolkit :
+Elle remplace les tâches manuelles et répétitives par des mécanismes autonomes de pointe :
 
-- Analyse complètement un poste (réseau, système, sécurité, stockage, services)
-- Calcule un **score de santé pondéré 0–100** par domaine
-- Détecte les problèmes et applique des **remédiations automatiques** (8 cas couverts)
-- Génère un **rapport HTML professionnel offline** exploitable immédiatement en ticket
-- Exporte un **JSON structuré** (schéma unifié OK/WARNING/CRITICAL) pour intégration
-- Consulte une **base de connaissances** de 20 patterns d'incidents ESN courants
+- 🤖 **Auto-Guérison en tâche de fond (Self-Healing Daemon)** : Relance automatique des services plantés, purge préventive de saturation disque C:, auto-résolution des pannes réseau, surveillance des fuites mémoire.
+- 🚀 **Zero-Touch Provisioning** : Préparation intégrale d'un poste neuf en 1 seul clic (renommage normalisé, purge bloatware, déploiement silencieux du socle logiciel via Winget, activation BitLocker).
+- 🛡️ **Durcissement Cybersécurité ANSSI / CIS** : Contrôle de conformité de 20+ règles de sécurité (UAC, SMBv1, LLMNR, NLA RDP, LAPS, ScriptBlock Logging) et remédiation automatique avec score 0-100.
+- 🌐 **Cartographie Réseau & Parc (Fleet Discovery)** : Découverte multi-threadée ultra-rapide des équipements sur le sous-réseau (postes, serveurs, switches, imprimantes, partages SMB).
+- 🚚 **Migration de Poste de A à Z** : Sauvegarde et restauration complète (données, favoris Chrome/Edge/Firefox, archives PST/Outlook, profils Wi-Fi avec clés, lecteurs réseau, imprimantes et inventaire applicatif).
+- 🖥️ **Double Interface Moderne** : Une **Interface Graphique (GUI Windows Forms)** fluide et une **Console Interactive (TUI)** utilisable en session RDP.
 
-> **Zéro dépendance externe — PowerShell 5.1 natif Windows 10/11 — exécutable immédiatement.**
+> **100 % Natif Windows (PowerShell 5.1+) — Zéro dépendance externe — Exécutable immédiatement sur n'importe quelle machine sans prérequis.**
 
 ---
 

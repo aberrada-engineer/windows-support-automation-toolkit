@@ -241,6 +241,37 @@ $btnLastMigReport = Create-ModernButton -Text "📄 Consulter Dernier Rapport Mi
 $tab4.Controls.Add($btnLastMigReport)
 
 $tabControl.Controls.Add($tab4)
+
+# --- ONGLET 5 : AIOPS & AUTONOMIE TOTALE ---
+$tab5 = New-Object System.Windows.Forms.TabPage
+$tab5.Text = "🤖 AIOps & Autonomie"
+$tab5.BackColor = [System.Drawing.Color]::White
+
+$btnDaemon = Create-ModernButton -Text "🤖 Activer Gardien Self-Healing" -X 20 -Y 20 -Width 270 -Height 50 -BgColor ([System.Drawing.Color]::FromArgb(16, 124, 65)) -Action {
+    Append-Log "Installation de la tâche planifiée Self-Healing (15 min)..." "Green"
+    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-SelfHealingService.ps1`" -InstallServiceTask"
+}
+$tab5.Controls.Add($btnDaemon)
+
+$btnProvision = Create-ModernButton -Text "🚀 Zero-Touch Provisioning (Poste Neuf)" -X 310 -Y 20 -Width 270 -Height 50 -BgColor ([System.Drawing.Color]::FromArgb(0, 120, 212)) -Action {
+    Append-Log "Lancement de la préparation de poste neuf..." "Cyan"
+    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-ZeroTouchProvisioning.ps1`""
+}
+$tab5.Controls.Add($btnProvision)
+
+$btnHardening = Create-ModernButton -Text "🛡️ Audit & Durcissement ANSSI" -X 600 -Y 20 -Width 270 -Height 50 -BgColor ([System.Drawing.Color]::FromArgb(180, 40, 40)) -Action {
+    Append-Log "Lancement de l'audit de sécurité et durcissement..." "Red"
+    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-SecurityHardening.ps1`" -OpenReport"
+}
+$tab5.Controls.Add($btnHardening)
+
+$btnFleet = Create-ModernButton -Text "🌐 Cartographie Réseau (Fleet Discovery)" -X 20 -Y 85 -Width 270 -Height 45 -BgColor ([System.Drawing.Color]::FromArgb(112, 48, 160)) -Action {
+    Append-Log "Lancement du scan réseau et cartographie du parc..." "Magenta"
+    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-FleetDiscovery.ps1`" -OpenReport"
+}
+$tab5.Controls.Add($btnFleet)
+
+$tabControl.Controls.Add($tab5)
 $form.Controls.Add($tabControl)
 
 # ─────────────────────────────────────────────
