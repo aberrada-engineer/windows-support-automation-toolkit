@@ -443,6 +443,20 @@ Compare-HealthScore -Before $avant -After $apres
 .\Invoke-Migration.ps1 -Action Restore -BackupDir "E:\Migrations\jdupont_PC-ANCIEN_2026-05-15_1430" -Username "jdupont"
 ```
 
+---
+
+## 🏆 Projets Réels & Playbooks d'Ingénierie (`Projects/`)
+
+Le dossier **`Projects/`** contient les scripts d'automatisation et dossiers méthodologiques prêts à l'emploi reproduisant fidèlement les grands projets d'infrastructure menés par **Amine BERRADA** :
+
+| Projet Réel | Outil d'Automatisation | Périmètre & Cas d'Usage | Livrable / Sortie |
+|---|---|---|---|
+| **Migration Inter-Domaines AD** | `Projects/AD-Migration/Invoke-ADDomainMigration.ps1` | Fusion de domaines sans coupure : mapping SID History, conservation des ACL NTFS (`icacls`), bascule de poste sans perte de profil. | Fiche de projet HTML + mapping CSV |
+| **Déploiement EDR (+200 Hôtes)** | `Projects/EDR-Deployment/Invoke-EDRMassRollout.ps1` | Remplacement industrialisé d'anciens antivirus par un EDR moderne (SentinelOne / Defender) via GPO et token chiffré. | Fiche méthodologique + rapport couverture |
+| **Réseau ~20 Switches Aruba** | `Projects/Network-Aruba/New-ArubaSwitchConfig.ps1` | Générateur de templates de configuration ArubaOS-CX / ProCurve : VLANs, agrégations LACP, RSTP, port-security et intégration PRTG. | Fichier de conf `.cfg` + documentation |
+| **Sécurisation Post-Audit LAPS** | `Projects/Windows-LAPS/Deploy-WindowsLAPS.ps1` | Remédiation des failles post-audit : rotation des mots de passe admin locaux tous les 30 jours et éradication du Pass-the-Hash. | Dossier technique de durcissement |
+| **Bascule de Datacenter** | `Projects/Datacenter-Migration/Invoke-VeeamFailoverPlan.ps1` | Orchestrateur de bascule de Datacenter via Veeam : test de delta de synchronisation, planned failover et validation des flux métiers. | Procès-Verbal officiel de bascule HTML |
+
 # Capture sélective (Outlook + données uniquement)
 .\Invoke-Migration.ps1 -Action Capture `
     -SourceComputer "PC-ANCIEN" `
