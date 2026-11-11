@@ -1,7 +1,3 @@
-<<<<<<< HEAD
-# windows-support-automation-toolkit
-Enterprise Infrastructure &amp; Automation Framework
-=======
 <div align="center">
 
 # 🖥️ ESN-Toolkit
@@ -13,7 +9,7 @@ scoring santé et migration de postes — conçue pour les environnements ESN mu
 
 ---
 
-<!-- Remplacer USERNAME par votre handle GitHub -->
+<!-- Remplacer aberrada-engineer par votre handle GitHub -->
 ![Version](https://img.shields.io/badge/version-3.0.0-blue?style=flat-square)
 ![PowerShell](https://img.shields.io/badge/PowerShell-5.1%2B-5391FE?style=flat-square&logo=powershell&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11-0078D4?style=flat-square&logo=windows&logoColor=white)
@@ -21,7 +17,7 @@ scoring santé et migration de postes — conçue pour les environnements ESN mu
 ![Modules](https://img.shields.io/badge/Modules-8-purple?style=flat-square)
 ![Tests](https://img.shields.io/badge/Pester%20Tests-70%2B-brightgreen?style=flat-square)
 ![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
-[![CI](https://github.com/USERNAME/ESN-Toolkit/actions/workflows/ci.yml/badge.svg)](https://github.com/USERNAME/ESN-Toolkit/actions/workflows/ci.yml)
+[![CI](https://github.com/aberrada-engineer/ESN-Toolkit/actions/workflows/ci.yml/badge.svg)](https://github.com/aberrada-engineer/ESN-Toolkit/actions/workflows/ci.yml)
 
 ---
 
@@ -166,16 +162,28 @@ Générer avec draw.io ou Mermaid et déposer dans docs/screenshots/
 
 > **Aucune dépendance externe obligatoire.** Robocopy (natif Windows) requis pour la migration.
 
-### Installation
+### Installation 1-Clic (Recommandé)
 
+Faites un clic droit sur **`Setup.bat`** et sélectionnez **« Exécuter en tant qu'administrateur »** :
+- Déploie l'environnement dans `C:\ESN-Toolkit`
+- Configure automatiquement les droits d'exécution PowerShell
+- Crée les raccourcis sur le Bureau : **Interface Graphique (GUI)** et **Console Interactive**
+
+Ou manuellement en PowerShell :
 ```powershell
 # Cloner le repository
-git clone https://github.com/USERNAME/ESN-Toolkit.git
-cd ESN-Toolkit
+git clone https://github.com/aberrada-engineer/windows-support-automation-toolkit.git C:\ESN-Toolkit
+cd C:\ESN-Toolkit
 
-# Autoriser l'exécution (une seule fois)
-Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+# Exécuter l'installeur
+.\Install-ESNToolkit.ps1
 ```
+
+### Modes d'utilisation
+
+1. **🖥️ Interface Graphique (GUI)** : Double-cliquez sur **`ESN-Launcher.bat`** pour piloter les audits, auto-réparations et exports sans taper une seule commande.
+2. **⚡ Console Interactive (TUI)** : Double-cliquez sur **`ESN-Console.bat`** pour un menu interactif numéroté (idéal en session RDP ou serveur).
+3. **💻 En Ligne de Commande (CLI)** : Exécutez directement les scripts avec paramètres.
 
 ### Première utilisation
 
@@ -617,7 +625,7 @@ Veeam · FortiGate · SentinelOne (EDR) · PRTG · PowerShell Automation
 MCO · Incidents P1/P2 · Migrations · Déploiements MDT/WDS
 
 <!-- Décommenter après création du profil LinkedIn
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-AmineBerrrada-0077B5?style=flat-square&logo=linkedin)](https://linkedin.com/in/USERNAME)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-AmineBerrrada-0077B5?style=flat-square&logo=linkedin)](https://www.linkedin.com/in/amine-berrada-infra/)
 -->
 
 ---

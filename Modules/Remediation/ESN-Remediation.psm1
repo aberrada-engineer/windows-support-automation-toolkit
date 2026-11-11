@@ -620,6 +620,63 @@ $script:Catalog = [ordered]@{
                 Detail         = $steps -join " | "
                 RebootRequired = $false
             }
+
+    # ─────────────────────────────────────────────
+    PrintSpooler = @{
+        Id            = "PrintSpooler"
+        Name          = "Nettoyage et reset Spooler d'impression"
+        Description   = "Purge les travaux d'impression bloques et relance le service Spooler."
+        Risk          = "Low"
+        RequiresAdmin = $true
+        Detect        = {
+            $svc = Get-Service -Name Spooler -ErrorAction SilentlyContinue
+            $files = Get-ChildItem "$env:SystemRoot\System32\spool\PRINTERS\*" -ErrorAction SilentlyContinue | Measure-Object
+            return ($svc.Status -ne "Running") -or ($files.Count -gt 0)
+        }
+        Remediate     = {
+            param([bool]$sim)
+            $before = (Get-ChildItem "$env:SystemRoot\System32\spool\PRINTERS\*" -ErrorAction SilentlyContinue | Measure-Object).Count
+            if (-not $sim) {
+                Stop-Service -Name Spooler -Force -ErrorAction SilentlyContinue
+                Remove-Item "$env:SystemRoot\System32\spool\PRINTERS\*" -Force -Recurse -ErrorAction SilentlyContinue
+                Start-Service -Name Spooler -ErrorAction SilentlyContinue
+            }
+            $after = if (-not $sim) { (Get-ChildItem "$env:SystemRoot\System32\spool\PRINTERS\*" -ErrorAction SilentlyContinue | Measure-Object).Count } else { 0 }
+            return @{
+                Success = $true
+                Before  = "$before travaux en file d'attente"
+                After   = if ($sim) { "[SIMULATION]" } else { "0 travail (Spooler relance)" }
+                Detail  = "Stop-Service Spooler + Purge PRINTERS + Start-Service Spooler"
+            }
+        }
+    }
+
+    # ─────────────────────────────────────────────
+    OfficeAuth = @{
+        Id            = "OfficeAuth"
+        Name          = "Reset cache d'authentification M365 (WAM / Identity)"
+        Description   = "Purge les jetons et caches d'identite corrompus responsables des echecs de connexion Office/Teams."
+        Risk          = "Low"
+        RequiresAdmin = $false
+        Detect        = {
+            $wam = Test-Path "$env:LOCALAPPDATA\Microsoft\IdentityCache"
+            return $wam
+        }
+        Remediate     = {
+            param([bool]$sim)
+            if (-not $sim) {
+                Remove-Item "$env:LOCALAPPDATA\Microsoft\IdentityCache\*" -Force -Recurse -ErrorAction SilentlyContinue
+                Remove-Item "$env:LOCALAPPDATA\Microsoft\OneAuth\*" -Force -Recurse -ErrorAction SilentlyContinue
+            }
+            return @{
+                Success = $true
+                Before  = "Caches d'authentification presents"
+                After   = if ($sim) { "[SIMULATION]" } else { "Caches d'authentification purges" }
+                Detail  = "Purge IdentityCache + OneAuth (Reconnecte proprement le compte M365)"
+            }
+        }
+    }
+
         }
     }
 }
