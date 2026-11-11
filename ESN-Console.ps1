@@ -11,7 +11,7 @@ function Show-Header {
     Clear-Host
     Write-Host "================================================================================" -ForegroundColor Cyan
     Write-Host "   🖥️  ESN-TOOLKIT v3.0 — CONSOLE D'AUTOMATISATION TOTALE" -ForegroundColor White
-    Write-Host "       AIOps, Astreinte 24/7, SecOps, AD Hygiene & MCO — Amine BERRADA" -ForegroundColor Gray
+    Write-Host "       AIOps, Astreinte 24/7, SecOps, PRA/PCA & Dimensionnement — Amine BERRADA" -ForegroundColor Gray
     Write-Host "================================================================================" -ForegroundColor Cyan
     Write-Host "  Hote : $env:COMPUTERNAME  |  Utilisateur : $env:USERNAME  |  Date : $(Get-Date -Format 'dd/MM/yyyy HH:mm')" -ForegroundColor DarkCyan
     Write-Host "--------------------------------------------------------------------------------" -ForegroundColor DarkGray
@@ -27,108 +27,66 @@ do {
     Write-Host " [5] 🌐 Reset Reseau (Purge DNS, Winsock et pile TCP/IP)" -ForegroundColor White
     Write-Host " [6] ☁️  Reparation Caches M365 (Teams, Outlook RoamCache, OneDrive, WAM Auth)" -ForegroundColor White
 
-    Write-Host "`n --- ASTREINTE 24/7, AI-OPS & SECURITE AVANCEE ---" -ForegroundColor DarkGray
+    Write-Host "`n --- ASTREINTE 24/7, CYBERSECURITE & RESILIENCE (AI-OPS) ---" -ForegroundColor DarkGray
     Write-Host " [7] 🚨 Triage Flash d'Urgence P1/P2 (Boîte noire, Crash Dumps BSOD, Événements)" -ForegroundColor Red
-    Write-Host " [8] 🤖 Activer l'Agent d'Auto-Guerison en Arriere-Plan (Self-Healing 15 min)" -ForegroundColor Green
-    Write-Host " [9] 🚀 Zero-Touch Provisioning (Preparer un poste neuf en 1-clic)" -ForegroundColor Cyan
-    Write-Host " [10]🛡️  Audit & Durcissement Securite ANSSI / CIS Benchmark" -ForegroundColor Red
-    Write-Host " [11]🌐 Cartographie Reseau & Decouverte du Parc (Fleet Discovery)" -ForegroundColor Magenta
-    Write-Host " [12]🚚 Assistant de Migration de Poste de A a Z (Sauvegarde / Restauration)" -ForegroundColor Yellow
+    Write-Host " [8] 🛑 Ransomware Emergency KillSwitch (Isolement d'urgence & Forensics)" -ForegroundColor Red
+    Write-Host " [9] 🔄 Simulateur & Validateur PRA / PCA (Calcul RTO/RPO & Certificat SLA)" -ForegroundColor Green
+    Write-Host " [10]🤖 Activer l'Agent d'Auto-Guerison en Arriere-Plan (Self-Healing 15 min)" -ForegroundColor Green
+    Write-Host " [11]🚀 Zero-Touch Provisioning (Preparer un poste neuf en 1-clic)" -ForegroundColor Cyan
+    Write-Host " [12]🛡️  Audit & Durcissement Securite ANSSI / CIS Benchmark" -ForegroundColor Red
+    Write-Host " [13]🌐 Cartographie Reseau & Decouverte du Parc (Fleet Discovery)" -ForegroundColor Magenta
+    Write-Host " [14]🚚 Assistant de Migration de Poste de A a Z (Sauvegarde / Restauration)" -ForegroundColor Yellow
 
-    Write-Host "`n --- ACTIVE DIRECTORY, INFRASTRUCTURE & GOUVERNANCE ---" -ForegroundColor DarkGray
-    Write-Host " [13]🏢 Audit d'Hygiene & Securite Active Directory (Privileges, Inactifs)" -ForegroundColor Magenta
-    Write-Host " [14]🔒 Offboarding Collaborateur Securise & Proces-Verbal de Restitution" -ForegroundColor Yellow
-    Write-Host " [15]💾 Audit Sauvegardes Veeam & Infrastructure" -ForegroundColor Cyan
-    Write-Host " [16]📂 Ouvrir le dernier rapport HTML dans le navigateur" -ForegroundColor Blue
-    Write-Host " [17]📦 Generer l'archive ZIP incident pour le ticket (Jira / GLPI / ServiceNow)" -ForegroundColor Cyan
+    Write-Host "`n --- ACTIVE DIRECTORY, INFRASTRUCTURE & GOUVERNANCE COPIL ---" -ForegroundColor DarkGray
+    Write-Host " [15]🏢 Audit d'Hygiene & Securite Active Directory (Privileges, Inactifs)" -ForegroundColor Magenta
+    Write-Host " [16]📊 Dimensionnement & Chiffrage Infrastructure (Cluster N+1, Stockage COPIL)" -ForegroundColor Cyan
+    Write-Host " [17]🔒 Offboarding Collaborateur Securise & Proces-Verbal de Restitution" -ForegroundColor Yellow
+    Write-Host " [18]💾 Audit Sauvegardes Veeam & SecOps" -ForegroundColor Cyan
+    Write-Host " [19]📂 Ouvrir le dernier rapport HTML dans le navigateur" -ForegroundColor Blue
+    Write-Host " [20]📦 Generer l'archive ZIP incident pour le ticket (Jira / GLPI / ServiceNow)" -ForegroundColor Cyan
     Write-Host " [Q] ❌ Quitter" -ForegroundColor DarkGray
     Write-Host "--------------------------------------------------------------------------------" -ForegroundColor DarkGray
-    $choice = Read-Host " Entrez votre choix (1-17 ou Q)"
+    $choice = Read-Host " Entrez votre choix (1-20 ou Q)"
 
     switch ($choice.ToUpper()) {
-        "1" {
-            Write-Host "`n[*] Lancement de l'audit de sante global..." -ForegroundColor Cyan
-            & "$ScriptDir\Invoke-IncidentAnalysis.ps1" -OpenReport
-            Read-Host "`nAppuyez sur Entree pour continuer..."
-        }
-        "2" {
-            Write-Host "`n[*] Lancement de l'auto-remediation complete..." -ForegroundColor Yellow
-            & "$ScriptDir\Invoke-IncidentAnalysis.ps1" -AutoFix -OpenReport
-            Read-Host "`nAppuyez sur Entree pour continuer..."
-        }
-        "3" {
-            Write-Host "`n[*] Lancement du diagnostic en mode SIMULATION..." -ForegroundColor Cyan
-            & "$ScriptDir\Invoke-IncidentAnalysis.ps1" -Simulation -OpenReport
-            Read-Host "`nAppuyez sur Entree pour continuer..."
-        }
+        "1" { & "$ScriptDir\Invoke-IncidentAnalysis.ps1" -OpenReport; Read-Host "`nAppuyez sur Entree pour continuer..." }
+        "2" { & "$ScriptDir\Invoke-IncidentAnalysis.ps1" -AutoFix -OpenReport; Read-Host "`nAppuyez sur Entree pour continuer..." }
+        "3" { & "$ScriptDir\Invoke-IncidentAnalysis.ps1" -Simulation -OpenReport; Read-Host "`nAppuyez sur Entree pour continuer..." }
         "4" {
-            Write-Host "`n[*] Purge et redemarrage du spooler d'impression..." -ForegroundColor White
             Stop-Service -Name Spooler -Force -ErrorAction SilentlyContinue
             Remove-Item "$env:SystemRoot\System32\spool\PRINTERS\*" -Force -Recurse -ErrorAction SilentlyContinue
             Start-Service -Name Spooler -ErrorAction SilentlyContinue
-            Write-Host "[OK] Spooler d'impression nettoye et redemarre avec succes." -ForegroundColor Green
+            Write-Host "[OK] Spooler d'impression nettoye et redemarre." -ForegroundColor Green
             Read-Host "`nAppuyez sur Entree pour continuer..."
         }
-        "5" {
-            Write-Host "`n[*] Reinitialisation pile reseau & DNS..." -ForegroundColor White
-            & "$ScriptDir\Invoke-IncidentAnalysis.ps1" -Fix DNS,Winsock
-            Read-Host "`nAppuyez sur Entree pour continuer..."
-        }
-        "6" {
-            Write-Host "`n[*] Purge des caches M365..." -ForegroundColor White
-            & "$ScriptDir\Invoke-IncidentAnalysis.ps1" -Fix Teams,Outlook,OneDrive,OfficeAuth
-            Read-Host "`nAppuyez sur Entree pour continuer..."
-        }
-        "7" {
-            Write-Host "`n[*] Diagnostic Flash d'Urgence P1/P2..." -ForegroundColor Red
-            & "$ScriptDir\Invoke-P1EmergencyTriage.ps1"
-            Read-Host "`nAppuyez sur Entree pour continuer..."
-        }
+        "5" { & "$ScriptDir\Invoke-IncidentAnalysis.ps1" -Fix DNS,Winsock; Read-Host "`nAppuyez sur Entree pour continuer..." }
+        "6" { & "$ScriptDir\Invoke-IncidentAnalysis.ps1" -Fix Teams,Outlook,OneDrive,OfficeAuth; Read-Host "`nAppuyez sur Entree pour continuer..." }
+        "7" { & "$ScriptDir\Invoke-P1EmergencyTriage.ps1"; Read-Host "`nAppuyez sur Entree pour continuer..." }
         "8" {
-            Write-Host "`n[*] Configuration de l'agent d'auto-guerison..." -ForegroundColor Green
-            & "$ScriptDir\Invoke-SelfHealingService.ps1" -InstallServiceTask
+            $sub = Read-Host "Souhaitez-vous ISOLER la machine (1) ou RESTAURER le reseau (2) ?"
+            if ($sub -eq "2") { & "$ScriptDir\Invoke-RansomwareShield.ps1" -RestoreNetwork }
+            else { & "$ScriptDir\Invoke-RansomwareShield.ps1" }
             Read-Host "`nAppuyez sur Entree pour continuer..."
         }
-        "9" {
-            Write-Host "`n[*] Lancement du Provisioning Zero-Touch..." -ForegroundColor Cyan
-            & "$ScriptDir\Invoke-ZeroTouchProvisioning.ps1"
-            Read-Host "`nAppuyez sur Entree pour continuer..."
-        }
-        "10" {
-            Write-Host "`n[*] Audit de durcissement et conformite ANSSI..." -ForegroundColor Red
-            $enforce = Read-Host "Souhaitez-vous appliquer automatiquement les corrections ? (O/N)"
-            if ($enforce.ToUpper() -eq "O") {
-                & "$ScriptDir\Invoke-SecurityHardening.ps1" -Enforce
-            } else {
-                & "$ScriptDir\Invoke-SecurityHardening.ps1"
-            }
-            Read-Host "`nAppuyez sur Entree pour continuer..."
-        }
-        "11" {
-            Write-Host "`n[*] Scan et cartographie du reseau..." -ForegroundColor Magenta
-            & "$ScriptDir\Invoke-FleetDiscovery.ps1"
-            Read-Host "`nAppuyez sur Entree pour continuer..."
-        }
+        "9" { & "$ScriptDir\Invoke-DRTest.ps1"; Read-Host "`nAppuyez sur Entree pour continuer..." }
+        "10" { & "$ScriptDir\Invoke-SelfHealingService.ps1" -InstallServiceTask; Read-Host "`nAppuyez sur Entree pour continuer..." }
+        "11" { & "$ScriptDir\Invoke-ZeroTouchProvisioning.ps1"; Read-Host "`nAppuyez sur Entree pour continuer..." }
         "12" {
-            Write-Host "`n[*] Lancement de l'Assistant de Migration..." -ForegroundColor Yellow
-            & "$ScriptDir\Invoke-FullStationMigration.ps1"
+            $enforce = Read-Host "Souhaitez-vous appliquer automatiquement les corrections ? (O/N)"
+            if ($enforce.ToUpper() -eq "O") { & "$ScriptDir\Invoke-SecurityHardening.ps1" -Enforce }
+            else { & "$ScriptDir\Invoke-SecurityHardening.ps1" }
             Read-Host "`nAppuyez sur Entree pour continuer..."
         }
-        "13" {
-            Write-Host "`n[*] Audit d'hygiene Active Directory..." -ForegroundColor Magenta
-            & "$ScriptDir\Invoke-ADHygieneCheck.ps1"
-            Read-Host "`nAppuyez sur Entree pour continuer..."
-        }
-        "14" {
-            Write-Host "`n[*] Offboarding Collaborateur..." -ForegroundColor Yellow
+        "13" { & "$ScriptDir\Invoke-FleetDiscovery.ps1"; Read-Host "`nAppuyez sur Entree pour continuer..." }
+        "14" { & "$ScriptDir\Invoke-FullStationMigration.ps1"; Read-Host "`nAppuyez sur Entree pour continuer..." }
+        "15" { & "$ScriptDir\Invoke-ADHygieneCheck.ps1"; Read-Host "`nAppuyez sur Entree pour continuer..." }
+        "16" { & "$ScriptDir\Invoke-InfrastructureSizing.ps1"; Read-Host "`nAppuyez sur Entree pour continuer..." }
+        "17" {
             $targetUser = Read-Host "Entrez le nom d'utilisateur a desactiver"
-            if ($targetUser) {
-                & "$ScriptDir\Invoke-UserOffboarding.ps1" -Username $targetUser
-            }
+            if ($targetUser) { & "$ScriptDir\Invoke-UserOffboarding.ps1" -Username $targetUser }
             Read-Host "`nAppuyez sur Entree pour continuer..."
         }
-        "15" {
-            Write-Host "`n[*] Audit des sauvegardes Veeam et SecOps..." -ForegroundColor Cyan
+        "18" {
             if (Test-Path "$ScriptDir\Modules\Infra\ESN-Infra.psm1") {
                 Import-Module "$ScriptDir\Modules\Infra\ESN-Infra.psm1" -Force
                 Test-ESNSecurityPosture
@@ -136,7 +94,7 @@ do {
             }
             Read-Host "`nAppuyez sur Entree pour continuer..."
         }
-        "16" {
+        "19" {
             $latestReport = Get-ChildItem "C:\ESN-Toolkit\Reports\*.html" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
             if ($latestReport) {
                 Start-Process $latestReport.FullName
@@ -146,7 +104,7 @@ do {
             }
             Start-Sleep -Seconds 2
         }
-        "17" {
+        "20" {
             $ticket = Read-Host "Entrez le numero de ticket (ex: INC-10492)"
             if (-not $ticket) { $ticket = "INC-$(Get-Date -Format 'yyyyMMdd-HHmm')" }
             & "$ScriptDir\Invoke-IncidentAnalysis.ps1" -IncidentId $ticket -ExportZip
