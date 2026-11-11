@@ -1,7 +1,7 @@
 ﻿#Requires -RunAsAdministrator
 <#
 .SYNOPSIS
-    ESN-Console v3.0 - Console d'Administration & d'Automatisation Totale.
+    ESN-Console v3.2 - Console d'Administration & d'Automatisation Totale.
     Permet de piloter toutes les fonctionnalités du toolkit en quelques touches.
 #>
 
@@ -10,8 +10,8 @@ $ScriptDir = Split-Path $MyInvocation.PSCommandPath -Parent
 function Show-Header {
     Clear-Host
     Write-Host "================================================================================" -ForegroundColor Cyan
-    Write-Host "   🖥️  ESN-TOOLKIT v3.0 — CONSOLE D'AUTOMATISATION TOTALE" -ForegroundColor White
-    Write-Host "       AIOps, Astreinte 24/7, SecOps, PRA/PCA & Dimensionnement — Amine BERRADA" -ForegroundColor Gray
+    Write-Host "   🖥️  ESN-TOOLKIT v3.2 — CONSOLE D'EXPLOITATION & AIOPS TOTALE" -ForegroundColor White
+    Write-Host "       Astreinte 24/7, SecOps, PRA/PCA, Cloud Hybride & Predictive — Amine BERRADA" -ForegroundColor Gray
     Write-Host "================================================================================" -ForegroundColor Cyan
     Write-Host "  Hote : $env:COMPUTERNAME  |  Utilisateur : $env:USERNAME  |  Date : $(Get-Date -Format 'dd/MM/yyyy HH:mm')" -ForegroundColor DarkCyan
     Write-Host "--------------------------------------------------------------------------------" -ForegroundColor DarkGray
@@ -32,21 +32,25 @@ do {
     Write-Host " [8] 🛑 Ransomware Emergency KillSwitch (Isolement d'urgence & Forensics)" -ForegroundColor Red
     Write-Host " [9] 🔄 Simulateur & Validateur PRA / PCA (Calcul RTO/RPO & Certificat SLA)" -ForegroundColor Green
     Write-Host " [10]🤖 Activer l'Agent d'Auto-Guerison en Arriere-Plan (Self-Healing 15 min)" -ForegroundColor Green
-    Write-Host " [11]🚀 Zero-Touch Provisioning (Preparer un poste neuf en 1-clic)" -ForegroundColor Cyan
-    Write-Host " [12]🛡️  Audit & Durcissement Securite ANSSI / CIS Benchmark" -ForegroundColor Red
-    Write-Host " [13]🌐 Cartographie Reseau & Decouverte du Parc (Fleet Discovery)" -ForegroundColor Magenta
+    Write-Host " [11]🔮 Analyse Prédictive AIOps 2.0 (Saturation disque, Usure SSD & RCA)" -ForegroundColor Cyan
+    Write-Host " [12]🚀 Zero-Touch Provisioning (Preparer un poste neuf en 1-clic)" -ForegroundColor Cyan
+    Write-Host " [13]🛡️  Audit & Durcissement Securite ANSSI / CIS Benchmark" -ForegroundColor Red
     Write-Host " [14]🚚 Assistant de Migration de Poste de A a Z (Sauvegarde / Restauration)" -ForegroundColor Yellow
 
-    Write-Host "`n --- ACTIVE DIRECTORY, INFRASTRUCTURE & GOUVERNANCE COPIL ---" -ForegroundColor DarkGray
-    Write-Host " [15]🏢 Audit d'Hygiene & Securite Active Directory (Privileges, Inactifs)" -ForegroundColor Magenta
-    Write-Host " [16]📊 Dimensionnement & Chiffrage Infrastructure (Cluster N+1, Stockage COPIL)" -ForegroundColor Cyan
-    Write-Host " [17]🔒 Offboarding Collaborateur Securise & Proces-Verbal de Restitution" -ForegroundColor Yellow
-    Write-Host " [18]💾 Audit Sauvegardes Veeam & SecOps" -ForegroundColor Cyan
-    Write-Host " [19]📂 Ouvrir le dernier rapport HTML dans le navigateur" -ForegroundColor Blue
-    Write-Host " [20]📦 Generer l'archive ZIP incident pour le ticket (Jira / GLPI / ServiceNow)" -ForegroundColor Cyan
+    Write-Host "`n --- CLOUD HYBRIDE, INFRASTRUCTURE, RESEAU & GOUVERNANCE COPIL ---" -ForegroundColor DarkGray
+    Write-Host " [15]☁️  Audit Cloud Hybride (Microsoft Entra ID, Intune & Defender MDE)" -ForegroundColor Cyan
+    Write-Host " [16]🌐 Audit Équipements Réseau, Pare-feux (FortiGate) & VPN IPsec" -ForegroundColor Magenta
+    Write-Host " [17]🗺️  Cartographie Reseau & Decouverte du Parc (Fleet Discovery)" -ForegroundColor Magenta
+    Write-Host " [18]🏢 Audit d'Hygiene & Securite Active Directory (Privileges, Inactifs)" -ForegroundColor Magenta
+    Write-Host " [19]📊 Dimensionnement & Chiffrage Infrastructure (Cluster N+1, Stockage COPIL)" -ForegroundColor Cyan
+    Write-Host " [20]🔒 Offboarding Collaborateur Securise & Proces-Verbal de Restitution" -ForegroundColor Yellow
+    Write-Host " [21]💾 Audit Sauvegardes Veeam & SecOps" -ForegroundColor Cyan
+    Write-Host " [22]🖥️  Ouvrir le Tableau de Bord Web Centralisé (ESN-Central Dashboard)" -ForegroundColor Blue
+    Write-Host " [23]📂 Ouvrir le dernier rapport HTML dans le navigateur" -ForegroundColor Blue
+    Write-Host " [24]📦 Generer l'archive ZIP incident pour le ticket (Jira / GLPI / ServiceNow)" -ForegroundColor Cyan
     Write-Host " [Q] ❌ Quitter" -ForegroundColor DarkGray
     Write-Host "--------------------------------------------------------------------------------" -ForegroundColor DarkGray
-    $choice = Read-Host " Entrez votre choix (1-20 ou Q)"
+    $choice = Read-Host " Entrez votre choix (1-24 ou Q)"
 
     switch ($choice.ToUpper()) {
         "1" { & "$ScriptDir\Invoke-IncidentAnalysis.ps1" -OpenReport; Read-Host "`nAppuyez sur Entree pour continuer..." }
@@ -70,23 +74,26 @@ do {
         }
         "9" { & "$ScriptDir\Invoke-DRTest.ps1"; Read-Host "`nAppuyez sur Entree pour continuer..." }
         "10" { & "$ScriptDir\Invoke-SelfHealingService.ps1" -InstallServiceTask; Read-Host "`nAppuyez sur Entree pour continuer..." }
-        "11" { & "$ScriptDir\Invoke-ZeroTouchProvisioning.ps1"; Read-Host "`nAppuyez sur Entree pour continuer..." }
-        "12" {
+        "11" { & "$ScriptDir\Invoke-PredictiveHealthAnalysis.ps1"; Read-Host "`nAppuyez sur Entree pour continuer..." }
+        "12" { & "$ScriptDir\Invoke-ZeroTouchProvisioning.ps1"; Read-Host "`nAppuyez sur Entree pour continuer..." }
+        "13" {
             $enforce = Read-Host "Souhaitez-vous appliquer automatiquement les corrections ? (O/N)"
             if ($enforce.ToUpper() -eq "O") { & "$ScriptDir\Invoke-SecurityHardening.ps1" -Enforce }
             else { & "$ScriptDir\Invoke-SecurityHardening.ps1" }
             Read-Host "`nAppuyez sur Entree pour continuer..."
         }
-        "13" { & "$ScriptDir\Invoke-FleetDiscovery.ps1"; Read-Host "`nAppuyez sur Entree pour continuer..." }
         "14" { & "$ScriptDir\Invoke-FullStationMigration.ps1"; Read-Host "`nAppuyez sur Entree pour continuer..." }
-        "15" { & "$ScriptDir\Invoke-ADHygieneCheck.ps1"; Read-Host "`nAppuyez sur Entree pour continuer..." }
-        "16" { & "$ScriptDir\Invoke-InfrastructureSizing.ps1"; Read-Host "`nAppuyez sur Entree pour continuer..." }
-        "17" {
+        "15" { & "$ScriptDir\Invoke-CloudHybridAudit.ps1"; Read-Host "`nAppuyez sur Entree pour continuer..." }
+        "16" { & "$ScriptDir\Invoke-NetworkApplianceAudit.ps1"; Read-Host "`nAppuyez sur Entree pour continuer..." }
+        "17" { & "$ScriptDir\Invoke-FleetDiscovery.ps1"; Read-Host "`nAppuyez sur Entree pour continuer..." }
+        "18" { & "$ScriptDir\Invoke-ADHygieneCheck.ps1"; Read-Host "`nAppuyez sur Entree pour continuer..." }
+        "19" { & "$ScriptDir\Invoke-InfrastructureSizing.ps1"; Read-Host "`nAppuyez sur Entree pour continuer..." }
+        "20" {
             $targetUser = Read-Host "Entrez le nom d'utilisateur a desactiver"
             if ($targetUser) { & "$ScriptDir\Invoke-UserOffboarding.ps1" -Username $targetUser }
             Read-Host "`nAppuyez sur Entree pour continuer..."
         }
-        "18" {
+        "21" {
             if (Test-Path "$ScriptDir\Modules\Infra\ESN-Infra.psm1") {
                 Import-Module "$ScriptDir\Modules\Infra\ESN-Infra.psm1" -Force
                 Test-ESNSecurityPosture
@@ -94,7 +101,8 @@ do {
             }
             Read-Host "`nAppuyez sur Entree pour continuer..."
         }
-        "19" {
+        "22" { & "$ScriptDir\Invoke-CentralDashboard.ps1"; Start-Sleep -Seconds 2 }
+        "23" {
             $latestReport = Get-ChildItem "C:\ESN-Toolkit\Reports\*.html" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
             if ($latestReport) {
                 Start-Process $latestReport.FullName
@@ -104,7 +112,7 @@ do {
             }
             Start-Sleep -Seconds 2
         }
-        "20" {
+        "24" {
             $ticket = Read-Host "Entrez le numero de ticket (ex: INC-10492)"
             if (-not $ticket) { $ticket = "INC-$(Get-Date -Format 'yyyyMMdd-HHmm')" }
             & "$ScriptDir\Invoke-IncidentAnalysis.ps1" -IncidentId $ticket -ExportZip
