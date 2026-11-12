@@ -81,6 +81,8 @@ ESN-Toolkit/
 │   ├── Invoke-P1EmergencyTriage.ps1       # Boîte noire d'urgence P1/P2 : BSOD minidumps, crash events, Flash report
 │   ├── Invoke-RansomwareShield.ps1        # KillSwitch d'isolement d'urgence, gel VSS et capture mémoire/forensics
 │   ├── Invoke-PredictiveHealthAnalysis.ps1# Calcul prédictif d'épuisement de stockage C: et indicateur d'usure SSD
+│   ├── Invoke-HighSpeedParallelAuditor.ps1# Moteur d'audit multi-threadé RunspacePool (500+ serveurs en < 60s)
+│   ├── Invoke-ActiveDirectoryThreatHunter.ps1 # Chasseur heuristique AD (Kerberoasting, AS-REP, AdminSDHolder, SIEM JSON)
 │   ├── Invoke-DRTest.ps1                  # Simulation PRA/PCA mesurant RTO/RPO avec certificat SLA officiel
 │   └── Docs/RUNBOOK-ONCALL-P1-P2.md       # Runbook opérationnel complet d'astreinte 24/7 (GTR < 4h, modèles de crise)
 │
@@ -95,10 +97,13 @@ ESN-Toolkit/
 │   ├── Invoke-ZeroTrustAudit.ps1          # Audit maturité Zero-Trust (TPM 2.0, SecureBoot, VBS, LSA PPL, Entra ID)
 │   ├── Invoke-ITSMConnector.ps1           # Dispatcher d'alertes & connecteur REST API (GLPI, ServiceNow, Teams)
 │   ├── Invoke-COPILReportGenerator.ps1    # Générateur de Rapport Mensuel Exécutif COPIL / COTECH (SLA 99.9%, MTTR)
+│   ├── Invoke-CopilDashboardGenerator.ps1 # Générateur de Dashboard COPIL HTML5 dark mode autonome avec graphiques SVG
 │   ├── Invoke-DRPGenerator.ps1            # Générateur de Dossier Officiel de Plan de Reprise d'Activité (PRA / DRP)
 │   ├── Invoke-PRTGSensorDeployer.ps1      # Déployeur de sondes PRTG Network Monitor avancées (XML/JSON Veeam/Disque/DHCP)
 │   ├── Invoke-LinuxHeterogeneousAudit.ps1 # Audit à distance de serveurs Linux (Ubuntu/Debian) via SSH natif Windows
 │   ├── Invoke-HypervisorAudit.ps1         # Audit VMware vSphere & Nutanix (Snapshots > 72h, saturation datastores)
+│   ├── Invoke-NutanixPrismHealthAI.ps1    # Télémétrie REST Nutanix Prism v2/v3, santé CVM/IOPS & prédiction Runway
+│   ├── Invoke-VeeamImmutableAudit.ps1     # Audit d'immuabilité réelle Veeam Hardened Repository (XFS, chattr +i, canari)
 │   ├── Invoke-ExchangeHealthCheck.ps1     # Audit Exchange Hybride/On-Premise, files d'attente et contrôle SPF/DKIM/DMARC
 │   ├── Invoke-CoreServicesAudit.ps1       # Audit DHCP (saturation scopes), Scavenging DNS et certificats SSL expirant
 │   ├── Invoke-CloudHybridAudit.ps1        # Audit Entra ID Connect, Intune MDM et Defender for Endpoint (Sense)
@@ -197,6 +202,11 @@ Ces scripts reproduisent fidèlement les architectures et projets d'envergure me
 | **Invoke-RansomwareShield.ps1** | KillSwitch d'isolement d'urgence. Coupe immédiatement toutes les interfaces réseau, bloque les ports SMB/RDP, protège les clichés instantanés VSS et exporte la liste des processus suspects et connexions actives (`netstat`). | **Endiguement immédiat d'une attaque par ransomware.** |
 | **Invoke-PredictiveHealthAnalysis.ps1** | Régression linéaire mathématique sur l'historique d'écriture disque pour prédire le jour exact de saturation du disque C:, analyse l'usure SSD (TBW) et génère une analyse de cause racine (RCA) pré-rédigée pour le ticket. | **Prévention proactive des pannes avant impact utilisateur.** |
 | **Invoke-DRTest.ps1** | Simulation d'interruption totale de production. Calcule le RPO réel et le RTO estimé, audite l'immutabilité WORM des sauvegardes Veeam et délivre un Certificat officiel de PRA/PCA pour les audits de certification. | **Garantie de continuité d'activité pour les comités de direction.** |
+| **Invoke-NutanixPrismHealthAI.ps1** | Interrogation REST Nutanix Prism v2/v3, diagnostic santé CVM/IOPS/latence et régression linéaire de capacité (Runway) avec rapport COTECH + télémétrie SIEM JSON. | **Anticipation de saturation hyperconvergée AHV/AOS.** |
+| **Invoke-ActiveDirectoryThreatHunter.ps1** | Chasseur heuristique sans agent : détection Kerberoasting (RC4 0x17), AS-REP Roasting, `adminCount=1` orphelins, ACLs dangereuses et confinement optionnel `-AutoRemediate`. | **Détection et endiguement SecOps AD en temps réel.** |
+| **Invoke-HighSpeedParallelAuditor.ps1** | Moteur RunspacePool multithreadé avec timeouts individuels par machine, capable d'auditer +500 serveurs en moins de 60 secondes sans blocage de file. | **Audit de parc multi-clients à haute vélocité.** |
+| **Invoke-VeeamImmutableAudit.ps1** | Vérification d'immuabilité Linux Hardened Repository (XFS `reflink=1`, `chattr +i`, transport non-root et test canari non destructif `EPERM`). | **Certification anti-ransomware des sauvegardes 3-2-1.** |
+| **Invoke-CopilDashboardGenerator.ps1** | Génération d'un tableau de bord exécutif HTML5 dark mode 100% autonome (graphiques SVG natifs, SLA P1/P2/P3, MTTR, ratio Self-Healing). | **Livrable exécutif instantané pour COPIL / COTECH.** |
 
 ---
 
