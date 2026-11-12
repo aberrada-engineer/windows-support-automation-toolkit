@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Invoke-Migration — Capture ou restaure l'état complet d'un utilisateur.
 
@@ -75,7 +75,7 @@ foreach ($mp in @($CorePath, $MigModulePath)) {
 $incidentId = "MIG-$(Get-Date -Format 'yyyyMMdd-HHmm')-$Username"
 Initialize-ESNSession -ScriptName "Invoke-Migration.ps1" `
                       -IncidentId $incidentId `
-                      -ComputerName ($SourceComputer ? $SourceComputer : $TargetComputer)
+                      -ComputerName $(if ($SourceComputer) { $SourceComputer } else { $TargetComputer })
 
 # ─── CAPTURE ─────────────────────────────────────────────────
 if ($Action -eq "Capture") {

@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
     ESN-M365 — Audit Microsoft 365 : licences, utilisateurs, Exchange,

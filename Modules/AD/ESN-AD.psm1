@@ -137,14 +137,14 @@ function Invoke-ADUserReset {
 .PARAMETER Username
     SamAccountName de l'utilisateur.
 .PARAMETER NewPassword
-    Nouveau mot de passe (généré si non fourni).
+    Nouveau mot de passe sécurisé (généré si non fourni).
 .PARAMETER UnlockOnly
     Seulement déverrouiller sans changer le MDP.
 #>
     [CmdletBinding(SupportsShouldProcess)]
     param(
         [Parameter(Mandatory)][string]$Username,
-        [string]$NewPassword = "",
+        [securestring]$NewPassword = $null,
         [switch]$UnlockOnly,
         [switch]$Simulation
     )
@@ -178,26 +178,30 @@ function Invoke-ADUserReset {
     if ($UnlockOnly) { return }
 
     # Génération MDP si non fourni
-    if (-not $NewPassword) {
+    $generatedPwd = ""
+    if ($null -eq $NewPassword -or $NewPassword.Length -eq 0) {
         $chars   = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$'
-        $NewPassword = -join (1..10 | ForEach-Object { $chars[(Get-Random -Max $chars.Length)] })
-        $NewPassword += 'Aa1!'  # garantit complexité
+        $generatedPwd = -join (1..10 | ForEach-Object { $chars[(Get-Random -Max $chars.Length)] })
+        $generatedPwd += 'Aa1!'  # garantit complexité
+        $secPwd = ([System.Net.NetworkCredential]::new('', $generatedPwd)).SecurePassword
+    } else {
+        $secPwd = $NewPassword
     }
 
     if (-not $Simulation) {
-        $secPwd = ([System.Net.NetworkCredential]::new('', $NewPassword)).SecurePassword
         Set-ADAccountPassword -Identity $Username `
             -NewPassword $secPwd -Reset
         Set-ADUser -Identity $Username -ChangePasswordAtLogon $true
     }
 
+    $pwdSummary = if ($generatedPwd) { $generatedPwd } else { "(SecureString fourni)" }
     Add-ESNResult "AD" "Reset MDP $Username" "OK" `
-        (if($Simulation){"[SIM] MDP: $NewPassword"}else{"MDP réinitialisé — À communiquer : $NewPassword"}) `
+        (if($Simulation){"[SIM] MDP: $pwdSummary"}else{"MDP réinitialisé — À communiquer : $pwdSummary"}) `
         "Changement requis à la prochaine connexion"
 
     Write-ESNLog "━━━ INFORMATIONS À TRANSMETTRE À L'UTILISATEUR ━━━" "SECTION"
     Write-ESNLog "Login      : $Username" "OK"
-    Write-ESNLog "MDP temp   : $NewPassword" "WARN"
+    Write-ESNLog "MDP temp   : $pwdSummary" "WARN"
     Write-ESNLog "Instruction: Changer le MDP à la prochaine connexion" "INFO"
 }
 

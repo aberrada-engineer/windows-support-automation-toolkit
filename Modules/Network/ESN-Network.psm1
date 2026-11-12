@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
     ESN-Network — Diagnostic réseau complet (IP, DNS, latence, VPN, proxy, partages).

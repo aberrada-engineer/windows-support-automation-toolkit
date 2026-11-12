@@ -18,7 +18,8 @@ param(
     [int]$HoursBack = 4,
     [switch]$OpenReport,
     [string]$OutputPath = "",
-    [switch]$Simulate
+    [switch]$Simulate,
+    [string]$ExternalTestHost = "8.8.8.8"
 )
 
 $ErrorActionPreference = "Stop"
@@ -98,7 +99,7 @@ try {
         # 4. CONNECTIVITÉ RÉSEAU D'URGENCE
         $gw = (Get-NetRoute -DestinationPrefix "0.0.0.0/0" -ErrorAction SilentlyContinue | Select-Object -First 1).NextHop
         $gwPing = if ($gw) { Test-Connection -ComputerName $gw -Count 1 -Quiet -TimeoutSeconds 1 } else { $false }
-        $dnsPing = Test-Connection -ComputerName "8.8.8.8" -Count 1 -Quiet -TimeoutSeconds 1
+        $dnsPing = Test-Connection -ComputerName $ExternalTestHost -Count 1 -Quiet -TimeoutSeconds 1
         $triageReport.NetworkStatus = if ($gwPing -and $dnsPing) { "Opérationnel (Passerelle $gw joignable)" } elseif ($gwPing) { "Dégradé (Passerelle OK, Sortie Internet KO)" } else { "CRITIQUE (Passerelle injoignable)" }
     }
 
