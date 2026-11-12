@@ -1,20 +1,20 @@
 <div align="center">
 
-# 🖥️ ESN-Toolkit & AIOps Platform v3.6
+# 🖥️ ESN-Toolkit & AIOps Platform v3.7
 
 ### Autonomous Workstation, Infrastructure & Cloud Operations Platform
 
 **Plateforme PowerShell enterprise d'auto-réparation (Self-Healing), astreinte 24/7 P1/P2, gouvernance COPIL,  
-virtualisation (VMware / Nutanix), SecOps ANSSI, supervision PRTG, Linux et automatisation de 6 projets majeurs d'ingénierie.**
+virtualisation (VMware / Nutanix), SecOps Zero-Trust, intégration ITSM, PRTG et 6 projets majeurs d'ingénierie.**
 
 ---
 
-![Version](https://img.shields.io/badge/version-3.6.0-blue?style=flat-square)
+![Version](https://img.shields.io/badge/version-3.7.0-blue?style=flat-square)
 ![PowerShell](https://img.shields.io/badge/PowerShell-5.1%2B%20%7C%207%2B-5391FE?style=flat-square&logo=powershell&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11%20%7C%20Server%202016--2022-0078D4?style=flat-square&logo=windows&logoColor=white)
 ![AIOps](https://img.shields.io/badge/AIOps-Self--Healing%20%26%20Predictive-brightgreen?style=flat-square)
-![Security](https://img.shields.io/badge/Compliance-ANSSI%20%2F%20CIS%20Benchmark-red?style=flat-square)
-![Code Size](https://img.shields.io/badge/Lines%20of%20Code-13%2C180%2B-purple?style=flat-square)
+![Security](https://img.shields.io/badge/Compliance-Zero--Trust%20%2F%20ANSSI%20%2F%20CIS-red?style=flat-square)
+![Code Size](https://img.shields.io/badge/Lines%20of%20Code-13%2C600%2B-purple?style=flat-square)
 ![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
 [![GitHub](https://img.shields.io/badge/GitHub-aberrada--engineer-181717?style=flat-square&logo=github)](https://github.com/aberrada-engineer/windows-support-automation-toolkit)
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-Amine%20BERRADA-0077B5?style=flat-square&logo=linkedin)](https://www.linkedin.com/in/amine-berrada-infra/)
@@ -25,9 +25,9 @@ virtualisation (VMware / Nutanix), SecOps ANSSI, supervision PRTG, Linux et auto
 [Architecture Modulaire](#-architecture-modulaire) •
 [6 Projets Majeurs Déployés](#-6-projets-majeurs-déployés-en-production) •
 [AIOps & Astreinte 24/7](#-aiops-astreinte-247--résilience) •
-[Infrastructure, Linux & Supervision](#-infrastructure-hyperviseurs--cloud-hybride) •
+[Zero-Trust & ITSM](#-architecture-zero-trust--connecteur-itsm) •
+[Infrastructure & Cloud](#-infrastructure-hyperviseurs--cloud-hybride) •
 [Interfaces GUI & Console](#-interfaces-graphique--console-interactive) •
-[Roadmap](#-feuille-de-route-roadmap) •
 [Auteur & Référent](#-auteur--référent-technique)
 
 </div>
@@ -36,7 +36,7 @@ virtualisation (VMware / Nutanix), SecOps ANSSI, supervision PRTG, Linux et auto
 
 ## 🎯 À propos
 
-**ESN-Toolkit v3.6** est une plateforme d'ingénierie et d'automatisation des opérations informatiques (**AIOps**) conçue pour couvrir l'intégralité du spectre opérationnel d'une DSI ou d'une ESN :
+**ESN-Toolkit v3.7** est une plateforme d'ingénierie et d'automatisation des opérations informatiques (**AIOps**) conçue pour couvrir l'intégralité du spectre opérationnel d'une DSI ou d'une ESN :
 du **support poste de travail (N1/N2)**, à **l'administration système et maintien en conditions opérationnelles (N2/N3)**, jusqu'au **pilotage de projets d'infrastructure critiques (N3 / Architecte)**.
 
 Conçue sur le retour d'expérience de plus de **200 infrastructures multi-clients infogérées** et d'environnements critiques (notamment grands comptes horlogers et luxe genevois tels que *Porsche, TAG Heuer, Hublot*), cette boîte à outils garantit une autonomie opérationnelle maximale.
@@ -47,7 +47,7 @@ Conçue sur le retour d'expérience de plus de **200 infrastructures multi-clien
 
 ## 🏗️ Architecture Modulaire
 
-La plateforme compte **plus de 13 180 lignes de code PowerShell & Batch**, structurées en 4 couches opérationnelles :
+La plateforme compte **plus de 13 600 lignes de code PowerShell & Batch**, structurées en 4 couches opérationnelles :
 
 ```
 ESN-Toolkit/
@@ -57,7 +57,7 @@ ESN-Toolkit/
 │   ├── Install-ESNToolkit.ps1             # Déploiement silencieux vers C:\ESN-Toolkit, config execution policy & raccourcis
 │   ├── Install-EnterpriseSilent.bat       # Script de déploiement de masse pour GPO / Intune Win32 App / SCCM
 │   ├── ESN-GUI.ps1 & ESN-Launcher.bat     # Interface Graphique Windows Forms (6 onglets métiers, RichTextBox logs)
-│   ├── ESN-Console.ps1 & ESN-Console.bat  # Console Interactive TUI avec 33 options d'administration directe
+│   ├── ESN-Console.ps1 & ESN-Console.bat  # Console Interactive TUI avec 35 options d'administration directe
 │   └── WebDashboard/ & Invoke-CentralDashboard.ps1 # Dashboard Web offline Datadog-style avec jauges SVG
 │
 ├── 🤖 AIOPS, AUTO-GUÉRISON & ASTREINTE 24/7
@@ -65,7 +65,8 @@ ESN-Toolkit/
 │   ├── Invoke-P1EmergencyTriage.ps1       # Boîte noire d'urgence P1/P2 : BSOD minidumps, crash events, Flash report
 │   ├── Invoke-RansomwareShield.ps1        # KillSwitch d'isolement d'urgence, gel VSS et capture mémoire/forensics
 │   ├── Invoke-PredictiveHealthAnalysis.ps1# Calcul prédictif d'épuisement de stockage C: et indicateur d'usure SSD
-│   └── Invoke-DRTest.ps1                  # Simulation PRA/PCA mesurant RTO/RPO avec certificat SLA officiel
+│   ├── Invoke-DRTest.ps1                  # Simulation PRA/PCA mesurant RTO/RPO avec certificat SLA officiel
+│   └── Docs/RUNBOOK-ONCALL-P1-P2.md       # Runbook opérationnel complet d'astreinte 24/7 (GTR < 4h, modèles de crise)
 │
 ├── 🛠️ SUPPORT UTILISATEUR, FLOTTE & MIGRATION
 │   ├── Invoke-ZeroTouchProvisioning.ps1   # Provisioning de poste neuf (renommage CLI-%SERIAL%, Winget, TPM BitLocker)
@@ -74,7 +75,9 @@ ESN-Toolkit/
 │   ├── Invoke-GLPIInventoryAgent.ps1      # Agent d'inventaire complet matériel/logiciel exportable en JSON/XML pour GLPI
 │   └── Invoke-WSUSComplianceManager.ps1   # Audit conformité WSUS, détection hotfixes manquants et resynchronisation
 │
-├── 🏢 GOUVERNANCE, AUDIT INFRASTRUCTURE, LINUX & SUPERVISION
+├── 🏢 GOUVERNANCE, AUDIT INFRASTRUCTURE, ZERO-TRUST & ITSM
+│   ├── Invoke-ZeroTrustAudit.ps1          # Audit maturité Zero-Trust (TPM 2.0, SecureBoot, VBS, LSA PPL, Entra ID)
+│   ├── Invoke-ITSMConnector.ps1           # Dispatcher d'alertes & connecteur REST API (GLPI, ServiceNow, Teams)
 │   ├── Invoke-COPILReportGenerator.ps1    # Générateur de Rapport Mensuel Exécutif COPIL / COTECH (SLA 99.9%, MTTR)
 │   ├── Invoke-DRPGenerator.ps1            # Générateur de Dossier Officiel de Plan de Reprise d'Activité (PRA / DRP)
 │   ├── Invoke-PRTGSensorDeployer.ps1      # Déployeur de sondes PRTG Network Monitor avancées (XML/JSON Veeam/Disque/DHCP)

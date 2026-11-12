@@ -276,6 +276,16 @@ $tab5.Controls.Add((Create-ModernButton -Text "🔮 Analyse Prédictive Saturati
     Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-PredictiveHealthAnalysis.ps1`""
 }))
 
+$tab5.Controls.Add((Create-ModernButton -Text "🛡️ Audit Posture Zero-Trust (TPM/VBS)" -X 20 -Y 130 -Width 270 -Height 42 -BgColor ([System.Drawing.Color]::FromArgb(140, 20, 20)) -Action {
+    Append-Log "Lancement de l'audit Zero-Trust (TPM 2.0, VBS, LSA)..." "Red"
+    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-ZeroTrustAudit.ps1`" -OpenReport"
+}))
+
+$tab5.Controls.Add((Create-ModernButton -Text "📢 Dispatcher Alertes ITSM (GLPI/Teams)" -X 310 -Y 130 -Width 270 -Height 42 -BgColor ([System.Drawing.Color]::FromArgb(200, 100, 0)) -Action {
+    Append-Log "Simulation de transmission d'incident ITSM..." "Yellow"
+    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-ITSMConnector.ps1`" -Target Simulation"
+}))
+
 $tabControl.Controls.Add($tab5)
 
 # --- ONGLET 6 : PROJETS RÉFÉRENTS & GOUVERNANCE COPIL ---
