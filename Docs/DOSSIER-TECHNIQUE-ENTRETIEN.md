@@ -1,5 +1,9 @@
 # 💼 DOSSIER TECHNIQUE D'INGÉNIERIE & PRÉSENTATION D'ENTRETIEN
 
+<p align="center">
+  <img src="../Assets/photo_amine_officielle.jpg" width="130" style="border-radius: 50%; border: 3px solid #2C5282;" alt="Amine Berrada - Administrateur Systèmes & Réseaux Confirmé">
+</p>
+
 > **Candidat : Amine BERRADA**  
 > *Administrateur Systèmes et Réseaux Confirmé • Référent Technique N3*  
 > Spécialiste MCO, Cloud Hybride, Virtualisation & Cybersécurité  
