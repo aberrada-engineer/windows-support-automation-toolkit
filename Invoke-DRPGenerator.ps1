@@ -26,24 +26,28 @@ param(
     [string]$DisasterSite = "Datacenter Secours (PRA)",
     [int]$MaxRtoHours = 4,
     [int]$MaxRpoMinutes = 15,
-    [switch]$OpenReport
+    [switch]$OpenReport,
+    [string]$OutputPath = ""
 )
 
-$ErrorActionPreference = "Continue"
+$ErrorActionPreference = "Stop"
+$schemaScript = Join-Path $PSScriptRoot "Core/ESN-OutputSchema.ps1"
+if (Test-Path $schemaScript) { . $schemaScript }
 
-Write-Host "==========================================================================" -ForegroundColor Cyan
-Write-Host "   DISASTER RECOVERY PLAN (DRP / PRA / PCA) EXECUTIVE DOSSIER ENGINE      " -ForegroundColor Cyan
-Write-Host "==========================================================================" -ForegroundColor Cyan
-Write-Host "[*] Organisation cible : $CompanyName" -ForegroundColor Gray
-Write-Host "[*] Site Primaire      : $PrimarySite" -ForegroundColor Gray
-Write-Host "[*] Site Secours (PRA) : $DisasterSite" -ForegroundColor Gray
-Write-Host "[*] Objectifs SLA      : RTO < ${MaxRtoHours}h | RPO < ${MaxRpoMinutes}min" -ForegroundColor Gray
-Write-Host ""
+try {
+    Write-Host "==========================================================================" -ForegroundColor Cyan
+    Write-Host "   DISASTER RECOVERY PLAN (DRP / PRA / PCA) EXECUTIVE DOSSIER ENGINE      " -ForegroundColor Cyan
+    Write-Host "==========================================================================" -ForegroundColor Cyan
+    Write-Host "[*] Organisation cible : $CompanyName" -ForegroundColor Gray
+    Write-Host "[*] Site Primaire      : $PrimarySite" -ForegroundColor Gray
+    Write-Host "[*] Site Secours (PRA) : $DisasterSite" -ForegroundColor Gray
+    Write-Host "[*] Objectifs SLA      : RTO < ${MaxRtoHours}h | RPO < ${MaxRpoMinutes}min" -ForegroundColor Gray
+    Write-Host ""
 
-$ReportDir = "$env:SystemDrive\ESN-Reports\DRP"
-if (-not (Test-Path $ReportDir)) { New-Item -ItemType Directory -Path $ReportDir -Force | Out-Null }
-$Timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
-$HtmlReport = "$ReportDir\Dossier-PRA-Officiel-$Timestamp.html"
+    $ReportDir = if (-not [string]::IsNullOrWhiteSpace($OutputPath)) { $OutputPath } elseif (Get-Command Get-ESNReportRoot -ErrorAction SilentlyContinue) { Get-ESNReportRoot -SubFolder "DRP" } else { "$env:SystemDrive\ESN-Reports\DRP" }
+    if (-not (Test-Path $ReportDir)) { New-Item -ItemType Directory -Path $ReportDir -Force | Out-Null }
+    $Timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
+    $HtmlReport = Join-Path $ReportDir "Dossier-PRA-Officiel-$Timestamp.html"
 
 # Construction du dossier PRA exécutif
 $HtmlContent = @"
@@ -236,13 +240,30 @@ $HtmlContent = @"
 </html>
 "@
 
-Set-Content -Path $HtmlReport -Value $HtmlContent -Encoding UTF8
-Write-Host ""
-Write-Host "==========================================================================" -ForegroundColor Green
-Write-Host "   DOSSIER OFFICIEL DE PRA / PCA GÉNÉRÉ AVEC SUCCÈS                       " -ForegroundColor Green
-Write-Host "==========================================================================" -ForegroundColor Green
-Write-Host "[+] Livrable Officiel HTML : $HtmlReport" -ForegroundColor White
+    Set-Content -Path $HtmlReport -Value $HtmlContent -Encoding UTF8
+    if (Get-Command Write-ESNSiemAlert -ErrorAction SilentlyContinue) {
+        [void](Write-ESNSiemAlert -ScriptName "Invoke-DRPGenerator.ps1" -Severity "INFO" -Category "GovernanceDRP" -Message "Dossier PRA/PCA généré pour $CompanyName" -Metadata @{ PrimarySite = $PrimarySite; DisasterSite = $DisasterSite; RtoHours = $MaxRtoHours; RpoMinutes = $MaxRpoMinutes } -LogFile (Join-Path $ReportDir "DRP-SIEM.jsonl"))
+    }
+    Write-Host ""
+    Write-Host "==========================================================================" -ForegroundColor Green
+    Write-Host "   DOSSIER OFFICIEL DE PRA / PCA GÉNÉRÉ AVEC SUCCÈS                       " -ForegroundColor Green
+    Write-Host "==========================================================================" -ForegroundColor Green
+    Write-Host "[+] Livrable Officiel HTML : $HtmlReport" -ForegroundColor White
 
-if ($OpenReport) {
-    Start-Process $HtmlReport
+    if ($OpenReport) { Start-Process $HtmlReport }
+
+    return [PSCustomObject]@{
+        CompanyName  = $CompanyName
+        PrimarySite  = $PrimarySite
+        DisasterSite = $DisasterSite
+        MaxRtoHours  = $MaxRtoHours
+        MaxRpoMinutes = $MaxRpoMinutes
+        HtmlReport   = $HtmlReport
+    }
+}
+catch [System.Exception] {
+    if (Get-Command Write-ESNSiemAlert -ErrorAction SilentlyContinue) {
+        [void](Write-ESNSiemAlert -ScriptName "Invoke-DRPGenerator.ps1" -Severity "CRITICAL" -Category "UnhandledException" -ErrorType $_.Exception.GetType().FullName -Message $_.Exception.Message)
+    }
+    throw
 }

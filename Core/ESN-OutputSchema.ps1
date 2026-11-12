@@ -180,10 +180,75 @@ function New-ESNDomainResult {
     }
 }
 
-# ── Helpers de formatage ──────────────────────────────────────
-function Get-ESNSeverityColor([string]$Severity) { $script:SeverityColors[$Severity] ?? "#f8f9fa" }
-function Get-ESNSeverityIcon([string]$Severity)  { $script:SeverityIcons[$Severity]  ?? "?" }
-function Get-ESNSeverityTextColor([string]$Severity) { $script:SeverityTextColors[$Severity] ?? "#333" }
+# ── Helpers de formatage (Compatibles PS 5.1 & 7+) ────────────
+function Get-ESNSeverityColor([string]$Severity) {
+    if ($script:SeverityColors.ContainsKey($Severity)) { return $script:SeverityColors[$Severity] }
+    return "#f8f9fa"
+}
+function Get-ESNSeverityIcon([string]$Severity) {
+    if ($script:SeverityIcons.ContainsKey($Severity)) { return $script:SeverityIcons[$Severity] }
+    return "?"
+}
+function Get-ESNSeverityTextColor([string]$Severity) {
+    if ($script:SeverityTextColors.ContainsKey($Severity)) { return $script:SeverityTextColors[$Severity] }
+    return "#333"
+}
+
+function Get-ESNReportRoot {
+    [CmdletBinding()]
+    param([string]$SubFolder = "")
+    $base = if ($env:OS -match 'Windows' -and $env:SystemDrive) {
+        Join-Path "$($env:SystemDrive)\ESN-Toolkit" "Reports"
+    } else {
+        Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/Reports"
+    }
+    $target = if ([string]::IsNullOrWhiteSpace($SubFolder)) { $base } else { Join-Path $base $SubFolder }
+    if (-not (Test-Path -Path $target)) {
+        New-Item -Path $target -ItemType Directory -Force | Out-Null
+    }
+    return $target
+}
+
+function Write-ESNSiemAlert {
+<#
+.SYNOPSIS
+    Émet une alerte structurée JSON prête pour ingestion SIEM (Sentinel / LogRhythm / Splunk).
+#>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$ScriptName,
+        [Parameter(Mandatory)][ValidateSet("OK","INFO","WARNING","CRITICAL")][string]$Severity,
+        [Parameter(Mandatory)][string]$Category,
+        [Parameter(Mandatory)][string]$Message,
+        [string]$ErrorType = "",
+        [string]$Target    = $(if ($env:COMPUTERNAME) { $env:COMPUTERNAME } else { [System.Environment]::MachineName }),
+        [hashtable]$Metadata = @{},
+        [string]$LogFile   = ""
+    )
+    $payload = [PSCustomObject]@{
+        schema_version = "1.0"
+        timestamp      = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+        host           = if ($env:COMPUTERNAME) { $env:COMPUTERNAME } else { [System.Environment]::MachineName }
+        script         = $ScriptName
+        category       = $Category
+        severity       = $Severity
+        error_type     = $ErrorType
+        target         = $Target
+        message        = $Message
+        metadata       = $Metadata
+    }
+    $jsonLine = $payload | ConvertTo-Json -Depth 6 -Compress
+    if ([string]::IsNullOrWhiteSpace($LogFile)) {
+        $LogFile = Join-Path (Get-ESNReportRoot -SubFolder "SIEM") "wsat-siem-events.jsonl"
+    }
+    $dir = Split-Path -Path $LogFile -Parent
+    if ($dir -and -not (Test-Path -Path $dir)) { New-Item -Path $dir -ItemType Directory -Force | Out-Null }
+    Add-Content -Path $LogFile -Value $jsonLine -Encoding UTF8 -ErrorAction SilentlyContinue
+    if ($Severity -in @("WARNING", "CRITICAL")) {
+        Write-Warning $jsonLine
+    }
+    return $payload
+}
 
 # ── Conversion depuis l'ancien format ESN-Core ───────────────
 function ConvertTo-ESNCheck {

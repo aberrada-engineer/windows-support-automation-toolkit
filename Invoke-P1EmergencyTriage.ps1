@@ -1,7 +1,7 @@
-﻿#Requires -RunAsAdministrator
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
-    Invoke-P1EmergencyTriage v3.0 - Diagnostic d'Urgence & Triage Flash P1/P2 (Astreinte 24/7).
+    Invoke-P1EmergencyTriage v3.9 - Diagnostic d'Urgence & Triage Flash P1/P2 (Astreinte 24/7).
     Conçu pour les incidents critiques sur environnements de production (Porsche, TAG Heuer, Hublot).
 
 .DESCRIPTION
@@ -10,125 +10,115 @@
     2. Extraction des 50 dernières erreurs critiques des journaux Système et Application
     3. Audit matériel et alertes disques / contrôleurs RAID (statut SMART, pannes secteurs)
     4. Test de connectivité réseau d'urgence (Passerelle, DNS, Cœur de réseau)
-    5. Génération immédiate d'un "Bilan Flash Incident P1" pour communication client / direction
+    5. Génération immédiate d'un "Bilan Flash Incident P1" HTML + Télémétrie JSON SIEM.
 #>
 
 [CmdletBinding()]
 param(
     [int]$HoursBack = 4,
-    [switch]$OpenReport = $true
+    [switch]$OpenReport,
+    [string]$OutputPath = "",
+    [switch]$Simulate
 )
 
-Clear-Host
-Write-Host "================================================================================" -ForegroundColor Red
-Write-Host "   🚨  TRIAGE D'URGENCE P1/P2 (ASTREINTE 24/7) — ESN-TOOLKIT" -ForegroundColor White
-Write-Host "       Analyse Boîte Noire & Diagnostic Flash d'Incident Majeur — Amine BERRADA" -ForegroundColor Gray
-Write-Host "================================================================================" -ForegroundColor Red
-Write-Host "  Hôte : $env:COMPUTERNAME  |  Heure : $(Get-Date -Format 'HH:mm:ss')  |  Fenêtre : Dernières $HoursBack heures`n" -ForegroundColor DarkCyan
+$ErrorActionPreference = "Stop"
+$schemaScript = Join-Path $PSScriptRoot "Core/ESN-OutputSchema.ps1"
+if (Test-Path $schemaScript) { . $schemaScript }
 
-$triageReport = [PSCustomObject]@{
-    HostName       = $env:COMPUTERNAME
-    Timestamp      = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    BSODDetected   = $false
-    DumpFiles      = @()
-    StorageAlerts  = @()
-    NetworkStatus  = "Inconnu"
-    CriticalEvents = [System.Collections.Generic.List[PSCustomObject]]::new()
-}
-
-# 1. ANALYSE DES CRASH DUMPS (BSOD)
-Write-Host " [*] Recherche de Crash Dumps / Écrans Bleus (BSOD)..." -ForegroundColor Yellow
-$dumpPath = "$env:SystemRoot\Minidump"
-if (Test-Path $dumpPath) {
-    $dumps = Get-ChildItem $dumpPath -Filter "*.dmp" -ErrorAction SilentlyContinue |
-             Where-Object { $_.LastWriteTime -ge (Get-Date).AddHours(-$HoursBack) } |
-             Sort-Object LastWriteTime -Descending
-
-    if ($dumps) {
-        $triageReport.BSODDetected = $true
-        $triageReport.DumpFiles = $dumps.Name
-        Write-Host "  [ALERTE P1] $($dumps.Count) fichier(s) Crash Dump détecté(s) dans les dernières $HoursBack heures !" -ForegroundColor Red
-        foreach ($d in $dumps) {
-            Write-Host "   -> $($d.Name) ($($d.LastWriteTime.ToString('dd/MM HH:mm')))" -ForegroundColor Red
-        }
-    } else {
-        Write-Host "  [OK] Aucun Crash Dump récent détecté." -ForegroundColor Green
+try {
+    $hostLabel = if ($env:COMPUTERNAME) { $env:COMPUTERNAME } else { [System.Environment]::MachineName }
+    if (-not $Simulate -and [Environment]::UserInteractive) {
+        try { Clear-Host } catch { }
     }
-} else {
-    Write-Host "  [OK] Répertoire Minidump vide." -ForegroundColor Green
-}
+    Write-Host "================================================================================" -ForegroundColor Red
+    Write-Host "   🚨  TRIAGE D'URGENCE P1/P2 (ASTREINTE 24/7) — ESN-TOOLKIT" -ForegroundColor White
+    Write-Host "       Analyse Boîte Noire & Diagnostic Flash d'Incident Majeur — Amine BERRADA" -ForegroundColor Gray
+    Write-Host "================================================================================" -ForegroundColor Red
+    Write-Host "  Hôte : $hostLabel  |  Heure : $(Get-Date -Format 'HH:mm:ss')  |  Fenêtre : Dernières $HoursBack heures`n" -ForegroundColor DarkCyan
 
-# 2. EXTRACTION DES ÉVÉNEMENTS CRITIQUES (JOURNAL SYSTÈME & APPLI)
-Write-Host "`n [*] Analyse des journaux d'événements critiques (System & Application)..." -ForegroundColor Yellow
-$filter = @{
-    LogName   = @('System', 'Application')
-    Level     = @(1, 2) # 1 = Critical, 2 = Error
-    StartTime = (Get-Date).AddHours(-$HoursBack)
-}
+    $storageAlertsList = [System.Collections.Generic.List[string]]::new()
+    $triageReport = [PSCustomObject]@{
+        HostName       = $hostLabel
+        Timestamp      = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+        BSODDetected   = $false
+        DumpFiles      = @()
+        StorageAlerts  = $storageAlertsList
+        NetworkStatus  = "Inconnu"
+        CriticalEvents = [System.Collections.Generic.List[PSCustomObject]]::new()
+    }
 
-$events = Get-WinEvent -FilterHashtable $filter -MaxEvents 50 -ErrorAction SilentlyContinue
-if ($events) {
-    Write-Host "  [!] $(@($events).Count) événement(s) critique(s) ou d'erreur extrait(s)." -ForegroundColor Yellow
-    foreach ($evt in $events) {
+    if ($Simulate -or -not (Get-Command Get-WinEvent -ErrorAction SilentlyContinue)) {
+        $triageReport.NetworkStatus = "Opérationnel (Passerelle 10.10.0.1 joignable - Simulé)"
         $triageReport.CriticalEvents.Add([PSCustomObject]@{
-            Date    = $evt.TimeCreated.ToString("HH:mm:ss")
-            Source  = $evt.ProviderName
-            EventID = $evt.Id
-            Message = ($evt.Message -split "`n")[0]
+            Date    = (Get-Date).AddMinutes(-12).ToString("HH:mm:ss")
+            Source  = "Microsoft-Windows-Kernel-Power"
+            EventID = 41
+            Message = "Simulation P1 : redémarrage critique détecté sans arrêt propre préalable."
         })
     }
-} else {
-    Write-Host "  [OK] Zéro événement critique dans les dernières $HoursBack heures." -ForegroundColor Green
-}
+    else {
+        # 1. ANALYSE DES CRASH DUMPS (BSOD)
+        Write-Host " [*] Recherche de Crash Dumps / Écrans Bleus (BSOD)..." -ForegroundColor Yellow
+        $dumpPath = "$env:SystemRoot\Minidump"
+        if ($dumpPath -and (Test-Path $dumpPath)) {
+            $dumps = Get-ChildItem $dumpPath -Filter "*.dmp" -ErrorAction SilentlyContinue |
+                     Where-Object { $_.LastWriteTime -ge (Get-Date).AddHours(-$HoursBack) } |
+                     Sort-Object LastWriteTime -Descending
+            if ($dumps) {
+                $triageReport.BSODDetected = $true
+                $triageReport.DumpFiles = @($dumps.Name)
+                Write-Host "  [ALERTE P1] $($dumps.Count) fichier(s) Crash Dump détecté(s) !" -ForegroundColor Red
+            } else {
+                Write-Host "  [OK] Aucun Crash Dump récent détecté." -ForegroundColor Green
+            }
+        }
 
-# 3. SANTÉ DU STOCKAGE PHYSIQUE & CONTRÔLEURS
-Write-Host "`n [*] Vérification de l'intégrité des disques physiques (SMART / WMI)..." -ForegroundColor Yellow
-$disks = Get-CimInstance Win32_DiskDrive -ErrorAction SilentlyContinue
-foreach ($dk in $disks) {
-    $status = $dk.Status
-    $sizeGB = [math]::Round($dk.Size / 1GB, 0)
-    if ($status -eq "OK") {
-        Write-Host "  [OK] $($dk.Model) ($sizeGB Go) — Statut : $status" -ForegroundColor Green
-    } else {
-        Write-Host "  [ALERTE MATERIELLE] $($dk.Model) — Statut défaillant : $status" -ForegroundColor Red
-        $triageReport.StorageAlerts += "$($dk.Model) ($status)"
+        # 2. EXTRACTION DES ÉVÉNEMENTS CRITIQUES
+        Write-Host "`n [*] Analyse des journaux d'événements critiques..." -ForegroundColor Yellow
+        $events = Get-WinEvent -FilterHashtable @{ LogName = @('System', 'Application'); Level = @(1, 2); StartTime = (Get-Date).AddHours(-$HoursBack) } -MaxEvents 50 -ErrorAction SilentlyContinue
+        foreach ($evt in @($events)) {
+            if ($null -ne $evt) {
+                $triageReport.CriticalEvents.Add([PSCustomObject]@{
+                    Date    = $evt.TimeCreated.ToString("HH:mm:ss")
+                    Source  = $evt.ProviderName
+                    EventID = $evt.Id
+                    Message = ($evt.Message -split "`n")[0]
+                })
+            }
+        }
+
+        # 3. SANTÉ DU STOCKAGE PHYSIQUE
+        Write-Host "`n [*] Vérification de l'intégrité des disques physiques (SMART / WMI)..." -ForegroundColor Yellow
+        foreach ($dk in @(Get-CimInstance Win32_DiskDrive -ErrorAction SilentlyContinue)) {
+            if ($dk.Status -ne "OK") {
+                $storageAlertsList.Add("$($dk.Model) ($($dk.Status))")
+            }
+        }
+
+        # 4. CONNECTIVITÉ RÉSEAU D'URGENCE
+        $gw = (Get-NetRoute -DestinationPrefix "0.0.0.0/0" -ErrorAction SilentlyContinue | Select-Object -First 1).NextHop
+        $gwPing = if ($gw) { Test-Connection -ComputerName $gw -Count 1 -Quiet -TimeoutSeconds 1 } else { $false }
+        $dnsPing = Test-Connection -ComputerName "8.8.8.8" -Count 1 -Quiet -TimeoutSeconds 1
+        $triageReport.NetworkStatus = if ($gwPing -and $dnsPing) { "Opérationnel (Passerelle $gw joignable)" } elseif ($gwPing) { "Dégradé (Passerelle OK, Sortie Internet KO)" } else { "CRITIQUE (Passerelle injoignable)" }
     }
-}
 
-# 4. CONNECTIVITÉ RÉSEAU D'URGENCE
-Write-Host "`n [*] Test des liaisons réseaux d'urgence..." -ForegroundColor Yellow
-$gw = (Get-NetRoute -DestinationPrefix "0.0.0.0/0" -ErrorAction SilentlyContinue | Select-Object -First 1).NextHop
-$gwPing = if ($gw) { Test-Connection -ComputerName $gw -Count 1 -Quiet -TimeoutSeconds 1 } else { $false }
-$dnsPing = Test-Connection -ComputerName "8.8.8.8" -Count 1 -Quiet -TimeoutSeconds 1
+    # 5. GÉNÉRATION DU BILAN FLASH P1 (HTML + SIEM JSON)
+    $reportDir = if (-not [string]::IsNullOrWhiteSpace($OutputPath)) { $OutputPath } elseif (Get-Command Get-ESNReportRoot -ErrorAction SilentlyContinue) { Get-ESNReportRoot } else { "C:\ESN-Toolkit\Reports" }
+    if (-not (Test-Path $reportDir)) { New-Item $reportDir -ItemType Directory -Force | Out-Null }
+    $reportPath = Join-Path $reportDir "Flash-Incident-P1-$hostLabel.html"
 
-if ($gwPing -and $dnsPing) {
-    $triageReport.NetworkStatus = "Opérationnel (Passerelle $gw joignable)"
-    Write-Host "  [OK] Réseau fonctionnel (Passerelle : $gw, DNS public OK)" -ForegroundColor Green
-} elseif ($gwPing) {
-    $triageReport.NetworkStatus = "Dégradé (Passerelle OK, Sortie Internet KO)"
-    Write-Host "  [!] Réseau dégradé (Passerelle joignable mais pas d'accès WAN)" -ForegroundColor Yellow
-} else {
-    $triageReport.NetworkStatus = "CRITIQUE (Passerelle injoignable)"
-    Write-Host "  [CRITIQUE] Passerelle locale $gw injoignable !" -ForegroundColor Red
-}
+    $eventRows = ($triageReport.CriticalEvents | Select-Object -First 20 | ForEach-Object {
+        "<tr><td><b>$($_.Date)</b></td><td>$($_.Source)</td><td><code>ID $($_.EventID)</code></td><td>$($_.Message)</td></tr>"
+    }) -join "`n"
 
-# 5. GÉNÉRATION DU BILAN FLASH P1 (HTML)
-$reportDir = "C:\ESN-Toolkit\Reports"
-if (-not (Test-Path $reportDir)) { New-Item $reportDir -ItemType Directory -Force | Out-Null }
-$reportPath = Join-Path $reportDir "Flash-Incident-P1-$($env:COMPUTERNAME).html"
+    $bsodBadge = if ($triageReport.BSODDetected) { "<span style='background:#d83b01;color:white;padding:4px 8px;border-radius:4px;'>CRASH DUMP DETECTE</span>" } else { "<span style='background:#107c41;color:white;padding:4px 8px;border-radius:4px;'>AUCUN CRASH BSOD</span>" }
 
-$eventRows = $triageReport.CriticalEvents | Select-Object -First 20 | ForEach-Object {
-    "<tr><td><b>$($_.Date)</b></td><td>$($_.Source)</td><td><code>ID $($_.EventID)</code></td><td>$($_.Message)</td></tr>"
-} -join "`n"
-
-$bsodBadge = if ($triageReport.BSODDetected) { "<span style='background:#d83b01;color:white;padding:4px 8px;border-radius:4px;'>CRASH DUMP DETECTE</span>" } else { "<span style='background:#107c41;color:white;padding:4px 8px;border-radius:4px;'>AUCUN CRASH BSOD</span>" }
-
-$html = @"
+    $html = @"
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset='utf-8'>
-    <title>Bilan Flash Incident P1 - $env:COMPUTERNAME</title>
+    <title>Bilan Flash Incident P1 - $hostLabel</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #0f141c; color: #e6edf3; padding: 25px; }
         .card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 25px; max-width: 950px; margin: auto; }
@@ -143,7 +133,7 @@ $html = @"
 <body>
     <div class='card'>
         <h1>🚨 Bilan Flash Incident P1 / P2 — Astreinte</h1>
-        <p><b>Machine :</b> $env:COMPUTERNAME | <b>Horodatage :</b> $($triageReport.Timestamp) | <b>Analyste :</b> Amine BERRADA</p>
+        <p><b>Machine :</b> $hostLabel | <b>Horodatage :</b> $($triageReport.Timestamp) | <b>Analyste :</b> Amine BERRADA</p>
         <div class='grid'>
             <div class='box'><b>État Système / BSOD :</b><br><br>$bsodBadge</div>
             <div class='box'><b>Connectivité Réseau :</b><br><br>$($triageReport.NetworkStatus)</div>
@@ -159,6 +149,18 @@ $html = @"
 </html>
 "@
 
-$html | Out-File -FilePath $reportPath -Encoding UTF8
-Write-Host "`n [OK] Bilan Flash Incident généré : $reportPath" -ForegroundColor Green
-if ($OpenReport) { Start-Process $reportPath }
+    $html | Out-File -FilePath $reportPath -Encoding UTF8
+    if (Get-Command Write-ESNSiemAlert -ErrorAction SilentlyContinue) {
+        $sev = if ($triageReport.BSODDetected -or $triageReport.NetworkStatus -match "CRITIQUE") { "CRITICAL" } else { "INFO" }
+        [void](Write-ESNSiemAlert -ScriptName "Invoke-P1EmergencyTriage.ps1" -Severity $sev -Category "P1EmergencyTriage" -Message "Triage P1 terminé ($($triageReport.CriticalEvents.Count) événements)" -LogFile (Join-Path $reportDir "P1Triage-SIEM.jsonl"))
+    }
+    Write-Host "`n [OK] Bilan Flash Incident généré : $reportPath" -ForegroundColor Green
+    if ($OpenReport) { Start-Process $reportPath }
+    return $triageReport
+}
+catch [System.Exception] {
+    if (Get-Command Write-ESNSiemAlert -ErrorAction SilentlyContinue) {
+        [void](Write-ESNSiemAlert -ScriptName "Invoke-P1EmergencyTriage.ps1" -Severity "CRITICAL" -Category "UnhandledException" -ErrorType $_.Exception.GetType().FullName -Message $_.Exception.Message)
+    }
+    throw
+}

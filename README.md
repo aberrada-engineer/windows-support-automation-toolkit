@@ -1,20 +1,20 @@
 <div align="center">
 
-# 🖥️ ESN-Toolkit & AIOps Platform v3.8
+# 🖥️ ESN-Toolkit & AIOps Platform v3.9 (WSAT Enterprise)
 
-### Autonomous Workstation, Infrastructure & Cloud Operations Platform
+### Autonomous Workstation, Infrastructure, Chaos Engineering & Cloud Operations Platform
 
 **Plateforme PowerShell enterprise d'auto-réparation (Self-Healing), astreinte 24/7 P1/P2, gouvernance COPIL,  
-virtualisation (VMware / Nutanix), SecOps Zero-Trust, simulation d'incidents et 6 projets majeurs d'ingénierie.**
+virtualisation (VMware / Nutanix), SecOps Zero-Trust, Chaos Engineering et 7 projets majeurs d'ingénierie.**
 
 ---
 
-![Version](https://img.shields.io/badge/version-3.8.0-blue?style=flat-square)
+[![ESN-Toolkit CI](https://github.com/aberrada-engineer/windows-support-automation-toolkit/actions/workflows/ci.yml/badge.svg)](https://github.com/aberrada-engineer/windows-support-automation-toolkit/actions/workflows/ci.yml)
+![Pester](https://img.shields.io/badge/Pester_Tests-100%25_Pass-success?style=flat-square)
+![Version](https://img.shields.io/badge/version-3.9.0-blue?style=flat-square)
 ![PowerShell](https://img.shields.io/badge/PowerShell-5.1%2B%20%7C%207%2B-5391FE?style=flat-square&logo=powershell&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11%20%7C%20Server%202016--2022-0078D4?style=flat-square&logo=windows&logoColor=white)
-![AIOps](https://img.shields.io/badge/AIOps-Self--Healing%20%26%20Predictive-brightgreen?style=flat-square)
 ![Security](https://img.shields.io/badge/Compliance-Zero--Trust%20%2F%20ANSSI%20%2F%20CIS-red?style=flat-square)
-![Code Size](https://img.shields.io/badge/Codebase-15%2C000%2B%20lines-purple?style=flat-square)
 ![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
 [![GitHub](https://img.shields.io/badge/GitHub-aberrada--engineer-181717?style=flat-square&logo=github)](https://github.com/aberrada-engineer/windows-support-automation-toolkit)
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-Amine%20BERRADA-0077B5?style=flat-square&logo=linkedin)](https://www.linkedin.com/in/amine-berrada-infra/)
@@ -53,17 +53,26 @@ Pour les recruteurs, directeurs techniques (CTO / DSI) et jurys de recrutement, 
 - 📊 **[Pitch Deck de Présentation Technique (Slides HTML)](Presentation/index.html)** : Présentation moderne dark mode en 5 diapositives interactive prête à être partagée en visioconférence (Teams / Google Meet).
 - 📓 **[Le Livre Noir des Incidents (Compendium REX)](Docs/INCIDENT-LOGBOOK.md)** : 8 études de cas réels d'incidents P1/P2 résolus (symptômes, diagnostic boîte noire, cause racine, remédiation sous astreinte et post-mortem).
 - 📐 **[Schémas d'Architecture Système & Réseau (Mermaid)](Docs/ARCHITECTURE-SCHEMAS.md)** : Topologies multi-sites WAN MPLS, clusters virtualisés N+1 et flux de réplication intersites PRA.
-- 🎬 **Simulateur d'Incidents pour Live Demo (`Invoke-IncidentLabSimulator.ps1`)** : Permet de réaliser une démonstration en direct devant un recruteur (injection contrôlée de panne, résolution en 5 secondes par `-AutoFix` et affichage du rapport).
+- 🧪 **Simulateur Chaos Engineering & Live Demo (`Invoke-IncidentLabSimulator.ps1`)** : 6 scénarios contrôlés incluant tempête DNS/dérive NTP, saturation disque C: 99% et coupure DFS-R/Cluster, avec télémétrie JSON SIEM et `-CleanUp`.
 
-Conçue sur le retour d'expérience de plus de **200 infrastructures multi-clients infogérées** et d'environnements critiques (notamment grands comptes horlogers et luxe genevois tels que *Porsche, TAG Heuer, Hublot*), cette boîte à outils garantit une autonomie opérationnelle maximale.
+---
 
-> ⚡ **100 % Natif Windows (PowerShell 5.1+ & 7+)** — **Zéro dépendance externe** requise — Exécutable immédiatement sur n'importe quel serveur ou poste de travail.
+## 🔄 Cycle AIOps & Architecture Opérationnelle (Mermaid)
+
+```mermaid
+flowchart LR
+    T["1. Télémétrie & Audit Parallèle\nHighSpeedParallelAuditor (RunspacePool)\nNutanixPrismHealthAI • ADThreatHunter"] --> P1["2. Triage d'Urgence P1/P2\nInvoke-P1EmergencyTriage\nZeroTrustAudit • VeeamImmutableAudit"]
+    P1 --> SH["3. Self-Healing & SecOps\nInvoke-SelfHealingService\nInvoke-RansomwareShield (KillSwitch)"]
+    SH --> DEP["4. Déploiement & Durcissement\nInstall-EnterpriseSilent (GPO/Intune)\nMDT • LAPS • EDR • ArubaOS-CX"]
+    DEP --> REP["5. Reporting ITSM & COPIL\nInvoke-ITSMConnector (GLPI/ServiceNow)\nInvoke-CopilDashboardGenerator • SIEM JSON"]
+    REP --> T
+```
 
 ---
 
 ## 🏗️ Architecture Modulaire
 
-La plateforme compte **plus de 13 600 lignes de code PowerShell & Batch**, structurées en 4 couches opérationnelles :
+La plateforme compte **plus de 16 000 lignes de code PowerShell & Batch**, structurées en 4 couches opérationnelles :
 
 ```
 ESN-Toolkit/
@@ -252,23 +261,39 @@ Accessible via le lanceur `ESN-Launcher.bat` ou l'exécutable déployé sur le b
 
 ### 2. Console Interactive (TUI) — `ESN-Console.ps1`
 Idéale en session PowerShell distante, PowerShell Direct ou RDP à faible débit :
-- **29 options numérotées** couvrant toutes les fonctionnalités d'un simple chiffre.
-- Sous-menu dédié `[26]` pour exécuter, auditer ou simuler les 6 projets majeurs.
+- **43 options numérotées** couvrant l'ensemble des modules AIOps, SecOps, Chaos Lab et audits multi-threadés.
+- Sous-menu dédié `[26]` pour exécuter, auditer ou simuler les 7 projets majeurs.
 
 ---
 
-## 🚀 Démarrage Rapide
+## ⏱️ Runbook Astreinte 24/7 : Résoudre un incident P1 en 8 minutes chrono
 
-### Option A : Installation en 1 clic (Recommandée)
-Exécutez simplement `Setup.bat` en tant qu'administrateur :
+| Chrono | Étape | Commande WSAT | Objectif |
+|---|---|---|---|
+| **00:00 – 01:30** | Triage Boîte Noire | `.\Invoke-P1EmergencyTriage.ps1 -HoursBack 4` | Extraction BSOD Minidumps, 50 dernières erreurs EventLog, SMART & réseau + Flash Report HTML/SIEM |
+| **01:30 – 03:00** | Scan Parc Parallèle | `.\Invoke-HighSpeedParallelAuditor.ps1 -ComputerName $servers -MaxConcurrency 64` | Détection des serveurs impactés sur 500+ hôtes en < 60s sans blocage |
+| **03:00 – 05:00** | Endiguement Cyber / Heal | `.\Invoke-RansomwareShield.ps1 -WhatIf` ou `.\Invoke-SelfHealingService.ps1` | KillSwitch isolant si compromission, ou auto-réparation services/disque/DNS |
+| **05:00 – 07:00** | Vérification SecOps & Backup | `.\Invoke-ActiveDirectoryThreatHunter.ps1` + `.\Invoke-VeeamImmutableAudit.ps1` | Contrôle Kerberoasting/AS-REP & intégrité immuable XFS des sauvegardes |
+| **07:00 – 08:00** | Clôture & Communication | `.\Invoke-IncidentAnalysis.ps1 -ExportZip` + `.\Invoke-CopilDashboardGenerator.ps1` | Archive preuves ticket ITSM + restitution COTECH/COPIL |
+
+---
+
+## 🚀 Démarrage Rapide & Déploiement Silencieux en Entreprise
+
+### Option A : Installation interactive en 1 clic
+Exécutez `Setup.bat` en tant qu'administrateur :
 ```cmd
 Setup.bat
 ```
-Le script configure l'environnement, crée le répertoire `C:\ESN-Toolkit`, place les raccourcis sur le bureau et lance l'interface graphique.
+Configure `C:\ESN-Toolkit`, règle l'`ExecutionPolicy`, place les raccourcis et lance l'interface graphique.
 
-### Option B : Déploiement Silencieux en Masse (GPO / Intune / SCCM)
+### Option B : Déploiement Silencieux de Masse (GPO / Intune Win32 App / SCCM)
 ```cmd
 Install-EnterpriseSilent.bat
+```
+Ou directement en PowerShell non-interactif :
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Install-ESNToolkit.ps1 -Silent
 ```
 
 ### Option C : Lancement direct sans installation

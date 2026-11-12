@@ -42,7 +42,7 @@ jobs:
         shell: pwsh
         run: |
           if (Get-Module -ListAvailable -Name Pester) {
-              Invoke-Pester -Path ./Tests/ESN-EnterpriseModules.Tests.ps1 -Output Detailed
+              Invoke-Pester -Path @('./Tests/ESN-EnterpriseModules.Tests.ps1', './Tests/WSAT-Enterprise.Tests.ps1') -Output Detailed
           } else {
               Write-Host "Module Pester non présent par défaut sur l'environnement, validation AST effectuée avec succès."
           }

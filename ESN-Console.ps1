@@ -61,9 +61,15 @@ do {
     Write-Host " [35] 🖥️  Ouvrir le Tableau de Bord Web Centralisé (ESN-Central Dashboard)" -ForegroundColor Blue
     Write-Host " [36] 📂 Ouvrir le dernier rapport HTML dans le navigateur" -ForegroundColor Blue
     Write-Host " [37] 📦 Générer l'archive ZIP incident pour le ticket (Jira / GLPI / ServiceNow)" -ForegroundColor Cyan
+    Write-Host " [38] 🧠 Nutanix Prism Health AI (CVM, IOPS, Runway COTECH)" -ForegroundColor Green
+    Write-Host " [39] 🕵️  Active Directory Threat Hunter (Kerberoasting, AS-REP, ACLs)" -ForegroundColor Red
+    Write-Host " [40] ⚡ Audit Parallèle Haute Vitesse RunspacePool (500+ Serveurs < 60s)" -ForegroundColor Cyan
+    Write-Host " [41] 🔒 Audit Immuabilité Veeam Hardened Repo Linux XFS (Canari EPERM)" -ForegroundColor Magenta
+    Write-Host " [42] 📈 Générateur Dashboard COPIL HTML5 Dark Mode Autonome (SVG)" -ForegroundColor Green
+    Write-Host " [43] 🧪 Chaos Engineering Lab (DNS/NTP Storm, Disque 99%, Coupure DFS-R)" -ForegroundColor Yellow
     Write-Host " [Q]  ❌ Quitter" -ForegroundColor DarkGray
     Write-Host "--------------------------------------------------------------------------------" -ForegroundColor DarkGray
-    $choice = Read-Host " Entrez votre choix (1-37 ou Q)"
+    $choice = Read-Host " Entrez votre choix (1-43 ou Q)"
 
     switch ($choice.ToUpper()) {
         "1" { & "$ScriptDir\Invoke-IncidentAnalysis.ps1" -OpenReport; Read-Host "`nAppuyez sur Entrée pour continuer..." }
@@ -169,6 +175,18 @@ do {
             $ticket = Read-Host "Entrez le numéro de ticket (ex: INC-10492)"
             if (-not $ticket) { $ticket = "INC-$(Get-Date -Format 'yyyyMMdd-HHmm')" }
             & "$ScriptDir\Invoke-IncidentAnalysis.ps1" -IncidentId $ticket -ExportZip
+            Read-Host "`nAppuyez sur Entrée pour continuer..."
+        }
+        "38" { try { & "$ScriptDir\Invoke-NutanixPrismHealthAI.ps1" -Simulate } catch { Write-Warning $_.Exception.Message }; Read-Host "`nAppuyez sur Entrée pour continuer..." }
+        "39" { try { & "$ScriptDir\Invoke-ActiveDirectoryThreatHunter.ps1" -Simulate } catch { Write-Warning $_.Exception.Message }; Read-Host "`nAppuyez sur Entrée pour continuer..." }
+        "40" { try { & "$ScriptDir\Invoke-HighSpeedParallelAuditor.ps1" -Simulate } catch { Write-Warning $_.Exception.Message }; Read-Host "`nAppuyez sur Entrée pour continuer..." }
+        "41" { try { & "$ScriptDir\Invoke-VeeamImmutableAudit.ps1" -Simulate } catch { Write-Warning $_.Exception.Message }; Read-Host "`nAppuyez sur Entrée pour continuer..." }
+        "42" { try { & "$ScriptDir\Invoke-CopilDashboardGenerator.ps1" } catch { Write-Warning $_.Exception.Message }; Read-Host "`nAppuyez sur Entrée pour continuer..." }
+        "43" {
+            $sc = Read-Host "Scénario Chaos (1=DNS/NTP Storm, 2=Disque 99%, 3=Coupure DFS-R)"
+            $map = @{ "1" = "Chaos-DnsNtpStorm"; "2" = "Chaos-DiskSaturation99"; "3" = "Chaos-DfsrClusterOutage" }
+            $sel = if ($map.ContainsKey($sc)) { $map[$sc] } else { "Chaos-DnsNtpStorm" }
+            try { & "$ScriptDir\Invoke-IncidentLabSimulator.ps1" -Scenario $sel -Simulate } catch { Write-Warning $_.Exception.Message }
             Read-Host "`nAppuyez sur Entrée pour continuer..."
         }
     }

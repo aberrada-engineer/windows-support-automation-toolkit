@@ -8,8 +8,20 @@
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
+Add-Type -AssemblyName Microsoft.VisualBasic
 
 $ScriptDir = Split-Path $MyInvocation.PSCommandPath -Parent
+$script:PwshHost = if ($PSVersionTable.PSEdition -eq "Core" -and (Get-Command pwsh -ErrorAction SilentlyContinue)) { "pwsh" } else { "powershell.exe" }
+
+function Start-ESNModuleProcess {
+    param([Parameter(Mandatory)][string]$ArgumentList)
+    try {
+        Start-Process $script:PwshHost -ArgumentList $ArgumentList -ErrorAction Stop
+    }
+    catch [System.Exception] {
+        Append-Log "[ERREUR] Impossible de lancer le module : $($_.Exception.Message)" "Red"
+    }
+}
 
 # ─────────────────────────────────────────────
 # 1. FENÊTRE PRINCIPALE
@@ -88,17 +100,17 @@ $tab1.BackColor = [System.Drawing.Color]::White
 
 $tab1.Controls.Add((Create-ModernButton -Text "📊 Audit Santé + Rapport HTML" -X 20 -Y 20 -Width 270 -Height 48 -BgColor ([System.Drawing.Color]::FromArgb(16, 124, 65)) -Action {
     Append-Log "Lancement de l'audit de santé global..." "Cyan"
-    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-IncidentAnalysis.ps1`" -OpenReport"
+    Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-IncidentAnalysis.ps1`" -OpenReport"
 }))
 
 $tab1.Controls.Add((Create-ModernButton -Text "⚡ Auto-Réparation Complète (AutoFix)" -X 310 -Y 20 -Width 270 -Height 48 -BgColor ([System.Drawing.Color]::FromArgb(216, 59, 1)) -Action {
     Append-Log "Lancement de l'auto-remédiation globale (-AutoFix)..." "Red"
-    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-IncidentAnalysis.ps1`" -AutoFix -OpenReport"
+    Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-IncidentAnalysis.ps1`" -AutoFix -OpenReport"
 }))
 
 $tab1.Controls.Add((Create-ModernButton -Text "🔍 Mode Simulation (Zéro modif)" -X 600 -Y 20 -Width 270 -Height 48 -BgColor ([System.Drawing.Color]::FromArgb(0, 120, 212)) -Action {
     Append-Log "Lancement du diagnostic en mode Simulation..." "Blue"
-    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-IncidentAnalysis.ps1`" -Simulation -OpenReport"
+    Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-IncidentAnalysis.ps1`" -Simulation -OpenReport"
 }))
 
 $tab1.Controls.Add((Create-ModernButton -Text "📂 Ouvrir Dernier Rapport HTML" -X 20 -Y 85 -Width 270 -Height 45 -BgColor ([System.Drawing.Color]::FromArgb(43, 87, 154)) -Action {
@@ -111,18 +123,18 @@ $tab1.Controls.Add((Create-ModernButton -Text "📦 Générer Archive ZIP Incide
     $ticket = [Microsoft.VisualBasic.Interaction]::InputBox("Entrez le numéro de ticket (ex: INC-8492) :", "Archive Incident ZIP", "INC-$(Get-Date -Format 'yyyyMMdd-HHmm')")
     if ($ticket) {
         Append-Log "Génération du ZIP incident $ticket..." "Cyan"
-        Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-IncidentAnalysis.ps1`" -IncidentId `"$ticket`" -ExportZip"
+        Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-IncidentAnalysis.ps1`" -IncidentId `"$ticket`" -ExportZip"
     }
 }))
 
 $tab1.Controls.Add((Create-ModernButton -Text "🖥️ Tableau de Bord Centralisé (Web)" -X 600 -Y 85 -Width 270 -Height 45 -BgColor ([System.Drawing.Color]::FromArgb(30, 60, 100)) -Action {
     Append-Log "Ouverture du Dashboard Datadog-like..." "Cyan"
-    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-CentralDashboard.ps1`""
+    Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-CentralDashboard.ps1`""
 }))
 
 $tab1.Controls.Add((Create-ModernButton -Text "🎬 Simulateur Live Demo (Auto-Fix)" -X 20 -Y 138 -Width 270 -Height 42 -BgColor ([System.Drawing.Color]::FromArgb(0, 130, 90)) -Action {
     Append-Log "Lancement de la simulation d'incident pour démonstration..." "Green"
-    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-IncidentLabSimulator.ps1`" -Scenario N1-Workstation"
+    Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-IncidentLabSimulator.ps1`" -Scenario N1-Workstation"
 }))
 
 $tab1.Controls.Add((Create-ModernButton -Text "📊 Pitch Deck Présentation (Slides HTML)" -X 310 -Y 138 -Width 270 -Height 42 -BgColor ([System.Drawing.Color]::FromArgb(100, 40, 140)) -Action {
@@ -146,32 +158,32 @@ $tab2.Controls.Add((Create-ModernButton -Text "🖨️ Purger le Spooler d'impre
 
 $tab2.Controls.Add((Create-ModernButton -Text "🌐 Reset Pile Réseau (DNS + Winsock)" -X 310 -Y 15 -Width 270 -Height 42 -BgColor ([System.Drawing.Color]::FromArgb(50, 110, 150)) -Action {
     Append-Log "Réinitialisation DNS et Winsock..." "White"
-    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-IncidentAnalysis.ps1`" -Fix DNS,Winsock"
+    Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-IncidentAnalysis.ps1`" -Fix DNS,Winsock"
 }))
 
 $tab2.Controls.Add((Create-ModernButton -Text "☁️ Vider Caches M365 (Teams, Outlook)" -X 600 -Y 15 -Width 270 -Height 42 -BgColor ([System.Drawing.Color]::FromArgb(50, 110, 150)) -Action {
     Append-Log "Purge des caches Teams, Outlook et OneDrive..." "White"
-    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-IncidentAnalysis.ps1`" -Fix Teams,Outlook,OneDrive"
+    Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-IncidentAnalysis.ps1`" -Fix Teams,Outlook,OneDrive"
 }))
 
 $tab2.Controls.Add((Create-ModernButton -Text "🧹 Nettoyer Fichiers Temp Disque C:" -X 20 -Y 68 -Width 270 -Height 42 -BgColor ([System.Drawing.Color]::FromArgb(100, 100, 100)) -Action {
     Append-Log "Nettoyage des fichiers temporaires..." "White"
-    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-IncidentAnalysis.ps1`" -Fix TempFiles"
+    Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-IncidentAnalysis.ps1`" -Fix TempFiles"
 }))
 
 $tab2.Controls.Add((Create-ModernButton -Text "🔄 Réinitialiser Windows Update" -X 310 -Y 68 -Width 270 -Height 42 -BgColor ([System.Drawing.Color]::FromArgb(100, 100, 100)) -Action {
     Append-Log "Réinitialisation du cache Windows Update..." "White"
-    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-IncidentAnalysis.ps1`" -Fix WindowsUpdate"
+    Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-IncidentAnalysis.ps1`" -Fix WindowsUpdate"
 }))
 
 $tab2.Controls.Add((Create-ModernButton -Text "📦 Inventaire GLPI / OCS Parc" -X 600 -Y 68 -Width 270 -Height 42 -BgColor ([System.Drawing.Color]::FromArgb(0, 130, 150)) -Action {
     Append-Log "Génération de l'inventaire matériel/logiciel GLPI..." "Cyan"
-    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-GLPIInventoryAgent.ps1`""
+    Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-GLPIInventoryAgent.ps1`""
 }))
 
 $tab2.Controls.Add((Create-ModernButton -Text "🔄 Conformité WSUS & Patch Management" -X 20 -Y 120 -Width 270 -Height 42 -BgColor ([System.Drawing.Color]::FromArgb(40, 90, 130)) -Action {
     Append-Log "Contrôle de conformité et synchronisation WSUS..." "Cyan"
-    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-WSUSComplianceManager.ps1`" -OpenReport"
+    Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-WSUSComplianceManager.ps1`" -OpenReport"
 }))
 
 $tabControl.Controls.Add($tab2)
@@ -183,27 +195,27 @@ $tab3.BackColor = [System.Drawing.Color]::White
 
 $tab3.Controls.Add((Create-ModernButton -Text "🏢 Audit Active Directory & Hygiène" -X 20 -Y 15 -Width 270 -Height 42 -BgColor ([System.Drawing.Color]::FromArgb(90, 40, 130)) -Action {
     Append-Log "Audit d'hygiène Active Directory..." "Cyan"
-    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-ADHygieneCheck.ps1`" -OpenReport"
+    Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-ADHygieneCheck.ps1`" -OpenReport"
 }))
 
 $tab3.Controls.Add((Create-ModernButton -Text "🖥️ Audit Hyperviseurs (VMware / Nutanix)" -X 310 -Y 15 -Width 270 -Height 42 -BgColor ([System.Drawing.Color]::FromArgb(0, 120, 80)) -Action {
     Append-Log "Audit santé clusters VMware vSphere & Nutanix..." "Green"
-    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-HypervisorAudit.ps1`""
+    Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-HypervisorAudit.ps1`""
 }))
 
 $tab3.Controls.Add((Create-ModernButton -Text "✉️ Audit Exchange & Routage SMTP" -X 600 -Y 15 -Width 270 -Height 42 -BgColor ([System.Drawing.Color]::FromArgb(0, 100, 160)) -Action {
     Append-Log "Audit Exchange Hybride / On-Premise..." "Cyan"
-    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-ExchangeHealthCheck.ps1`""
+    Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-ExchangeHealthCheck.ps1`""
 }))
 
 $tab3.Controls.Add((Create-ModernButton -Text "🌐 Audit Cœur Réseau (DHCP/DNS/PKI)" -X 20 -Y 68 -Width 270 -Height 42 -BgColor ([System.Drawing.Color]::FromArgb(40, 80, 120)) -Action {
     Append-Log "Audit DHCP Scopes, DNS Scavenging et Certificats SSL..." "Cyan"
-    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-CoreServicesAudit.ps1`""
+    Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-CoreServicesAudit.ps1`""
 }))
 
 $tab3.Controls.Add((Create-ModernButton -Text "☁️ Audit Cloud Hybride (Entra ID, Intune)" -X 310 -Y 68 -Width 270 -Height 42 -BgColor ([System.Drawing.Color]::FromArgb(0, 120, 212)) -Action {
     Append-Log "Audit Cloud Hybride Entra ID Connect / Intune..." "Blue"
-    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-CloudHybridAudit.ps1`" -OpenReport"
+    Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-CloudHybridAudit.ps1`" -OpenReport"
 }))
 
 $tab3.Controls.Add((Create-ModernButton -Text "💾 Audit Sauvegardes Veeam & SecOps" -X 600 -Y 68 -Width 270 -Height 42 -BgColor ([System.Drawing.Color]::FromArgb(16, 124, 65)) -Action {
@@ -224,12 +236,12 @@ $tab4.BackColor = [System.Drawing.Color]::White
 
 $tab4.Controls.Add((Create-ModernButton -Text "📤 Sauvegarder Ancien Poste (Capture A-Z)" -X 20 -Y 20 -Width 270 -Height 50 -BgColor ([System.Drawing.Color]::FromArgb(16, 124, 65)) -Action {
     Append-Log "Lancement de l'Assistant de Sauvegarde / Migration..." "Cyan"
-    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-FullStationMigration.ps1`""
+    Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-FullStationMigration.ps1`""
 }))
 
 $tab4.Controls.Add((Create-ModernButton -Text "📥 Restaurer sur Nouveau Poste (1-Clic)" -X 310 -Y 20 -Width 270 -Height 50 -BgColor ([System.Drawing.Color]::FromArgb(0, 120, 212)) -Action {
     Append-Log "Lancement de la Restauration Nouveau Poste..." "Cyan"
-    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-FullStationMigration.ps1`""
+    Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-FullStationMigration.ps1`""
 }))
 
 $tab4.Controls.Add((Create-ModernButton -Text "📂 Ouvrir Dossier Migrations" -X 600 -Y 20 -Width 270 -Height 50 -BgColor ([System.Drawing.Color]::FromArgb(85, 85, 85)) -Action {
@@ -258,42 +270,42 @@ $tab5.BackColor = [System.Drawing.Color]::White
 
 $tab5.Controls.Add((Create-ModernButton -Text "🤖 Activer Gardien Self-Healing" -X 20 -Y 20 -Width 270 -Height 45 -BgColor ([System.Drawing.Color]::FromArgb(16, 124, 65)) -Action {
     Append-Log "Installation de la tâche planifiée Self-Healing (15 min)..." "Green"
-    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-SelfHealingService.ps1`" -InstallServiceTask"
+    Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-SelfHealingService.ps1`" -InstallServiceTask"
 }))
 
 $tab5.Controls.Add((Create-ModernButton -Text "🚀 Zero-Touch Provisioning (Poste Neuf)" -X 310 -Y 20 -Width 270 -Height 45 -BgColor ([System.Drawing.Color]::FromArgb(0, 120, 212)) -Action {
     Append-Log "Lancement de la préparation de poste neuf..." "Cyan"
-    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-ZeroTouchProvisioning.ps1`""
+    Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-ZeroTouchProvisioning.ps1`""
 }))
 
 $tab5.Controls.Add((Create-ModernButton -Text "🛡️ Audit & Durcissement ANSSI" -X 600 -Y 20 -Width 270 -Height 45 -BgColor ([System.Drawing.Color]::FromArgb(180, 40, 40)) -Action {
     Append-Log "Lancement de l'audit de sécurité et durcissement..." "Red"
-    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-SecurityHardening.ps1`" -OpenReport"
+    Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-SecurityHardening.ps1`" -OpenReport"
 }))
 
 $tab5.Controls.Add((Create-ModernButton -Text "🚨 Triage Urgence P1 (Astreinte 24/7)" -X 20 -Y 78 -Width 270 -Height 45 -BgColor ([System.Drawing.Color]::FromArgb(180, 0, 0)) -Action {
     Append-Log "Extraction crash dumps et boîte noire P1..." "Red"
-    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-P1EmergencyTriage.ps1`""
+    Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-P1EmergencyTriage.ps1`""
 }))
 
 $tab5.Controls.Add((Create-ModernButton -Text "🛑 Ransomware Emergency KillSwitch" -X 310 -Y 78 -Width 270 -Height 45 -BgColor ([System.Drawing.Color]::FromArgb(120, 0, 0)) -Action {
     Append-Log "Isolement d'urgence de la machine..." "Red"
-    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-RansomwareShield.ps1`""
+    Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-RansomwareShield.ps1`""
 }))
 
 $tab5.Controls.Add((Create-ModernButton -Text "🔮 Analyse Prédictive Saturation & SSD" -X 600 -Y 78 -Width 270 -Height 45 -BgColor ([System.Drawing.Color]::FromArgb(90, 40, 130)) -Action {
     Append-Log "Calcul prédictif saturation disque et usure..." "Cyan"
-    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-PredictiveHealthAnalysis.ps1`""
+    Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-PredictiveHealthAnalysis.ps1`""
 }))
 
 $tab5.Controls.Add((Create-ModernButton -Text "🛡️ Audit Posture Zero-Trust (TPM/VBS)" -X 20 -Y 130 -Width 270 -Height 42 -BgColor ([System.Drawing.Color]::FromArgb(140, 20, 20)) -Action {
     Append-Log "Lancement de l'audit Zero-Trust (TPM 2.0, VBS, LSA)..." "Red"
-    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-ZeroTrustAudit.ps1`" -OpenReport"
+    Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-ZeroTrustAudit.ps1`" -OpenReport"
 }))
 
 $tab5.Controls.Add((Create-ModernButton -Text "📢 Dispatcher Alertes ITSM (GLPI/Teams)" -X 310 -Y 130 -Width 270 -Height 42 -BgColor ([System.Drawing.Color]::FromArgb(200, 100, 0)) -Action {
     Append-Log "Simulation de transmission d'incident ITSM..." "Yellow"
-    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-ITSMConnector.ps1`" -Target Simulation"
+    Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-ITSMConnector.ps1`" -Target Simulation"
 }))
 
 $tabControl.Controls.Add($tab5)
@@ -305,62 +317,62 @@ $tab6.BackColor = [System.Drawing.Color]::White
 
 $tab6.Controls.Add((Create-ModernButton -Text "🔄 Migration Inter-Domaines AD" -X 20 -Y 12 -Width 270 -Height 38 -BgColor ([System.Drawing.Color]::FromArgb(40, 70, 120)) -Action {
     Append-Log "Simulation / Exécution Migration Inter-Domaines AD..." "Cyan"
-    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Projects\AD-Migration\Invoke-ADDomainMigration.ps1`" -ReportOnly"
+    Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Projects\AD-Migration\Invoke-ADDomainMigration.ps1`" -ReportOnly"
 }))
 
 $tab6.Controls.Add((Create-ModernButton -Text "🛡️ Rollout EDR Massif (+200 Postes)" -X 310 -Y 12 -Width 270 -Height 38 -BgColor ([System.Drawing.Color]::FromArgb(150, 40, 40)) -Action {
     Append-Log "Déploiement industrialisé EDR SentinelOne..." "Red"
-    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Projects\EDR-Deployment\Invoke-EDRMassRollout.ps1`" -ReportOnly"
+    Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Projects\EDR-Deployment\Invoke-EDRMassRollout.ps1`" -ReportOnly"
 }))
 
 $tab6.Controls.Add((Create-ModernButton -Text "🔌 Config Switchs Aruba CX" -X 600 -Y 12 -Width 270 -Height 38 -BgColor ([System.Drawing.Color]::FromArgb(216, 90, 0)) -Action {
     Append-Log "Génération configuration Switchs Aruba CX (VLAN/LACP)..." "Yellow"
-    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Projects\Network-Aruba\New-ArubaSwitchConfig.ps1`""
+    Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Projects\Network-Aruba\New-ArubaSwitchConfig.ps1`""
 }))
 
 $tab6.Controls.Add((Create-ModernButton -Text "🔐 Déploiement Windows LAPS" -X 20 -Y 56 -Width 270 -Height 38 -BgColor ([System.Drawing.Color]::FromArgb(0, 100, 100)) -Action {
     Append-Log "Audit & Déploiement Windows LAPS (Anti-Pass-the-Hash)..." "Cyan"
-    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Projects\Windows-LAPS\Deploy-WindowsLAPS.ps1`" -ReportOnly"
+    Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Projects\Windows-LAPS\Deploy-WindowsLAPS.ps1`" -ReportOnly"
 }))
 
 $tab6.Controls.Add((Create-ModernButton -Text "🏢 Bascule Datacenter Veeam (PRA)" -X 310 -Y 56 -Width 270 -Height 38 -BgColor ([System.Drawing.Color]::FromArgb(16, 124, 65)) -Action {
     Append-Log "Orchestration Failover Plan Veeam Datacenter..." "Green"
-    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Projects\Datacenter-Migration\Invoke-VeeamFailoverPlan.ps1`" -DryRun"
+    Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Projects\Datacenter-Migration\Invoke-VeeamFailoverPlan.ps1`" -DryRun"
 }))
 
 $tab6.Controls.Add((Create-ModernButton -Text "🖥️ Industrialisation MDT (Parc 200+)" -X 600 -Y 56 -Width 270 -Height 38 -BgColor ([System.Drawing.Color]::FromArgb(0, 120, 212)) -Action {
     Append-Log "Industrialisation MDT / WDS Postes Texdecor..." "Blue"
-    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Projects\MDT-Deployment\Invoke-MDTIndustrialization.ps1`" -ReportOnly"
+    Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Projects\MDT-Deployment\Invoke-MDTIndustrialization.ps1`" -ReportOnly"
 }))
 
 $tab6.Controls.Add((Create-ModernButton -Text "🌐 Refonte WAN & PRA Intersites" -X 20 -Y 100 -Width 270 -Height 38 -BgColor ([System.Drawing.Color]::FromArgb(120, 60, 140)) -Action {
     Append-Log "Audit WAN MPLS & Réplication PRA Intersites..." "Magenta"
-    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Projects\WAN-MPLS-Refonte\Invoke-WANMigrationPlan.ps1`" -ReportOnly"
+    Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Projects\WAN-MPLS-Refonte\Invoke-WANMigrationPlan.ps1`" -ReportOnly"
 }))
 
 $tab6.Controls.Add((Create-ModernButton -Text "📑 Rapport Mensuel COPIL / COTECH" -X 310 -Y 100 -Width 270 -Height 38 -BgColor ([System.Drawing.Color]::FromArgb(0, 130, 90)) -Action {
     Append-Log "Génération du rapport exécutif COPIL (SLA 99.9%)..." "Green"
-    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-COPILReportGenerator.ps1`""
+    Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-COPILReportGenerator.ps1`""
 }))
 
 $tab6.Controls.Add((Create-ModernButton -Text "📊 Sizing Infrastructure N+1 Stockage" -X 600 -Y 100 -Width 270 -Height 38 -BgColor ([System.Drawing.Color]::FromArgb(70, 70, 70)) -Action {
     Append-Log "Calcul de dimensionnement cluster N+1 et stockage..." "White"
-    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-InfrastructureSizing.ps1`""
+    Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-InfrastructureSizing.ps1`""
 }))
 
 $tab6.Controls.Add((Create-ModernButton -Text "📑 Dossier Officiel PRA / DRP" -X 20 -Y 144 -Width 270 -Height 38 -BgColor ([System.Drawing.Color]::FromArgb(160, 40, 90)) -Action {
     Append-Log "Génération du dossier officiel PRA / DRP pour audit..." "Cyan"
-    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-DRPGenerator.ps1`" -OpenReport"
+    Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-DRPGenerator.ps1`" -OpenReport"
 }))
 
 $tab6.Controls.Add((Create-ModernButton -Text "🐧 Audit Serveur Linux (SSH)" -X 310 -Y 144 -Width 270 -Height 38 -BgColor ([System.Drawing.Color]::FromArgb(40, 110, 40)) -Action {
     Append-Log "Audit de santé serveur Linux via SSH natif..." "Green"
-    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-LinuxHeterogeneousAudit.ps1`" -SimulationMode -OpenReport"
+    Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-LinuxHeterogeneousAudit.ps1`" -SimulationMode -OpenReport"
 }))
 
 $tab6.Controls.Add((Create-ModernButton -Text "📡 Déployer Sondes PRTG (XML)" -X 600 -Y 144 -Width 270 -Height 38 -BgColor ([System.Drawing.Color]::FromArgb(200, 120, 0)) -Action {
     Append-Log "Génération et déploiement des sondes PRTG..." "Yellow"
-    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-PRTGSensorDeployer.ps1`" -TargetSensor All"
+    Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-PRTGSensorDeployer.ps1`" -TargetSensor All"
 }))
 
 $tabControl.Controls.Add($tab6)
