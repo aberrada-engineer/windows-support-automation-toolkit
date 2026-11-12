@@ -12,15 +12,24 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Run Quality Gate (pwsh)
+      - name: AST Syntax Check (pwsh)
         shell: pwsh
-        run: ./.github/scripts/Invoke-QualityGate.ps1 -RunAnalyzer
+        run: ./.github/scripts/Invoke-QualityGate.ps1 -Stage AST
+      - name: PSScriptAnalyzer (pwsh)
+        shell: pwsh
+        run: ./.github/scripts/Invoke-QualityGate.ps1 -Stage Analyzer
+      - name: Pester v5 Suite (pwsh)
+        shell: pwsh
+        run: ./.github/scripts/Invoke-QualityGate.ps1 -Stage Pester
 
   quality-gate-winps51:
     name: Windows PowerShell 5.1 (AST, Pester v5)
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Run Quality Gate (powershell 5.1)
+      - name: AST Syntax Check (powershell 5.1)
         shell: powershell
-        run: ./.github/scripts/Invoke-QualityGate.ps1
+        run: ./.github/scripts/Invoke-QualityGate.ps1 -Stage AST
+      - name: Pester v5 Suite (powershell 5.1)
+        shell: powershell
+        run: ./.github/scripts/Invoke-QualityGate.ps1 -Stage Pester
