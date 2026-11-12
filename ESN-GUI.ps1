@@ -120,6 +120,16 @@ $tab1.Controls.Add((Create-ModernButton -Text "🖥️ Tableau de Bord Centralis
     Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-CentralDashboard.ps1`""
 }))
 
+$tab1.Controls.Add((Create-ModernButton -Text "🎬 Simulateur Live Demo (Auto-Fix)" -X 20 -Y 138 -Width 270 -Height 42 -BgColor ([System.Drawing.Color]::FromArgb(0, 130, 90)) -Action {
+    Append-Log "Lancement de la simulation d'incident pour démonstration..." "Green"
+    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-IncidentLabSimulator.ps1`" -Scenario N1-Workstation"
+}))
+
+$tab1.Controls.Add((Create-ModernButton -Text "📊 Pitch Deck Présentation (Slides HTML)" -X 310 -Y 138 -Width 270 -Height 42 -BgColor ([System.Drawing.Color]::FromArgb(100, 40, 140)) -Action {
+    $slides = Join-Path $ScriptDir "Presentation\index.html"
+    if (Test-Path $slides) { Start-Process $slides; Append-Log "Pitch Deck ouvert dans le navigateur." "Cyan" }
+}))
+
 $tabControl.Controls.Add($tab1)
 
 # --- ONGLET 2 : SUPPORT POSTE & M365 (N1/N2) ---

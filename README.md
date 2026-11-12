@@ -1,20 +1,20 @@
 <div align="center">
 
-# 🖥️ ESN-Toolkit & AIOps Platform v3.7
+# 🖥️ ESN-Toolkit & AIOps Platform v3.8
 
 ### Autonomous Workstation, Infrastructure & Cloud Operations Platform
 
 **Plateforme PowerShell enterprise d'auto-réparation (Self-Healing), astreinte 24/7 P1/P2, gouvernance COPIL,  
-virtualisation (VMware / Nutanix), SecOps Zero-Trust, intégration ITSM, PRTG et 6 projets majeurs d'ingénierie.**
+virtualisation (VMware / Nutanix), SecOps Zero-Trust, simulation d'incidents et 6 projets majeurs d'ingénierie.**
 
 ---
 
-![Version](https://img.shields.io/badge/version-3.7.0-blue?style=flat-square)
+![Version](https://img.shields.io/badge/version-3.8.0-blue?style=flat-square)
 ![PowerShell](https://img.shields.io/badge/PowerShell-5.1%2B%20%7C%207%2B-5391FE?style=flat-square&logo=powershell&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11%20%7C%20Server%202016--2022-0078D4?style=flat-square&logo=windows&logoColor=white)
 ![AIOps](https://img.shields.io/badge/AIOps-Self--Healing%20%26%20Predictive-brightgreen?style=flat-square)
 ![Security](https://img.shields.io/badge/Compliance-Zero--Trust%20%2F%20ANSSI%20%2F%20CIS-red?style=flat-square)
-![Code Size](https://img.shields.io/badge/Lines%20of%20Code-13%2C600%2B-purple?style=flat-square)
+![Code Size](https://img.shields.io/badge/Codebase-15%2C000%2B%20lines-purple?style=flat-square)
 ![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
 [![GitHub](https://img.shields.io/badge/GitHub-aberrada--engineer-181717?style=flat-square&logo=github)](https://github.com/aberrada-engineer/windows-support-automation-toolkit)
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-Amine%20BERRADA-0077B5?style=flat-square&logo=linkedin)](https://www.linkedin.com/in/amine-berrada-infra/)
@@ -22,11 +22,11 @@ virtualisation (VMware / Nutanix), SecOps Zero-Trust, intégration ITSM, PRTG et
 ---
 
 [À propos](#-à-propos) •
+[Dossier Entretien & Pitch Deck](#-dossier-technique-dentretien--pitch-deck-interactif) •
 [Architecture Modulaire](#-architecture-modulaire) •
 [6 Projets Majeurs Déployés](#-6-projets-majeurs-déployés-en-production) •
+[Livre Noir des Incidents (REX)](#-le-livre-noir-des-incidents-rex-de-production) •
 [AIOps & Astreinte 24/7](#-aiops-astreinte-247--résilience) •
-[Zero-Trust & ITSM](#-architecture-zero-trust--connecteur-itsm) •
-[Infrastructure & Cloud](#-infrastructure-hyperviseurs--cloud-hybride) •
 [Interfaces GUI & Console](#-interfaces-graphique--console-interactive) •
 [Auteur & Référent](#-auteur--référent-technique)
 
@@ -36,8 +36,24 @@ virtualisation (VMware / Nutanix), SecOps Zero-Trust, intégration ITSM, PRTG et
 
 ## 🎯 À propos
 
-**ESN-Toolkit v3.7** est une plateforme d'ingénierie et d'automatisation des opérations informatiques (**AIOps**) conçue pour couvrir l'intégralité du spectre opérationnel d'une DSI ou d'une ESN :
+**ESN-Toolkit v3.8** est une plateforme d'ingénierie et d'automatisation des opérations informatiques (**AIOps**) conçue pour couvrir l'intégralité du spectre opérationnel d'une DSI ou d'une ESN :
 du **support poste de travail (N1/N2)**, à **l'administration système et maintien en conditions opérationnelles (N2/N3)**, jusqu'au **pilotage de projets d'infrastructure critiques (N3 / Architecte)**.
+
+Conçue sur le retour d'expérience de plus de **200 infrastructures multi-clients infogérées** et d'environnements critiques (notamment grands comptes horlogers et luxe genevois tels que *Porsche, TAG Heuer, Hublot*), cette boîte à outils garantit une autonomie opérationnelle maximale.
+
+> ⚡ **100 % Natif Windows (PowerShell 5.1+ & 7+)** — **Zéro dépendance externe** requise — Exécutable immédiatement sur n'importe quel serveur ou poste de travail.
+
+---
+
+## 💼 Dossier Technique d'Entretien & Pitch Deck Interactif
+
+Pour les recruteurs, directeurs techniques (CTO / DSI) et jurys de recrutement, des ressources dédiées sont incluses dans le repository :
+
+- 📄 **[Dossier Technique d'Ingénierie & Guide d'Entretien](Docs/DOSSIER-TECHNIQUE-ENTRETIEN.md)** : Synthèse de ma philosophie d'ingénierie, soutenance approfondie de chaque projet et guide de réponses aux questions d'architecture (AD FSMO, Veeam immuable 3-2-1, Nutanix/VMware, SecOps ANSSI).
+- 📊 **[Pitch Deck de Présentation Technique (Slides HTML)](Presentation/index.html)** : Présentation moderne dark mode en 5 diapositives interactive prête à être partagée en visioconférence (Teams / Google Meet).
+- 📓 **[Le Livre Noir des Incidents (Compendium REX)](Docs/INCIDENT-LOGBOOK.md)** : 8 études de cas réels d'incidents P1/P2 résolus (symptômes, diagnostic boîte noire, cause racine, remédiation sous astreinte et post-mortem).
+- 📐 **[Schémas d'Architecture Système & Réseau (Mermaid)](Docs/ARCHITECTURE-SCHEMAS.md)** : Topologies multi-sites WAN MPLS, clusters virtualisés N+1 et flux de réplication intersites PRA.
+- 🎬 **Simulateur d'Incidents pour Live Demo (`Invoke-IncidentLabSimulator.ps1`)** : Permet de réaliser une démonstration en direct devant un recruteur (injection contrôlée de panne, résolution en 5 secondes par `-AutoFix` et affichage du rapport).
 
 Conçue sur le retour d'expérience de plus de **200 infrastructures multi-clients infogérées** et d'environnements critiques (notamment grands comptes horlogers et luxe genevois tels que *Porsche, TAG Heuer, Hublot*), cette boîte à outils garantit une autonomie opérationnelle maximale.
 
