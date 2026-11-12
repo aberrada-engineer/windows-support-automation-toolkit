@@ -109,3 +109,53 @@ Describe "Chaos Engineering Lab Simulator (3 Enterprise Chaos Scenarios)" {
         $res.SelfHealVerified | Should -BeTrue
     }
 }
+
+Describe "PS 5.1 Compatibility, Security Hardening & Live Guards" {
+    It "Zero PS7-only null-coalescing (??) or legacy Get-WmiObject in operational scripts" {
+        $scripts = Get-ChildItem -Path $script:RootDir -Include "*.ps1", "*.psm1" -Recurse |
+            Where-Object { $_.FullName -notmatch "[/\\]Tests[/\\]" }
+        foreach ($f in $scripts) {
+            $raw = Get-Content -Path $f.FullName -Raw
+            $raw | Should -Not -Match '\?\?' -Because "$($f.Name) must parse cleanly under Windows PowerShell 5.1"
+            $raw | Should -Not -Match '\bGet-WmiObject\b' -Because "$($f.Name) must use Get-CimInstance"
+        }
+    }
+
+    It "Core/ESN-ReportBuilder.ps1 builds HTML under StrictMode from modern New-ESNCheck schema" {
+        . (Join-Path $script:RootDir "Core/ESN-ReportBuilder.ps1")
+        $chkOk   = New-ESNCheck -Domain "Network" -Check "DNS" -Severity "OK" -Value "10.0.0.1" -Detail "Nominal"
+        $chkWarn = New-ESNCheck -Domain "Storage" -Check "Disk C:" -Severity "WARNING" -Value "89%" -Detail "High"
+        $sess = [PSCustomObject]@{
+            StartTime = (Get-Date).AddMinutes(-1)
+            Results   = @($chkOk, $chkWarn)
+            Score     = 85
+            Errors    = @()
+            Warnings  = @("Disk space threshold")
+        }
+        $outHtml = Join-Path $script:TmpOut "strict-report.html"
+        $written = Build-ESNReport -SessionData $sess -ComputerName "TEST-HOST" -IncidentId "INC-99" -OutputPath $outHtml
+        Test-Path $written | Should -BeTrue
+        (Get-Content $written -Raw) | Should -Match "Disk C:"
+    }
+
+    It "Invoke-NutanixPrismHealthAI.ps1 refuses live execution without -Credential" {
+        { & (Join-Path $script:RootDir "Invoke-NutanixPrismHealthAI.ps1") -PrismEndpoint "ahv.test.local" -OutputPath $script:TmpOut } | Should -Throw "*Credential*"
+    }
+
+    It "Invoke-VeeamImmutableAudit.ps1 returns NON_COMPLIANT on missing path without -Simulate" {
+        $res = & (Join-Path $script:RootDir "Invoke-VeeamImmutableAudit.ps1") -RepositoryPath (Join-Path $script:TmpOut "does_not_exist")
+        $res.RansomwareProofCertified | Should -BeFalse
+        $res.ComplianceStatus | Should -Be "NON_COMPLIANT"
+    }
+
+    It "Invoke-HighSpeedParallelAuditor.ps1 schedules more nodes than MaxConcurrency without dropping queue" {
+        $res = & (Join-Path $script:RootDir "Invoke-HighSpeedParallelAuditor.ps1") -Simulate -SimulateCount 20 -MaxConcurrency 4 -TimeoutSeconds 5
+        $res.TotalServers | Should -Be 20
+        $res.Results.Count | Should -Be 20
+    }
+
+    It "Invoke-LinuxHeterogeneousAudit.ps1 & Invoke-ITSMConnector.ps1 run cleanly in simulation" {
+        { & (Join-Path $script:RootDir "Invoke-LinuxHeterogeneousAudit.ps1") -TargetHost "ci-linux-node" -SimulationMode } | Should -Not -Throw
+        { & (Join-Path $script:RootDir "Invoke-ITSMConnector.ps1") -Target "Simulation" } | Should -Not -Throw
+    }
+}

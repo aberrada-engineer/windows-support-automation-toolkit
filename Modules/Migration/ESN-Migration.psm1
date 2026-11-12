@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
     ESN-Migration v2 — Migration utilisateur avec score 0-100,
@@ -124,14 +124,14 @@ th{background:#0078d4;color:#fff;padding:8px 12px;text-align:left;font-size:12px
 </head><body>
 <div class="hdr">
 <h1>Migration Poste Utilisateur — $($Manifest.Username)</h1>
-<p>$($Manifest.SourceComputer) &rarr; $($Manifest.TargetComputer ?? 'Non défini') &nbsp;|&nbsp; Opérateur : $($Manifest.Operator) &nbsp;|&nbsp; $(Get-Date -Format 'dd/MM/yyyy HH:mm')</p>
+<p>$($Manifest.SourceComputer) &rarr; $(if ($null -ne $Manifest.TargetComputer -and $Manifest.TargetComputer -ne '') { $Manifest.TargetComputer } else { 'Non défini' }) &nbsp;|&nbsp; Opérateur : $($Manifest.Operator) &nbsp;|&nbsp; $(Get-Date -Format 'dd/MM/yyyy HH:mm')</p>
 </div>
 <div class="box"><div class="score"><div class="num">$Score</div><div style="color:#999;font-size:.8em">/100</div><div class="lbl">$sl</div></div></div>
 <div class="box"><h2>Informations</h2>
 <div class="meta">
 <div class="mi"><div class="k">Utilisateur</div><div class="v">$($Manifest.Username)</div></div>
 <div class="mi"><div class="k">Poste source</div><div class="v">$($Manifest.SourceComputer)</div></div>
-<div class="mi"><div class="k">Poste cible</div><div class="v">$($Manifest.TargetComputer ?? 'N/A')</div></div>
+<div class="mi"><div class="k">Poste cible</div><div class="v">$(if ($null -ne $Manifest.TargetComputer -and $Manifest.TargetComputer -ne '') { $Manifest.TargetComputer } else { 'N/A' })</div></div>
 <div class="mi"><div class="k">Date capture</div><div class="v">$($Manifest.CaptureDate)</div></div>
 <div class="mi"><div class="k">Volume migré</div><div class="v">$($Manifest.SizeMB) Mo</div></div>
 <div class="mi"><div class="k">Dossier backup</div><div class="v" style="font-size:11px;word-break:break-all">$($Manifest.BackupDir)</div></div>
@@ -198,7 +198,8 @@ function Invoke-UserStateCapture {
         param([string]$m, [string]$l = "INFO")
         $ts  = Get-Date -Format "HH:mm:ss"
         $col = @{ OK="Green"; WARN="Yellow"; ERROR="Red"; INFO="Cyan" }
-        Write-Host "[$ts][$l] $m" -ForegroundColor ($col[$l] ?? "White")
+        $fg = if ($col.ContainsKey($l)) { $col[$l] } else { "White" }
+        Write-Host "[$ts][$l] $m" -ForegroundColor $fg
         Add-Content $logFile "[$ts][$l] $m" -Encoding UTF8
     }
 

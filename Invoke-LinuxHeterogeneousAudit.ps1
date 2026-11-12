@@ -34,6 +34,8 @@ param(
 )
 
 $ErrorActionPreference = "Continue"
+$schemaScript = Join-Path $PSScriptRoot "Core/ESN-OutputSchema.ps1"
+if (Test-Path $schemaScript) { . $schemaScript }
 
 Write-Host "==========================================================================" -ForegroundColor Cyan
 Write-Host "   LINUX (UBUNTU / DEBIAN) HETEROGENEOUS FLEET AUDIT ENGINE                " -ForegroundColor Cyan
@@ -42,66 +44,123 @@ Write-Host "[*] Cible Linux  : $Username@$TargetHost`:$SshPort" -ForegroundColor
 Write-Host "[*] Clé SSH      : $(if ($SshKeyPath) { $SshKeyPath } else { 'Clé agent par défaut' })" -ForegroundColor Gray
 Write-Host ""
 
-$ReportDir = "$env:SystemDrive\ESN-Reports\Linux-Audit"
-if (-not (Test-Path $ReportDir)) { New-Item -ItemType Directory -Path $ReportDir -Force | Out-Null }
+$ReportDir = if (Get-Command Get-ESNReportRoot -ErrorAction SilentlyContinue) {
+    Get-ESNReportRoot -SubFolder "Linux-Audit"
+} else {
+    $fallbackDir = "$env:SystemDrive\ESN-Reports\Linux-Audit"
+    if (-not (Test-Path $fallbackDir)) { New-Item -ItemType Directory -Path $fallbackDir -Force | Out-Null }
+    $fallbackDir
+}
 $Timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
-$HtmlReport = "$ReportDir\Linux-Audit-$TargetHost-$Timestamp.html"
+$SafeHost = $TargetHost -replace '[^a-zA-Z0-9._-]', '_'
+$HtmlReport = Join-Path $ReportDir "Linux-Audit-$SafeHost-$Timestamp.html"
 
-# Test de disponibilité de l'exécutable SSH natif de Windows
-$SshCmd = Get-Command "ssh.exe" -ErrorAction SilentlyContinue
+# Test de disponibilité de l'exécutable SSH natif Windows ou OpenSSH Linux/macOS
+$SshCmd = Get-Command "ssh" -ErrorAction SilentlyContinue
+if (-not $SshCmd) { $SshCmd = Get-Command "ssh.exe" -ErrorAction SilentlyContinue }
 
-# Simulation ou test de connectivité réseau
 $IsOnline = $false
 if (-not $SimulationMode) {
-    $ping = Test-Connection -ComputerName $TargetHost -Count 1 -Quiet -ErrorAction SilentlyContinue
-    $portOpen = (Test-NetConnection -ComputerName $TargetHost -Port $SshPort -WarningAction SilentlyContinue).TcpTestSucceeded
-    $IsOnline = $ping -and $portOpen
+    $tcp = [System.Net.Sockets.TcpClient]::new()
+    try {
+        $ar = $tcp.BeginConnect($TargetHost, $SshPort, $null, $null)
+        if ($ar.AsyncWaitHandle.WaitOne(3000, $false)) {
+            $tcp.EndConnect($ar)
+            $IsOnline = $true
+        }
+    } catch { $IsOnline = $false }
+    finally { $tcp.Dispose() }
 }
 
-# Collecte des métriques (réelle ou simulée de haute fidélité)
-if ($IsOnline -and $SshCmd) {
+$BadgeLabel = "INJOIGNABLE"
+$BadgeColor = "#dc3545"
+$LinuxOS = "N/A (Hôte injoignable ou SSH indisponible)"
+$LinuxKernel = "N/A"
+$FailedServicesCount = -1
+$AptSecurityUpdates = -1
+$RootLoginPermitted = "inconnu"
+$PasswordAuth = "inconnu"
+$UfwStatus = "inconnu"
+$SambaStatus = "inconnu"
+$DiskMetrics = @()
+
+if ($SimulationMode) {
+    Write-Host "[!] Mode Simulation actif pour l'hôte Linux $TargetHost." -ForegroundColor Yellow
+    $BadgeLabel = "Simulation (Conforme)"
+    $BadgeColor = "#238636"
+    $LinuxOS = "Ubuntu 22.04.4 LTS (Jammy Jellyfish)"
+    $LinuxKernel = "5.15.0-105-generic"
+    $FailedServicesCount = 0
+    $AptSecurityUpdates = 2
+    $RootLoginPermitted = "no"
+    $PasswordAuth = "no"
+    $UfwStatus = "active"
+    $SambaStatus = "active (running)"
+    $DiskMetrics = @(
+        @{ Mount = "/"; Size = "100G"; Used = "34G"; Avail = "66G"; Pct = "34%" },
+        @{ Mount = "/var"; Size = "200G"; Used = "85G"; Avail = "115G"; Pct = "43%" },
+        @{ Mount = "/opt"; Size = "500G"; Used = "290G"; Avail = "210G"; Pct = "58%" }
+    )
+}
+elseif ($IsOnline -and $SshCmd) {
     Write-Host "[*] Connexion SSH active vers $TargetHost..." -ForegroundColor Green
-    # Commandes exécutées sur l'hôte Linux
     $LinuxAuditCommands = @'
-echo "===OS==="; cat /etc/os-release | grep PRETTY_NAME; uname -r; uptime -p
-echo "===FAILED_SERVICES==="; systemctl --failed --no-legend --no-pager | head -n 10
-echo "===DISK==="; df -h -x tmpfs -x devtmpfs -x squashfs
-echo "===SSH_CONFIG==="; grep -E "^(PermitRootLogin|PasswordAuthentication|Port)" /etc/ssh/sshd_config
-echo "===SERVICES==="; systemctl is-active smbd nmbd nfs-kernel-server ufw docker cron 2>&1
-echo "===UPDATES==="; apt-get -s upgrade 2>/dev/null | grep -i "upgraded," || echo "0 upgraded"
+echo "===OS==="; grep PRETTY_NAME /etc/os-release 2>/dev/null | cut -d= -f2 | tr -d '"'; uname -r
+echo "===FAILED_SERVICES==="; systemctl --failed --no-legend --no-pager 2>/dev/null | wc -l
+echo "===DISK==="; df -h -x tmpfs -x devtmpfs -x squashfs 2>/dev/null | tail -n +2 | awk '{print $NF"|"$2"|"$3"|"$4"|"$5}'
+echo "===SSH_CONFIG==="; grep -E "^(PermitRootLogin|PasswordAuthentication)" /etc/ssh/sshd_config 2>/dev/null || true
+echo "===SERVICES==="; echo "UFW:$(ufw status 2>/dev/null | head -n 1)"; echo "SMB:$(systemctl is-active smbd 2>/dev/null || echo inactive)"
+echo "===UPDATES==="; (apt-get -s upgrade 2>/dev/null | grep -oE '^[0-9]+' | head -n 1) || echo "0"
 '@
-    # Exécution via SSH
-    $sshArgs = @("-p", $SshPort, "-o", "StrictHostKeyChecking=no", "-o", "ConnectTimeout=5")
+    $sshArgs = @("-p", $SshPort, "-o", "StrictHostKeyChecking=accept-new", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5")
     if ($SshKeyPath) { $sshArgs += @("-i", $SshKeyPath) }
     $sshArgs += @("$Username@$TargetHost", $LinuxAuditCommands)
-    
-    $rawOutput = & ssh.exe $sshArgs 2>&1
-    Write-Host "[+] Audit Linux collecté via SSH." -ForegroundColor Green
-} else {
-    Write-Host "[!] Mode Simulation / Référentiel actif pour l'hôte Linux $TargetHost." -ForegroundColor Yellow
+
+    $rawOutput = (& $SshCmd.Source @sshArgs 2>&1) -join "`n"
+    if ($LASTEXITCODE -eq 0 -and $rawOutput -match "===OS===") {
+        $sections = @{}
+        $cur = ""
+        foreach ($line in ($rawOutput -split "`r?`n")) {
+            if ($line -match '^===([A-Z_]+)===$') { $cur = $Matches[1]; $sections[$cur] = @() }
+            elseif ($cur -and -not [string]::IsNullOrWhiteSpace($line)) { $sections[$cur] += $line.Trim() }
+        }
+        $osLines = $sections["OS"]
+        if ($osLines.Count -ge 1) { $LinuxOS = $osLines[0] }
+        if ($osLines.Count -ge 2) { $LinuxKernel = $osLines[1] }
+        $FailedServicesCount = if ($sections["FAILED_SERVICES"] -and $sections["FAILED_SERVICES"][0] -match '^\d+$') { [int]$sections["FAILED_SERVICES"][0] } else { 0 }
+        $AptSecurityUpdates = if ($sections["UPDATES"] -and $sections["UPDATES"][0] -match '^\d+$') { [int]$sections["UPDATES"][0] } else { 0 }
+        $sshConf = ($sections["SSH_CONFIG"] -join "`n")
+        $RootLoginPermitted = if ($sshConf -match 'PermitRootLogin\s+(\S+)') { $Matches[1] } else { "default/non-explicit" }
+        $PasswordAuth = if ($sshConf -match 'PasswordAuthentication\s+(\S+)') { $Matches[1] } else { "default/non-explicit" }
+        $svcConf = ($sections["SERVICES"] -join "`n")
+        $UfwStatus = if ($svcConf -match 'UFW:Status:\s*(\S+)') { $Matches[1] } else { "inactive/unknown" }
+        $SambaStatus = if ($svcConf -match 'SMB:(\S+)') { $Matches[1] } else { "inactive" }
+        $DiskMetrics = @(foreach ($dl in $sections["DISK"]) {
+            $p = $dl -split '\|'
+            if ($p.Count -ge 5) { @{ Mount = $p[0]; Size = $p[1]; Used = $p[2]; Avail = $p[3]; Pct = $p[4] } }
+        })
+        $BadgeLabel = if ($FailedServicesCount -eq 0 -and $RootLoginPermitted -eq "no") { "Conforme" } else { "Attention Requise" }
+        $BadgeColor = if ($FailedServicesCount -eq 0 -and $RootLoginPermitted -eq "no") { "#238636" } else { "#d29922" }
+        Write-Host "[+] Audit Linux collecté et parsé via SSH." -ForegroundColor Green
+    } else {
+        Write-Warning "Échec SSH sur $TargetHost (code $LASTEXITCODE) : authentification ou commande impossible sans -SimulationMode."
+        if (Get-Command Write-ESNSiemAlert -ErrorAction SilentlyContinue) {
+            Write-ESNSiemAlert -ScriptName "Invoke-LinuxHeterogeneousAudit.ps1" -Severity "CRITICAL" -Category "LinuxAudit" -Target $TargetHost -Message "SSH audit failed on $TargetHost (exit $LASTEXITCODE)" | Out-Null
+        }
+    }
+}
+else {
+    Write-Warning "Hôte Linux $TargetHost injoignable sur TCP/$SshPort ou client ssh absent. Relancez avec -SimulationMode pour une démo."
+    if (Get-Command Write-ESNSiemAlert -ErrorAction SilentlyContinue) {
+        Write-ESNSiemAlert -ScriptName "Invoke-LinuxHeterogeneousAudit.ps1" -Severity "CRITICAL" -Category "LinuxAudit" -Target $TargetHost -Message "Linux host $TargetHost unreachable on port $SshPort" | Out-Null
+    }
 }
 
-# Valeurs consolidées de l'audit Linux
-$LinuxOS = "Ubuntu 22.04.4 LTS (Jammy Jellyfish)"
-$LinuxKernel = "5.15.0-105-generic"
-$LinuxUptime = "up 42 days, 7 hours"
-$FailedServicesCount = 0
-$AptSecurityUpdates = 2
-$RootLoginPermitted = "no" # Hardened
-$PasswordAuth = "no"       # Key-based only
-$UfwStatus = "active"
-$SambaStatus = "active (running)"
-$NfsStatus = "inactive"
-
-$DiskMetrics = @(
-    @{ Mount = "/"; Size = "100G"; Used = "34G"; Avail = "66G"; Pct = "34%" },
-    @{ Mount = "/var"; Size = "200G"; Used = "85G"; Avail = "115G"; Pct = "43%" },
-    @{ Mount = "/opt"; Size = "500G"; Used = "290G"; Avail = "210G"; Pct = "58%" }
-)
-
+$escHost = [System.Net.WebUtility]::HtmlEncode($TargetHost)
 $DiskRowsHtml = ($DiskMetrics | ForEach-Object {
-    "<tr><td><strong>$($_.Mount)</strong></td><td>$($_.Size)</td><td>$($_.Used)</td><td>$($_.Avail)</td><td>$($_.Pct)</td><td><span style='color:#4ade80;'>Normal</span></td></tr>"
+    "<tr><td><strong>$([System.Net.WebUtility]::HtmlEncode($_.Mount))</strong></td><td>$([System.Net.WebUtility]::HtmlEncode($_.Size))</td><td>$([System.Net.WebUtility]::HtmlEncode($_.Used))</td><td>$([System.Net.WebUtility]::HtmlEncode($_.Avail))</td><td>$([System.Net.WebUtility]::HtmlEncode($_.Pct))</td><td><span style='color:#4ade80;'>Analysé</span></td></tr>"
 }) -join "`n"
+if (-not $DiskRowsHtml) { $DiskRowsHtml = "<tr><td colspan='6'>Aucune donnée disque collectée (hôte injoignable).</td></tr>" }
 
 # Génération du Rapport HTML Linux
 $HtmlContent = @"
@@ -114,7 +173,7 @@ $HtmlContent = @"
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #0d1117; color: #c9d1d9; margin: 0; padding: 28px; }
         .container { max-width: 1000px; margin: auto; background-color: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 32px; box-shadow: 0 10px 30px rgba(0,0,0,0.6); }
         h1 { color: #58a6ff; margin-top: 0; font-size: 24px; border-bottom: 2px solid #21262d; padding-bottom: 12px; }
-        .badge { display: inline-block; padding: 4px 10px; border-radius: 4px; font-weight: bold; font-size: 12px; text-transform: uppercase; background: #238636; color: white; }
+        .badge { display: inline-block; padding: 4px 10px; border-radius: 4px; font-weight: bold; font-size: 12px; text-transform: uppercase; background: $BadgeColor; color: white; }
         .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 20px 0; }
         .card { background-color: #0d1117; border: 1px solid #30363d; border-radius: 8px; padding: 16px; }
         .card-title { font-size: 12px; color: #8b949e; text-transform: uppercase; margin-bottom: 6px; }
@@ -129,8 +188,8 @@ $HtmlContent = @"
 </head>
 <body>
     <div class="container">
-        <h1>Audit Serveur Linux (Ubuntu/Debian) & Parcs Hétérogènes <span class="badge">Conforme</span></h1>
-        <p style="color: #8b949e;">Audit de santé, services systemd, sécurité SSH, stockage et conformité du serveur Linux <strong>$TargetHost</strong>.</p>
+        <h1>Audit Serveur Linux (Ubuntu/Debian) & Parcs Hétérogènes <span class="badge">$BadgeLabel</span></h1>
+        <p style="color: #8b949e;">Audit de santé, services systemd, sécurité SSH, stockage et conformité du serveur Linux <strong>$escHost</strong>.</p>
         
         <div class="grid">
             <div class="card">

@@ -29,7 +29,7 @@ if (Test-Path $schemaScript) { . $schemaScript }
 try {
     $hostLabel = if ($env:COMPUTERNAME) { $env:COMPUTERNAME } else { [System.Environment]::MachineName }
     if (-not $Simulate -and [Environment]::UserInteractive) {
-        try { Clear-Host } catch { }
+        try { Clear-Host } catch { Write-Verbose "Clear-Host ignored: $($_.Exception.Message)" }
     }
     Write-Host "================================================================================" -ForegroundColor Red
     Write-Host "   🛑  RANSOMWARE SHIELD & EMERGENCY KILLSWITCH — ESN-TOOLKIT" -ForegroundColor White

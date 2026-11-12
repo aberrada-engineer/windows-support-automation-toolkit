@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Invoke-IncidentAnalysis v3 — Orchestrateur principal du toolkit ESN.
     PATCH 5/5 — Phase industrialisation & cohérence globale.
@@ -427,10 +427,11 @@ $session = Get-ESNSession
 
 if ($hasReportBuilder) {
     try {
+        $remData = if ($null -ne $remResults) { $remResults } else { @() }
         $reportPath = Build-ESNReport `
             -SessionData          $session `
             -HealthData           $healthResult `
-            -RemediationData      ($remResults ?? @()) `
+            -RemediationData      $remData `
             -ComputerName         $ComputerName `
             -IncidentId           $IncidentId `
             -OutputPath           $reportPath `

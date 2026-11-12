@@ -56,6 +56,8 @@ param(
 
 begin {
     $ErrorActionPreference = 'Stop'
+    $schemaScript = Join-Path $PSScriptRoot "Core/ESN-OutputSchema.ps1"
+    if (Test-Path $schemaScript) { . $schemaScript }
     if (-not (Test-Path -Path $OutputPath)) {
         New-Item -Path $OutputPath -ItemType Directory -Force | Out-Null
     }
@@ -126,12 +128,73 @@ process {
                     RecommendedAction = "Isolate source host and rotate affected SPN service account credentials"
                 })
             }
+
+            try {
+                $rootEntry = New-Object System.DirectoryServices.DirectoryEntry("LDAP://$DomainController/RootDSE")
+                $baseDn = [string]$rootEntry.defaultNamingContext
+                if ($baseDn) {
+                    $searchRoot = New-Object System.DirectoryServices.DirectoryEntry("LDAP://$DomainController/$baseDn")
+
+                    # AS-REP Roasting: UF_DONT_REQUIRE_PREAUTH (4194304)
+                    $asrepSearcher = New-Object System.DirectoryServices.DirectorySearcher($searchRoot)
+                    $asrepSearcher.Filter = "(&(objectCategory=person)(objectClass=user)(userAccountControl:1.2.840.113556.1.4.803:=4194304))"
+                    [void]$asrepSearcher.PropertiesToLoad.Add("samaccountname")
+                    foreach ($hit in $asrepSearcher.FindAll()) {
+                        $sam = [string]$hit.Properties["samaccountname"][0]
+                        $findings.Add([PSCustomObject]@{
+                            ThreatCategory    = "AS-REP Roasting Exposure"
+                            MITRETechnique    = "T1558.004"
+                            Severity          = "HIGH"
+                            TargetAccount     = $sam
+                            SourceWorkstation = "LDAP://$DomainController"
+                            Evidence          = "UserAccountControl contains UF_DONT_REQUIRE_PREAUTH (0x400000)"
+                            RecommendedAction = "Clear DoesNotRequirePreAuth flag via Set-ADAccountControl"
+                        })
+                    }
+
+                    # AdminSDHolder / Orphaned adminCount=1 outside known Tier-0 groups
+                    $adminSearcher = New-Object System.DirectoryServices.DirectorySearcher($searchRoot)
+                    $adminSearcher.Filter = "(&(objectCategory=person)(objectClass=user)(adminCount=1))"
+                    [void]$adminSearcher.PropertiesToLoad.Add("samaccountname")
+                    [void]$adminSearcher.PropertiesToLoad.Add("memberof")
+                    foreach ($hit in $adminSearcher.FindAll()) {
+                        $sam = [string]$hit.Properties["samaccountname"][0]
+                        if ($sam -in @("Administrator","krbtgt")) { continue }
+                        $groups = @($hit.Properties["memberof"] | ForEach-Object { [string]$_ })
+                        $inTier0 = @($groups | Where-Object { $_ -match '^CN=(Domain Admins|Enterprise Admins|Schema Admins|Administrators),' }).Count -gt 0
+                        if (-not $inTier0) {
+                            $findings.Add([PSCustomObject]@{
+                                ThreatCategory    = "Orphaned AdminSDHolder / Shadow Admin"
+                                MITRETechnique    = "T1098"
+                                Severity          = "MEDIUM"
+                                TargetAccount     = $sam
+                                SourceWorkstation = "AD ACL Audit ($DomainController)"
+                                Evidence          = "adminCount=1 without direct Tier-0 group membership"
+                                RecommendedAction = "Verify ACL inheritance and reset adminCount attribute if deprivileged"
+                            })
+                        }
+                    }
+                }
+            }
+            catch {
+                Write-Warning "LDAP AD query skipped on $DomainController : $($_.Exception.Message)"
+            }
         }
 
         if ($AutoRemediate) {
+            $hasAdModule = [bool](Get-Command Set-ADAccountControl -ErrorAction SilentlyContinue)
             foreach ($item in $findings) {
                 if ($PSCmdlet.ShouldProcess($item.TargetAccount, "Auto-remediate AD Threat ($($item.ThreatCategory))")) {
-                    $remediatedActions.Add("Applied automated containment on [$($item.TargetAccount)] for $($item.MITRETechnique)")
+                    if ($Simulate) {
+                        $remediatedActions.Add("Applied simulated containment on [$($item.TargetAccount)] for $($item.MITRETechnique)")
+                    }
+                    elseif ($hasAdModule -and $item.MITRETechnique -eq "T1558.004") {
+                        Set-ADAccountControl -Identity $item.TargetAccount -DoesNotRequirePreAuth $false -Server $DomainController -ErrorAction Stop
+                        $remediatedActions.Add("Cleared UF_DONT_REQUIRE_PREAUTH on [$($item.TargetAccount)]")
+                    }
+                    else {
+                        $remediatedActions.Add("Manual tier-0 review required for [$($item.TargetAccount)] ($($item.MITRETechnique))")
+                    }
                 }
             }
         }
@@ -150,6 +213,10 @@ process {
         $jsonOut = Join-Path $OutputPath "ADThreatHunt_$($DomainController -replace '[^a-zA-Z0-9_-]','_').json"
         if ($PSCmdlet.ShouldProcess($jsonOut, "Write SIEM JSON Threat Hunting Report")) {
             $summary | ConvertTo-Json -Depth 6 | Set-Content -Path $jsonOut -Encoding UTF8
+            if ((Get-Command Write-ESNSiemAlert -ErrorAction SilentlyContinue) -and $summary.TotalFindings -gt 0) {
+                $alertSev = if ($summary.CriticalCount -gt 0) { "CRITICAL" } else { "WARNING" }
+                Write-ESNSiemAlert -ScriptName "Invoke-ActiveDirectoryThreatHunter.ps1" -Severity $alertSev -Category "ActiveDirectory" -Target $DomainController -Message "$($summary.TotalFindings) AD threat finding(s) detected ($($summary.CriticalCount) critical)" | Out-Null
+            }
         }
 
         return $summary

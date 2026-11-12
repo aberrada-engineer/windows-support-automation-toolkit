@@ -35,7 +35,8 @@ param(
     [string]$GlpiUserToken,
     [string]$ServiceNowInstance,
     [string]$ServiceNowUser,
-    [string]$ServiceNowPassword
+    [string]$ServiceNowPassword,
+    [System.Management.Automation.PSCredential]$ServiceNowCredential
 )
 
 $ErrorActionPreference = "Continue"
@@ -124,7 +125,52 @@ elseif ($Target -eq "GLPI") {
     }
 }
 
-# 3. Mode Simulation / Démonstration
+# 3. Envoi Webhook Slack
+elseif ($Target -eq "Slack") {
+    if (-not $WebhookUrl) {
+        Write-Host "[-] Erreur : URL de Webhook Slack obligatoire." -ForegroundColor Red
+        return
+    }
+    $slackPayload = @{
+        text = "[$Severity] $Title ($env:COMPUTERNAME) - $Message"
+    } | ConvertTo-Json -Depth 3
+    try {
+        Invoke-RestMethod -Uri $WebhookUrl -Method Post -Body $slackPayload -ContentType "application/json" | Out-Null
+        Write-Host "[+] Alerte transmise avec succès sur Slack !" -ForegroundColor Green
+    } catch {
+        Write-Host "[-] Échec de transmission Slack : $_" -ForegroundColor Red
+    }
+}
+
+# 4. Création d'incident ServiceNow (Table API)
+elseif ($Target -eq "ServiceNow") {
+    $snUser = if ($ServiceNowCredential) { $ServiceNowCredential.UserName } else { $ServiceNowUser }
+    $snPass = if ($ServiceNowCredential) { $ServiceNowCredential.GetNetworkCredential().Password } else { $ServiceNowPassword }
+    if ($ServiceNowInstance -and $snUser -and $snPass) {
+        $baseUrl = if ($ServiceNowInstance -match '^https?://') { $ServiceNowInstance.TrimEnd('/') } else { "https://$($ServiceNowInstance.TrimEnd('/'))" }
+        $pair = "$snUser`:$snPass"
+        $headers = @{
+            "Authorization" = "Basic $([Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes($pair)))"
+            "Accept"        = "application/json"
+        }
+        $snBody = @{
+            "short_description" = "[$Severity] $Title - $env:COMPUTERNAME"
+            "description"       = $Message
+            "urgency"           = $(if ($Severity -eq "P1-Bloquant") { "1" } else { "2" })
+            "impact"            = $(if ($Severity -eq "P1-Bloquant") { "1" } else { "2" })
+        } | ConvertTo-Json -Depth 3
+        try {
+            $resp = Invoke-RestMethod -Uri "$baseUrl/api/now/table/incident" -Method Post -Headers $headers -Body $snBody -ContentType "application/json"
+            Write-Host "[+] Incident ServiceNow créé : $($resp.result.number)" -ForegroundColor Green
+        } catch {
+            Write-Host "[-] Échec de communication avec ServiceNow : $_" -ForegroundColor Red
+        }
+    } else {
+        Write-Host "[!] Mode Simulation ServiceNow : ServiceNowInstance ou identifiants manquants." -ForegroundColor Yellow
+    }
+}
+
+# 5. Mode Simulation / Démonstration
 else {
     Write-Host "[i] Simulation de dispatching ITSM réussie :" -ForegroundColor Green
     Write-Host "    -> Format payload : JSON UTF-8 conforme standards ITIL" -ForegroundColor Gray

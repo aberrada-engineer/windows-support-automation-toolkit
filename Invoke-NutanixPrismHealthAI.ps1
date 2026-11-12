@@ -64,8 +64,15 @@ param(
 
 begin {
     $ErrorActionPreference = 'Stop'
+    $schemaScript = Join-Path $PSScriptRoot "Core/ESN-OutputSchema.ps1"
+    if (Test-Path $schemaScript) { . $schemaScript }
     if (-not (Test-Path -Path $OutputPath)) {
         New-Item -Path $OutputPath -ItemType Directory -Force | Out-Null
+    }
+
+    function ConvertTo-HtmlSafe([string]$Text) {
+        if ($null -eq $Text) { return "" }
+        return [System.Net.WebUtility]::HtmlEncode($Text)
     }
 
     function Invoke-PrismRestMethod {
@@ -113,7 +120,7 @@ process {
         $timestamp = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
         Write-Verbose "[$timestamp] Starting Nutanix Prism HCI Health & Runway analysis on $PrismEndpoint"
 
-        if ($Simulate -or $null -eq $Credential) {
+        if ($Simulate) {
             $clusterData = [PSCustomObject]@{
                 ClusterName         = "NTNX-GVA-PROD-01"
                 AOSVersion          = "6.5.4.LTS"
@@ -137,17 +144,46 @@ process {
                 )
             }
         }
+        elseif ($null -eq $Credential) {
+            throw [System.ArgumentException]::new("Credential is required in live mode. Pass -Simulate for synthetic telemetry.")
+        }
         else {
             $pair = "$($Credential.UserName):$($Credential.GetNetworkCredential().Password)"
             $encodedAuth = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes($pair))
             $headers = @{ Authorization = "Basic $encodedAuth"; Accept = "application/json" }
 
             $clusterRaw = Invoke-PrismRestMethod -Endpoint $PrismEndpoint -RelativeUri "/PrismGateway/services/rest/v2.0/cluster/" -Headers $headers
-            $usedBytes  = if ($null -ne $clusterRaw.usage_stats.'storage.usage_bytes') { [double]$clusterRaw.usage_stats.'storage.usage_bytes' } else { 1.0 }
+            $usedBytes  = if ($null -ne $clusterRaw.usage_stats.'storage.usage_bytes') { [double]$clusterRaw.usage_stats.'storage.usage_bytes' } else { 0.0 }
             $capBytes   = if ($null -ne $clusterRaw.usage_stats.'storage.capacity_bytes') { [double]$clusterRaw.usage_stats.'storage.capacity_bytes' } else { 1.0 }
             $usedPct    = [Math]::Round(($usedBytes / [Math]::Max($capBytes, 1.0)) * 100, 1)
-            $latUs      = if ($null -ne $clusterRaw.stats.'controller_avg_io_latency_usecs') { [double]$clusterRaw.stats.'controller_avg_io_latency_usecs' } else { 3500.0 }
-            $iopsVal    = if ($null -ne $clusterRaw.stats.'controller_num_iops') { [int]$clusterRaw.stats.'controller_num_iops' } else { 15000 }
+            $latUs      = if ($null -ne $clusterRaw.stats.'controller_avg_io_latency_usecs') { [double]$clusterRaw.stats.'controller_avg_io_latency_usecs' } else { 0.0 }
+            $iopsVal    = if ($null -ne $clusterRaw.stats.'controller_num_iops') { [int]$clusterRaw.stats.'controller_num_iops' } else { 0 }
+
+            $liveNodes = @()
+            try {
+                $hostsResp = Invoke-PrismRestMethod -Endpoint $PrismEndpoint -RelativeUri "/PrismGateway/services/rest/v2.0/hosts/" -Headers $headers
+                if ($null -ne $hostsResp.entities) {
+                    $liveNodes = @($hostsResp.entities | ForEach-Object {
+                        $cpuPpm = if ($null -ne $_.stats.hypervisor_cpu_usage_ppm) { [Math]::Round([double]$_.stats.hypervisor_cpu_usage_ppm / 10000.0, 1) } else { 0.0 }
+                        $ramPpm = if ($null -ne $_.stats.hypervisor_memory_usage_ppm) { [Math]::Round([double]$_.stats.hypervisor_memory_usage_ppm / 10000.0, 1) } else { 0.0 }
+                        $nLatUs = if ($null -ne $_.stats.controller_avg_io_latency_usecs) { [Math]::Round([double]$_.stats.controller_avg_io_latency_usecs / 1000.0, 2) } else { 0.0 }
+                        [PSCustomObject]@{
+                            Node           = $_.name
+                            CVM            = $_.service_vmexternal_ip
+                            CpuPct         = $cpuPpm
+                            RamPct         = $ramPpm
+                            StargateStatus = if ($_.state) { $_.state } else { "UNKNOWN" }
+                            LatencyMs      = $nLatUs
+                        }
+                    })
+                }
+            } catch { Write-Warning "Unable to query Prism hosts endpoint: $($_.Exception.Message)" }
+
+            $alertCount = 0
+            try {
+                $alertsResp = Invoke-PrismRestMethod -Endpoint $PrismEndpoint -RelativeUri "/PrismGateway/services/rest/v2.0/alerts/?resolved=false" -Headers $headers
+                if ($null -ne $alertsResp.entities) { $alertCount = @($alertsResp.entities).Count }
+            } catch { Write-Warning "Unable to query Prism alerts endpoint: $($_.Exception.Message)" }
 
             $clusterData = [PSCustomObject]@{
                 ClusterName         = $clusterRaw.name
@@ -158,13 +194,13 @@ process {
                 StorageUsedTiB      = [Math]::Round($usedBytes / 1TB, 2)
                 StorageCapacityTiB  = [Math]::Round($capBytes / 1TB, 2)
                 StorageUsedPct      = $usedPct
-                DailyGrowthPct      = 0.25
+                DailyGrowthPct      = 0.0
                 AvgReadLatencyMs    = [Math]::Round($latUs / 1000.0, 2)
-                AvgWriteLatencyMs   = [Math]::Round(($latUs * 1.25) / 1000.0, 2)
+                AvgWriteLatencyMs   = [Math]::Round($latUs / 1000.0, 2)
                 PeakClusterIOPS     = $iopsVal
-                CVMHealthStatus     = "HEALTHY"
-                UnresolvedAlerts    = 0
-                Nodes               = @()
+                CVMHealthStatus     = if ($alertCount -gt 0) { "DEGRADED ($alertCount alerts)" } else { "HEALTHY" }
+                UnresolvedAlerts    = $alertCount
+                Nodes               = $liveNodes
             }
         }
 
@@ -206,20 +242,21 @@ process {
         }
 
         if ($PSCmdlet.ShouldProcess($clusterData.ClusterName, "Export Nutanix COTECH Health Report & SIEM JSON")) {
-            $jsonFile = Join-Path $OutputPath "NutanixHealth_$($clusterData.ClusterName).json"
-            $htmlFile = Join-Path $OutputPath "NutanixHealth_$($clusterData.ClusterName).html"
+            $safeName = $clusterData.ClusterName -replace '[^a-zA-Z0-9._-]', '_'
+            $jsonFile = Join-Path $OutputPath "NutanixHealth_$safeName.json"
+            $htmlFile = Join-Path $OutputPath "NutanixHealth_$safeName.html"
 
             $reportObject | ConvertTo-Json -Depth 6 | Set-Content -Path $jsonFile -Encoding UTF8
 
             $nodeRows = foreach ($n in $clusterData.Nodes) {
-                "<tr><td>$($n.Node)</td><td>$($n.CVM)</td><td>$($n.CpuPct)%</td><td>$($n.RamPct)%</td><td>$($n.StargateStatus)</td><td>$($n.LatencyMs) ms</td></tr>"
+                "<tr><td>$(ConvertTo-HtmlSafe $n.Node)</td><td>$(ConvertTo-HtmlSafe $n.CVM)</td><td>$(ConvertTo-HtmlSafe "$($n.CpuPct)%")</td><td>$(ConvertTo-HtmlSafe "$($n.RamPct)%")</td><td>$(ConvertTo-HtmlSafe $n.StargateStatus)</td><td>$(ConvertTo-HtmlSafe "$($n.LatencyMs) ms")</td></tr>"
             }
             $html = @"
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>Nutanix COTECH Health Report - $($clusterData.ClusterName)</title>
+<title>Nutanix COTECH Health Report - $(ConvertTo-HtmlSafe $clusterData.ClusterName)</title>
 <style>
 body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #e2e8f0; padding: 24px; }
 .card { background: #1e293b; border-radius: 10px; padding: 20px; margin-bottom: 16px; border: 1px solid #334155; }
@@ -234,8 +271,8 @@ th { color: #94a3b8; }
 </head>
 <body>
 <div class="card">
-  <h1>Nutanix Prism HCI Predictive Report — $($clusterData.ClusterName)</h1>
-  <p>Generated: $timestamp | AOS: $($clusterData.AOSVersion) | Hypervisor: $($clusterData.Hypervisor) | Status: <strong>$severity</strong></p>
+  <h1>Nutanix Prism HCI Predictive Report — $(ConvertTo-HtmlSafe $clusterData.ClusterName)</h1>
+  <p>Generated: $(ConvertTo-HtmlSafe $timestamp) | AOS: $(ConvertTo-HtmlSafe $clusterData.AOSVersion) | Hypervisor: $(ConvertTo-HtmlSafe $clusterData.Hypervisor) | Status: <strong>$(ConvertTo-HtmlSafe $severity)</strong></p>
   <div class="kpi-grid">
     <div class="kpi"><div>Storage Used</div><div class="val">$($clusterData.StorageUsedPct)% ($($clusterData.StorageUsedTiB) / $($clusterData.StorageCapacityTiB) TiB)</div></div>
     <div class="kpi"><div>Runway (85% Cap)</div><div class="val">$runwayDays85 Days</div></div>
@@ -252,12 +289,15 @@ th { color: #94a3b8; }
 </div>
 <div class="card">
   <h2>COTECH Actionable Recommendations</h2>
-  <ul>$(($recommendations | ForEach-Object { "<li>$_</li>" }) -join "")</ul>
+  <ul>$(($recommendations | ForEach-Object { "<li>$(ConvertTo-HtmlSafe $_)</li>" }) -join "")</ul>
 </div>
 </body>
 </html>
 "@
             Set-Content -Path $htmlFile -Value $html -Encoding UTF8
+            if ((Get-Command Write-ESNSiemAlert -ErrorAction SilentlyContinue) -and $severity -in @("WARNING","CRITICAL")) {
+                Write-ESNSiemAlert -ScriptName "Invoke-NutanixPrismHealthAI.ps1" -Severity $severity -Category "Hyperconvergence" -Target $clusterData.ClusterName -Message ($recommendations -join " | ") | Out-Null
+            }
         }
 
         return $reportObject

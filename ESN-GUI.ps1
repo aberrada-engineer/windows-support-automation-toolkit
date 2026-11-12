@@ -1,7 +1,7 @@
 ﻿#Requires -RunAsAdministrator
 <#
 .SYNOPSIS
-    ESN-Toolkit v3.6 - Interface Graphique Officielle (GUI Windows Forms).
+    ESN-Toolkit v3.9 - Interface Graphique Officielle (GUI Windows Forms).
     Plateforme d'administration, de dépannage automatisé, de MCO et de projets d'infrastructure.
     Développé pour Amine BERRADA — Administrateur Systèmes & Réseaux / Référent Technique N3.
 #>
@@ -27,7 +27,7 @@ function Start-ESNModuleProcess {
 # 1. FENÊTRE PRINCIPALE
 # ─────────────────────────────────────────────
 $form = New-Object System.Windows.Forms.Form
-$form.Text = "ESN-Toolkit v3.6 — Plateforme AIOps, MCO & Projets d'Infrastructure"
+$form.Text = "ESN-Toolkit v3.9 — Plateforme AIOps, MCO & Projets d'Infrastructure"
 $form.Size = New-Object System.Drawing.Size(960, 800)
 $form.StartPosition = "CenterScreen"
 $form.BackColor = [System.Drawing.Color]::FromArgb(245, 247, 250)
@@ -44,7 +44,7 @@ $headerPanel.Height = 85
 $headerPanel.BackColor = [System.Drawing.Color]::FromArgb(24, 43, 73) # Bleu Marine Navy
 
 $titleLabel = New-Object System.Windows.Forms.Label
-$titleLabel.Text = "🖥️ ESN-TOOLKIT v3.6 — Workstation, Infrastructure & Cloud AIOps"
+$titleLabel.Text = "🖥️ ESN-TOOLKIT v3.9 — Workstation, Infrastructure & Cloud AIOps"
 $titleLabel.ForeColor = [System.Drawing.Color]::White
 $titleLabel.Font = New-Object System.Drawing.Font("Segoe UI", 13, [System.Drawing.FontStyle]::Bold)
 $titleLabel.Location = New-Object System.Drawing.Point(20, 15)
@@ -377,6 +377,31 @@ $tab6.Controls.Add((Create-ModernButton -Text "📡 Déployer Sondes PRTG (XML)"
 
 $tabControl.Controls.Add($tab6)
 
+# --- ONGLET 7 : ELITE AIOPS & CHAOS LAB (v3.9) ---
+$tab7 = New-Object System.Windows.Forms.TabPage
+$tab7.Text = "🧠 Elite AIOps v3.9"
+$tab7.BackColor = [System.Drawing.Color]::White
+
+$eliteButtons = @(
+    @{ Text = "🧠 Nutanix Prism Health AI"; Script = "Invoke-NutanixPrismHealthAI.ps1"; Args = "-Simulate"; Log = "Nutanix Prism AI (CVM / IOPS / Runway)..."; R = 16; G = 124; B = 65; X = 20; Y = 20 },
+    @{ Text = "🕵️ AD Threat Hunter (Kerberoast)"; Script = "Invoke-ActiveDirectoryThreatHunter.ps1"; Args = "-Simulate"; Log = "Active Directory Threat Hunter (MITRE ATT&CK)..."; R = 190; G = 40; B = 40; X = 310; Y = 20 },
+    @{ Text = "⚡ Audit Parallèle 500+ Serveurs"; Script = "Invoke-HighSpeedParallelAuditor.ps1"; Args = "-Simulate"; Log = "RunspacePool Haute Vitesse (500 noeuds)..."; R = 0; G = 120; B = 212; X = 600; Y = 20 },
+    @{ Text = "🔒 Veeam Immutabilité Linux XFS"; Script = "Invoke-VeeamImmutableAudit.ps1"; Args = "-Simulate"; Log = "Audit Veeam Hardened Repo (chattr +i)..."; R = 120; G = 60; B = 140; X = 20; Y = 85 },
+    @{ Text = "📈 Dashboard COPIL HTML5 SVG"; Script = "Invoke-CopilDashboardGenerator.ps1"; Args = ""; Log = "Génération Dashboard COPIL Dark Mode SVG..."; R = 0; G = 130; B = 90; X = 310; Y = 85 },
+    @{ Text = "🧪 Chaos Lab (DNS/Disk/DFSR)"; Script = "Invoke-IncidentLabSimulator.ps1"; Args = "-Scenario Chaos-DnsNtpStorm -Simulate"; Log = "Chaos Engineering Lab Simulator..."; R = 200; G = 120; B = 0; X = 600; Y = 85 }
+)
+foreach ($eb in $eliteButtons) {
+    $b = Create-ModernButton -Text $eb.Text -X $eb.X -Y $eb.Y -Width 270 -Height 46 -BgColor ([System.Drawing.Color]::FromArgb($eb.R, $eb.G, $eb.B)) -Action {
+        param($sender, $e)
+        $cfg = $sender.Tag
+        Append-Log $cfg.Log "Cyan"
+        Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\$($cfg.Script)`" $($cfg.Args)"
+    }
+    $b.Tag = $eb
+    $tab7.Controls.Add($b)
+}
+$tabControl.Controls.Add($tab7)
+
 $form.Controls.Add($tabControl)
 
 # ─────────────────────────────────────────────
@@ -412,7 +437,7 @@ function Append-Log {
 }
 
 # Message initial
-Append-Log "Bienvenue dans ESN-Toolkit v3.6 (Environnement Enterprise Initialisé)" "Green"
+Append-Log "Bienvenue dans ESN-Toolkit v3.9 (Environnement Enterprise Initialisé)" "Green"
 Append-Log "Hôte local : $env:COMPUTERNAME | Session : $env:USERNAME" "Cyan"
 Append-Log "Prêt pour le diagnostic, l'astreinte 24/7, la gouvernance COPIL et les projets d'infrastructure." "White"
 

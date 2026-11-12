@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
     ESN-Windows — Diagnostic système Windows : OS, RAM, CPU, disques, services,
@@ -80,7 +80,7 @@ function Invoke-WindowsDiag {
         $out.CritEventsTotal = ($out.CritEvents | Measure-Object Count -Sum).Sum
 
         # ── Drivers en erreur ────────────────────────────
-        $out.BadDrivers = Get-WmiObject Win32_PnPEntity -ErrorAction SilentlyContinue |
+        $out.BadDrivers = Get-CimInstance -ClassName Win32_PnPEntity -ErrorAction SilentlyContinue |
             Where-Object { $_.ConfigManagerErrorCode -ne 0 } |
             Select-Object Name, ConfigManagerErrorCode
 

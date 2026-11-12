@@ -1,9 +1,8 @@
-﻿#Requires -RunAsAdministrator
-#Requires -Version 7.0
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
-    Invoke-FleetDiscovery v3.0 - Cartographie Réseau & Découverte Automatisée du Parc IT.
-    Scanne le sous-réseau en parallèle et dresse l'inventaire de toutes les machines connectées.
+    Invoke-FleetDiscovery v3.1 - Cartographie Réseau & Découverte Automatisée du Parc IT.
+    Scanne le sous-réseau en parallèle (compatible PowerShell 5.1 et 7+) et dresse l'inventaire des machines connectées.
 
 .DESCRIPTION
     - Détection automatique du sous-réseau local (ex: 192.168.1.0/24)
@@ -47,47 +46,64 @@ if ([string]::IsNullOrWhiteSpace($Subnet)) {
 
 Write-Host " [*] Lancement du scan multi-threadé (254 adresses IP)..." -ForegroundColor Yellow
 
-$aliveHosts = [System.Collections.Concurrent.ConcurrentBag[PSCustomObject]]::new()
 $portsToTest = @(22, 80, 443, 445, 3389)
 
-# Scan parallèle (Jobs PowerShell / Runspaces)
-1..254 | ForEach-Object -Parallel {
-    $ip = "$($using:Subnet).$_"
-    $ping = Test-Connection -ComputerName $ip -Count 1 -Quiet -TimeoutSeconds 1 -ErrorAction SilentlyContinue
-    if ($ping) {
-        # Résolution de nom
-        $hostname = try { [System.Net.Dns]::GetHostEntry($ip).HostName } catch { "Inconnu" }
-        
-        # Test des ports
-        $openPorts = [System.Collections.Generic.List[int]]::new()
-        foreach ($p in $using:portsToTest) {
-            $tcp = New-Object System.Net.Sockets.TcpClient
-            $connect = $tcp.BeginConnect($ip, $p, $null, $null)
-            $success = $connect.AsyncWaitHandle.WaitOne(300, $false)
-            if ($success -and $tcp.Connected) {
+# Scan parallèle compatible PowerShell 5.1 & 7+ via RunspacePool
+$pool = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspacePool(1, 64)
+$pool.Open()
+$scanWorker = {
+    param([string]$Ip, [int[]]$Ports)
+    $ping = [System.Net.NetworkInformation.Ping]::new()
+    try {
+        $reply = $ping.Send($Ip, 800)
+        if ($reply.Status -ne [System.Net.NetworkInformation.IPStatus]::Success) { return $null }
+    } catch { return $null } finally { $ping.Dispose() }
+
+    $hostname = try { [System.Net.Dns]::GetHostEntry($Ip).HostName } catch { "Inconnu" }
+    $openPorts = [System.Collections.Generic.List[int]]::new()
+    foreach ($p in $Ports) {
+        $tcp = [System.Net.Sockets.TcpClient]::new()
+        try {
+            $connect = $tcp.BeginConnect($Ip, $p, $null, $null)
+            if ($connect.AsyncWaitHandle.WaitOne(300, $false) -and $tcp.Connected) {
                 $openPorts.Add($p)
                 $tcp.EndConnect($connect)
             }
-            $tcp.Close()
-        }
-
-        # Déduction du rôle de l'équipement
-        $type = "Inconnu"
-        if ($openPorts -contains 445 -and $openPorts -contains 3389) { $type = "Windows (Poste / Serveur)" }
-        elseif ($openPorts -contains 445) { $type = "Windows / Partage SMB" }
-        elseif ($openPorts -contains 22) { $type = "Linux / Réseau (SSH)" }
-        elseif ($openPorts -contains 80 -or $openPorts -contains 443) { $type = "Équipement Web (Switch / Imprimante / Pare-feu)" }
-
-        $bag = $using:aliveHosts  # appel de méthode direct sur `$using: interdit en -Parallel
-        $bag.Add([PSCustomObject]@{
-            IP        = $ip
-            Nom       = $hostname
-            Type      = $type
-            Ports     = ($openPorts -join ', ')
-            LatenceMs = "< 5ms"
-        })
+        } catch { Write-Verbose "Port $p unreachable on $Ip" } finally { $tcp.Dispose() }
     }
-} -ThrottleLimit 64
+
+    $type = "Inconnu"
+    if ($openPorts -contains 445 -and $openPorts -contains 3389) { $type = "Windows (Poste / Serveur)" }
+    elseif ($openPorts -contains 445) { $type = "Windows / Partage SMB" }
+    elseif ($openPorts -contains 22) { $type = "Linux / Réseau (SSH)" }
+    elseif ($openPorts -contains 80 -or $openPorts -contains 443) { $type = "Équipement Web (Switch / Imprimante / Pare-feu)" }
+
+    return [PSCustomObject]@{
+        IP        = $Ip
+        Nom       = $hostname
+        Type      = $type
+        Ports     = ($openPorts -join ', ')
+        LatenceMs = "$($reply.RoundtripTime) ms"
+    }
+}
+
+$jobs = foreach ($hostOctet in 1..254) {
+    $ps = [PowerShell]::Create()
+    $ps.RunspacePool = $pool
+    [void]$ps.AddScript($scanWorker).AddArgument("$Subnet.$hostOctet").AddArgument($portsToTest)
+    [PSCustomObject]@{ Instance = $ps; Handle = $ps.BeginInvoke() }
+}
+$aliveHosts = [System.Collections.Generic.List[PSCustomObject]]::new()
+try {
+    foreach ($j in $jobs) {
+        $item = $j.Instance.EndInvoke($j.Handle)
+        if ($item) { foreach ($r in $item) { $aliveHosts.Add($r) } }
+        $j.Instance.Dispose()
+    }
+} finally {
+    $pool.Close()
+    $pool.Dispose()
+}
 
 $sortedHosts = $aliveHosts | Sort-Object { [version]$_.IP }
 
@@ -97,10 +113,14 @@ Write-Host "`n [OK] Scan terminé ! $($sortedHosts.Count) équipement(s) actif(s
 $sortedHosts | Format-Table IP, Nom, Type, Ports -AutoSize
 
 # RAPPORT HTML
-$reportPath = "C:\ESN-Toolkit\Reports\Fleet-Discovery-$Subnet.html"
-$rows = $sortedHosts | ForEach-Object {
-    "<tr><td><b>$($_.IP)</b></td><td>$($_.Nom)</td><td>$($_.Type)</td><td><code>$($_.Ports)</code></td></tr>"
-} -join "`n"
+$schemaScript = Join-Path $PSScriptRoot "Core/ESN-OutputSchema.ps1"
+if (Test-Path $schemaScript) { . $schemaScript }
+$reportDir = if (Get-Command Get-ESNReportRoot -ErrorAction SilentlyContinue) { Get-ESNReportRoot } else { "C:\ESN-Toolkit\Reports" }
+if (-not (Test-Path $reportDir)) { New-Item -Path $reportDir -ItemType Directory -Force | Out-Null }
+$reportPath = Join-Path $reportDir "Fleet-Discovery-$Subnet.html"
+$rows = ($sortedHosts | ForEach-Object {
+    "<tr><td><b>$($_.IP)</b></td><td>$([System.Net.WebUtility]::HtmlEncode($_.Nom))</td><td>$([System.Net.WebUtility]::HtmlEncode($_.Type))</td><td><code>$($_.Ports)</code></td></tr>"
+}) -join "`n"
 
 $html = @"
 <!DOCTYPE html>

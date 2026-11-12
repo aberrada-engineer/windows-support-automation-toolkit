@@ -218,8 +218,8 @@ function _Collect-MachineData {
                 }
             }
 
-        # SMART via WMI
-        $smart = Get-WmiObject -Namespace root\wmi -Class MSStorageDriver_FailurePredictStatus `
+        # SMART via CIM (PS 5.1 & 7+ compatible)
+        $smart = Get-CimInstance -Namespace root\wmi -ClassName MSStorageDriver_FailurePredictStatus `
             -ErrorAction SilentlyContinue
         $data.Storage.SMART_Failures = ($smart | Where-Object PredictFailure -eq $true).Count
         $data.Storage.SMART_Total    = ($smart | Measure-Object).Count

@@ -48,12 +48,26 @@ function Build-ESNReport {
         [PSCustomObject[]]$RemediationData      = @(),
         [string]  $ComputerName                 = $env:COMPUTERNAME,
         [string]  $IncidentId                   = "REPORT",
-        [string]  $OutputPath                   = "C:\ESN-Toolkit\Reports\report_$(Get-Date -Format 'yyyyMMdd_HHmm').html",
+        [string]  $OutputPath                   = "",
         [string]  $IncidentPatternsPath         = "",
         [switch]  $Open
     )
 
+    function Get-ESNProp {
+        param([object]$Obj, [string[]]$Names, $Default = "")
+        if ($null -eq $Obj) { return $Default }
+        foreach ($n in $Names) {
+            $p = $Obj.PSObject.Properties[$n]
+            if ($null -ne $p -and $null -ne $p.Value -and "$($p.Value)" -ne "") { return $p.Value }
+        }
+        return $Default
+    }
+
     # ── Résolution des chemins ────────────────────────────────
+    if ([string]::IsNullOrWhiteSpace($OutputPath)) {
+        $repRoot = if (Get-Command Get-ESNReportRoot -ErrorAction SilentlyContinue) { Get-ESNReportRoot } else { "C:\ESN-Toolkit\Reports" }
+        $OutputPath = Join-Path $repRoot "report_$(Get-Date -Format 'yyyyMMdd_HHmm').html"
+    }
     if (-not $IncidentPatternsPath) {
         $IncidentPatternsPath = Join-Path $PSScriptRoot "IncidentPatterns.json"
     }
@@ -64,31 +78,33 @@ function Build-ESNReport {
         try {
             $kb = Get-Content $IncidentPatternsPath -Raw -Encoding UTF8 | ConvertFrom-Json
             $patterns = $kb.patterns
-        } catch {}
+        } catch {
+            Write-Warning "IncidentPatterns load skipped ($IncidentPatternsPath): $($_.Exception.Message)"
+        }
     }
 
     # ── Données dérivées ─────────────────────────────────────
-    $duration   = if ($SessionData.StartTime) {
+    $duration   = if (Get-ESNProp $SessionData @("StartTime") $null) {
         ((Get-Date) - $SessionData.StartTime).ToString("h\h\ mm\m\ ss\s")
     } else { "N/A" }
 
-    $results    = $SessionData.Results
-    $cntOK      = @($results | Where-Object Status -eq "OK").Count
-    $cntWarn    = @($results | Where-Object Status -in "WARN","WARNING").Count
-    $cntErr     = @($results | Where-Object Status -in "ERROR","CRITICAL").Count
+    $results    = @(Get-ESNProp $SessionData @("Results") @())
+    $cntOK      = @($results | Where-Object { (Get-ESNProp $_ @("Status","severity")) -eq "OK" }).Count
+    $cntWarn    = @($results | Where-Object { (Get-ESNProp $_ @("Status","severity")) -in "WARN","WARNING" }).Count
+    $cntErr     = @($results | Where-Object { (Get-ESNProp $_ @("Status","severity")) -in "ERROR","CRITICAL" }).Count
     $cntTotal   = $results.Count
 
     # Score global (priorité à HealthScore, sinon session ESN-Core)
-    $globalScore = if ($HealthData) { $HealthData.Global.Score } else { $SessionData.Score }
+    $globalScore = if ($HealthData) { $HealthData.Global.Score } else { [int](Get-ESNProp $SessionData @("Score","global_score") 0) }
     $globalLabel = if ($globalScore -ge 80) {"Bon"} elseif ($globalScore -ge 60) {"Dégradé"} elseif ($globalScore -ge 40) {"Mauvais"} else {"Critique"}
     $globalColor = if ($globalScore -ge 80) {"#28a745"} elseif ($globalScore -ge 60) {"#ffc107"} elseif ($globalScore -ge 40) {"#fd7e14"} else {"#dc3545"}
 
     # Machine info depuis les résultats
-    $machineOS    = ($results | Where-Object { $_.Check -eq "Système d'exploitation" } | Select-Object -First 1).Value
-    $machineRAM   = ($results | Where-Object { $_.Check -eq "RAM" } | Select-Object -First 1).Value
-    $machineCPU   = ($results | Where-Object { $_.Check -eq "CPU" } | Select-Object -First 1).Value
-    $machineUp    = ($results | Where-Object { $_.Check -eq "Uptime" } | Select-Object -First 1).Value
-    $machineDom   = ($results | Where-Object { $_.Check -eq "Domaine" } | Select-Object -First 1).Value
+    $machineOS    = Get-ESNProp ($results | Where-Object { (Get-ESNProp $_ @("Check","check")) -eq "Système d'exploitation" } | Select-Object -First 1) @("Value","value")
+    $machineRAM   = Get-ESNProp ($results | Where-Object { (Get-ESNProp $_ @("Check","check")) -eq "RAM" } | Select-Object -First 1) @("Value","value")
+    $machineCPU   = Get-ESNProp ($results | Where-Object { (Get-ESNProp $_ @("Check","check")) -eq "CPU" } | Select-Object -First 1) @("Value","value")
+    $machineUp    = Get-ESNProp ($results | Where-Object { (Get-ESNProp $_ @("Check","check")) -eq "Uptime" } | Select-Object -First 1) @("Value","value")
+    $machineDom   = Get-ESNProp ($results | Where-Object { (Get-ESNProp $_ @("Check","check")) -eq "Domaine" } | Select-Object -First 1) @("Value","value")
 
     # ── Fonctions helpers HTML ────────────────────────────────
     function Make-Gauge([int]$Score, [string]$Label, [string]$DomLabel) {
@@ -142,14 +158,20 @@ function Build-ESNReport {
 
     # ── Résultats par check ────────────────────────────────────
     $checkRows = ($results | ForEach-Object {
-        $bg   = switch ($_.Status) { "OK"{"#d4edda"} "WARN"{"#fff3cd"} "WARNING"{"#fff3cd"} "ERROR"{"#f8d7da"} "CRITICAL"{"#f8d7da"} "INFO"{"#e2f3fd"} default{"#f8f9fa"} }
+        $rTime = Get-ESNProp $_ @("Time","timestamp")
+        $rCat  = Get-ESNProp $_ @("Category","domain")
+        $rChk  = Get-ESNProp $_ @("Check","check")
+        $rSt   = Get-ESNProp $_ @("Status","severity") "INFO"
+        $rVal  = Get-ESNProp $_ @("Value","value")
+        $rDet  = Get-ESNProp $_ @("Details","detail")
+        $bg    = switch ($rSt) { "OK"{"#d4edda"} "WARN"{"#fff3cd"} "WARNING"{"#fff3cd"} "ERROR"{"#f8d7da"} "CRITICAL"{"#f8d7da"} "INFO"{"#e2f3fd"} default{"#f8f9fa"} }
         "<tr style='background:$bg'>
-          <td style='padding:6px 10px;font-size:12px'>$($_.Time ?? $_.timestamp)</td>
-          <td style='padding:6px 10px;font-size:12px'><strong>$($_.Category ?? $_.domain)</strong></td>
-          <td style='padding:6px 10px;font-size:12px'>$($_.Check ?? $_.check)</td>
-          <td style='padding:6px 10px;font-size:12px'>$(Make-SeverityBadge ($_.Status ?? $_.severity))</td>
-          <td style='padding:6px 10px;font-size:12px'>$($_.Value ?? $_.value)</td>
-          <td style='padding:6px 10px;font-size:11px;color:#555'>$($_.Details ?? $_.detail)</td>
+          <td style='padding:6px 10px;font-size:12px'>$rTime</td>
+          <td style='padding:6px 10px;font-size:12px'><strong>$rCat</strong></td>
+          <td style='padding:6px 10px;font-size:12px'>$rChk</td>
+          <td style='padding:6px 10px;font-size:12px'>$(Make-SeverityBadge $rSt)</td>
+          <td style='padding:6px 10px;font-size:12px'>$rVal</td>
+          <td style='padding:6px 10px;font-size:11px;color:#555'>$rDet</td>
         </tr>"
     }) -join "`n"
 
@@ -164,14 +186,15 @@ function Build-ESNReport {
       </tr>$checkRows</table>"
 
     # ── Impacts sur le score ───────────────────────────────────
-    $impactItems = @($results | Where-Object { $_.Status -in "WARN","WARNING","ERROR","CRITICAL" })
+    $impactItems = @($results | Where-Object { (Get-ESNProp $_ @("Status","severity")) -in "WARN","WARNING","ERROR","CRITICAL" })
     $impactRows  = ($impactItems | ForEach-Object {
-        $imp  = if ($_.Status -in "ERROR","CRITICAL") { "−15 pts" } elseif ($_.Status -in "WARN","WARNING") { "−5 pts" } else { "0 pt" }
-        $col  = if ($_.Status -in "ERROR","CRITICAL") { "#dc3545" } else { "#856404" }
+        $iSt  = Get-ESNProp $_ @("Status","severity")
+        $imp  = if ($iSt -in "ERROR","CRITICAL") { "−15 pts" } elseif ($iSt -in "WARN","WARNING") { "−5 pts" } else { "0 pt" }
+        $col  = if ($iSt -in "ERROR","CRITICAL") { "#dc3545" } else { "#856404" }
         "<tr>
-          <td style='padding:6px 10px;font-size:12px'><strong>$($_.Category ?? $_.domain)</strong></td>
-          <td style='padding:6px 10px;font-size:12px'>$($_.Check ?? $_.check)</td>
-          <td style='padding:6px 10px;font-size:12px'>$($_.Value ?? $_.value)</td>
+          <td style='padding:6px 10px;font-size:12px'><strong>$(Get-ESNProp $_ @("Category","domain"))</strong></td>
+          <td style='padding:6px 10px;font-size:12px'>$(Get-ESNProp $_ @("Check","check"))</td>
+          <td style='padding:6px 10px;font-size:12px'>$(Get-ESNProp $_ @("Value","value"))</td>
           <td style='padding:6px 10px;font-size:12px;color:$col;font-weight:700'>$imp</td>
         </tr>"
     }) -join "`n"
@@ -189,7 +212,7 @@ function Build-ESNReport {
     }
 
     # ── Recommandations ───────────────────────────────────────
-    $recErrors = @($SessionData.Errors) + @($SessionData.Warnings)
+    $recErrors = @(Get-ESNProp $SessionData @("Errors") @()) + @(Get-ESNProp $SessionData @("Warnings") @())
     $recHtml   = if ($recErrors.Count -gt 0) {
         "<ul style='margin:0;padding-left:20px'>" +
         ($recErrors | ForEach-Object {
@@ -239,7 +262,7 @@ function Build-ESNReport {
     # ── Base de connaissances — patterns détectés ─────────────
     $matchedPatterns = @()
     if ($patterns.Count -gt 0) {
-        $allText = ($results | ForEach-Object { "$($_.Category) $($_.Check) $($_.Value) $($_.Details) $($_.Status)" }) -join " "
+        $allText = ($results | ForEach-Object { "$(Get-ESNProp $_ @('Category','domain')) $(Get-ESNProp $_ @('Check','check')) $(Get-ESNProp $_ @('Value','value')) $(Get-ESNProp $_ @('Details','detail')) $(Get-ESNProp $_ @('Status','severity'))" }) -join " "
         foreach ($pat in $patterns) {
             $matched = $false
             foreach ($kw in $pat.keywords) {
@@ -380,7 +403,7 @@ function Build-ESNReport {
     <div class="meta-item"><div class="key">RAM</div><div class="val">$(if($machineRAM){$machineRAM}else{"N/A"})</div></div>
     <div class="meta-item"><div class="key">CPU</div><div class="val">$(if($machineCPU){$machineCPU}else{"N/A"})</div></div>
     <div class="meta-item"><div class="key">Uptime</div><div class="val">$(if($machineUp){$machineUp}else{"N/A"})</div></div>
-    <div class="meta-item"><div class="key">Domaine</div><div class="val">$(if($machineDom){$machineDom}else{$env:USERDNSDOMAIN})</div></div>
+    <div class="meta-item"><div class="key">Domaine</div><div class="val">$(if($machineDom){$machineDom}elseif($env:USERDNSDOMAIN){$env:USERDNSDOMAIN}else{"Workgroup"})</div></div>
     <div class="meta-item"><div class="key">Op&eacute;rateur</div><div class="val">$env:USERNAME</div></div>
     <div class="meta-item"><div class="key">ID Incident</div><div class="val">$IncidentId</div></div>
     <div class="meta-item"><div class="key">Dur&eacute;e analyse</div><div class="val">$duration</div></div>
@@ -402,7 +425,7 @@ function Build-ESNReport {
 </div>
 
 <!-- RECOMMANDATIONS -->
-$(Make-Collapsible "recs" "&#128161; Recommandations actionnables" "$(@($SessionData.Errors + $SessionData.Warnings).Count)" "#856404" $recHtml)
+$(Make-Collapsible "recs" "&#128161; Recommandations actionnables" "$($recErrors.Count)" "#856404" $recHtml)
 
 <!-- IMPACTS SUR LE SCORE -->
 $(Make-Collapsible "impacts" "&#128200; Impacts d&eacute;taill&eacute;s sur le score" "$($impactItems.Count)" "#dc3545" $impactTable)

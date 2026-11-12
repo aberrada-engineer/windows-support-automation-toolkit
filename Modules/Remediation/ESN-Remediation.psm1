@@ -734,7 +734,8 @@ function Invoke-Remediation {
         if ($coreLoaded) { Write-ESNLog $m $l }
         else {
             $c = @{INFO="Cyan";OK="Green";WARN="Yellow";ERROR="Red";SECTION="Magenta"}
-            Write-Host "[$l] $m" -ForegroundColor ($c[$l] ?? "White")
+            $fg = if ($c.ContainsKey($l)) { $c[$l] } else { "White" }
+            Write-Host "[$l] $m" -ForegroundColor $fg
         }
     }
 

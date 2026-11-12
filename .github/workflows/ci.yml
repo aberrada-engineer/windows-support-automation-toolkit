@@ -8,41 +8,60 @@ on:
 
 jobs:
   powershell-quality-gate:
-    name: PowerShell Syntax & AST Integrity
+    name: PowerShell AST, Lint & Pester (${{ matrix.shell }})
     runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shell: [ pwsh, powershell ]
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Validate PowerShell Script Syntax & AST
-        shell: pwsh
+      - name: Validate PowerShell AST Syntax (.ps1 and .psm1)
+        shell: ${{ matrix.shell }}
         run: |
-          Write-Host "=== Lancement de l'analyse syntaxique AST PowerShell ===" -ForegroundColor Cyan
-          $scripts = Get-ChildItem -Path . -Filter "*.ps1" -Recurse | Where-Object { $_.FullName -notmatch "Tests" }
+          Write-Host "=== Validation syntaxique AST ($($PSVersionTable.PSVersion)) ===" -ForegroundColor Cyan
+          $scripts = Get-ChildItem -Path . -Include "*.ps1", "*.psm1" -Recurse | Where-Object { $_.FullName -notmatch "[/\\]Tests[/\\]" }
           $errorsCount = 0
-
           foreach ($s in $scripts) {
               $parseErrors = $null
-              $ast = [System.Management.Automation.Language.Parser]::ParseFile($s.FullName, [ref]$null, [ref]$parseErrors)
+              [void][System.Management.Automation.Language.Parser]::ParseFile($s.FullName, [ref]$null, [ref]$parseErrors)
               if ($parseErrors.Count -gt 0) {
                   Write-Error "Erreur syntaxe dans $($s.FullName) : $($parseErrors.Message)"
                   $errorsCount++
-              } else {
-                  Write-Host "[OK] $($s.Name)" -ForegroundColor Green
               }
           }
-
           if ($errorsCount -gt 0) {
               Write-Error "Échec : $errorsCount scripts comportent des erreurs syntaxiques."
               exit 1
           }
-          Write-Host "Tous les scripts sont 100% conformes et validés." -ForegroundColor Green
+          Write-Host "[OK] $($scripts.Count) scripts/modules valides sous $($PSVersionTable.PSVersion)." -ForegroundColor Green
 
-      - name: Run Pester Enterprise Tests
+      - name: Run PSScriptAnalyzer Error Gate
+        if: matrix.shell == 'pwsh'
         shell: pwsh
         run: |
-          if (Get-Module -ListAvailable -Name Pester) {
-              Invoke-Pester -Path @('./Tests/ESN-EnterpriseModules.Tests.ps1', './Tests/WSAT-Enterprise.Tests.ps1') -Output Detailed
-          } else {
-              Write-Host "Module Pester non présent par défaut sur l'environnement, validation AST effectuée avec succès."
+          if (-not (Get-Module -ListAvailable -Name PSScriptAnalyzer)) {
+              Install-Module PSScriptAnalyzer -Scope CurrentUser -Force -ErrorAction Stop
+          }
+          $findings = Invoke-ScriptAnalyzer -Path . -Recurse -Severity Error | Where-Object { $_.ScriptPath -notmatch "[/\\]Tests[/\\]" }
+          if ($findings) {
+              $findings | Format-Table ScriptName, Line, RuleName, Message -AutoSize
+              exit 1
+          }
+          Write-Host "[OK] Zéro erreur critique PSScriptAnalyzer." -ForegroundColor Green
+
+      - name: Run Pester v5 Enterprise Suite
+        shell: ${{ matrix.shell }}
+        run: |
+          $pester5 = Get-Module -ListAvailable -Name Pester | Where-Object { $_.Version.Major -ge 5 } | Select-Object -First 1
+          if (-not $pester5) {
+              Install-Module Pester -MinimumVersion 5.0.0 -Scope CurrentUser -Force -SkipPublisherCheck -ErrorAction Stop
+          }
+          Import-Module Pester -MinimumVersion 5.0.0 -Force
+          $res = Invoke-Pester -Path @('./Tests/ESN-EnterpriseModules.Tests.ps1', './Tests/WSAT-Enterprise.Tests.ps1') -Output Detailed -PassThru
+          if ($res.FailedCount -gt 0) {
+              Write-Error "Échec Pester : $($res.FailedCount) test(s) en erreur."
+              exit 1
           }

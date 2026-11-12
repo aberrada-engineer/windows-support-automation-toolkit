@@ -48,14 +48,22 @@ param(
     [int]$ImmutabilityDays = 30,
 
     [Parameter(Mandatory = $false)]
+    [string]$SshUser = "",
+
+    [Parameter(Mandatory = $false)]
+    [string]$SshKeyPath = "",
+
+    [Parameter(Mandatory = $false)]
     [switch]$Simulate
 )
 
 process {
     try {
+        $schemaScript = Join-Path $PSScriptRoot "Core/ESN-OutputSchema.ps1"
+        if (Test-Path $schemaScript) { . $schemaScript }
         $timestamp = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
 
-        if ($Simulate -or -not (Test-Path -Path $RepositoryPath)) {
+        if ($Simulate) {
             $checks = @(
                 [PSCustomObject]@{ Control = "XFS Reflink / Fast Clone Enabled"; Passed = $true; Detail = "crc=1 finobt=1 reflink=1 verified on /dev/nvme0n1p1 ($RepositoryPath)" }
                 [PSCustomObject]@{ Control = "Single-Use Credentials & Non-Root Transport"; Passed = $true; Detail = "veeamtransport running as non-sudo user 'veeamsvc'; root SSH disabled" }
@@ -66,16 +74,41 @@ process {
             $repoRetention = $ImmutabilityDays
         }
         else {
-            $checks = @(
-                [PSCustomObject]@{ Control = "Repository Path Accessible"; Passed = (Test-Path $RepositoryPath); Detail = "Verified path $RepositoryPath" }
-            )
+            $sshExe = Get-Command ssh -ErrorAction SilentlyContinue
+            $repoPathEsc = $RepositoryPath -replace "'", "'\\''"
+            $probeScript = "findmnt -T '$repoPathEsc' -no FSTYPE,OPTIONS 2>/dev/null || df -T '$repoPathEsc' 2>/dev/null | tail -n 1; " +
+                           "echo '---IMMUT---'; find '$repoPathEsc' -maxdepth 3 \( -name '*.vbk' -o -name '*.vib' \) -exec lsattr {} + 2>/dev/null | head -n 20; " +
+                           "echo '---NTP---'; (systemctl is-active chronyd 2>/dev/null || systemctl is-active systemd-timesyncd 2>/dev/null || echo unknown)"
+
+            if ($SshUser -and $sshExe) {
+                $sshArgs = @("-o", "StrictHostKeyChecking=accept-new", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5")
+                if ($SshKeyPath) { $sshArgs += @("-i", $SshKeyPath) }
+                $sshArgs += @("$SshUser@$RepositoryHost", $probeScript)
+                $rawProbe = (& $sshExe.Source @sshArgs 2>&1) -join "`n"
+                $pathOk = $LASTEXITCODE -eq 0 -and ($rawProbe -notmatch 'No such file or directory')
+                $isXfs = $rawProbe -match '\bxfs\b'
+                $hasImmut = $rawProbe -match '[-]+i[-]+'
+                $ntpActive = $rawProbe -match '(?m)^active$'
+                $checks = @(
+                    [PSCustomObject]@{ Control = "SSH & Repository Reachable"; Passed = $pathOk; Detail = if ($pathOk) { "Connected to $RepositoryHost ($RepositoryPath)" } else { "SSH probe failed: $rawProbe" } }
+                    [PSCustomObject]@{ Control = "XFS Filesystem Verified"; Passed = $isXfs; Detail = if ($isXfs) { "XFS mount detected on $RepositoryPath" } else { "XFS not confirmed in mount output" } }
+                    [PSCustomObject]@{ Control = "Immutable Attribute (+i) on Backup Chains"; Passed = $hasImmut; Detail = if ($hasImmut) { "lsattr +i confirmed on backup files" } else { "No +i immutable .vbk/.vib files found" } }
+                    [PSCustomObject]@{ Control = "NTP Time-Sync Protection"; Passed = $ntpActive; Detail = if ($ntpActive) { "chronyd / timesyncd active" } else { "NTP daemon state unverified" } }
+                )
+            }
+            else {
+                $exists = Test-Path -Path $RepositoryPath
+                $checks = @(
+                    [PSCustomObject]@{ Control = "Repository Path Accessible (Local)"; Passed = $exists; Detail = if ($exists) { "Path accessible: $RepositoryPath (provide -SshUser for full remote XFS/lsattr audit)" } else { "Path not found: $RepositoryPath (use -Simulate for offline demo)" } }
+                )
+            }
             $repoRetention = $ImmutabilityDays
         }
 
         $failedCount = @($checks | Where-Object { -not $_.Passed }).Count
         $isCompliant = ($failedCount -eq 0 -and $repoRetention -ge $ImmutabilityDays)
 
-        return [PSCustomObject]@{
+        $resObj = [PSCustomObject]@{
             Timestamp                 = $timestamp
             RepositoryHost            = $RepositoryHost
             RepositoryPath            = $RepositoryPath
@@ -87,6 +120,10 @@ process {
             ControlsFailed            = $failedCount
             AuditChecks               = $checks
         }
+        if ((Get-Command Write-ESNSiemAlert -ErrorAction SilentlyContinue) -and -not $isCompliant) {
+            Write-ESNSiemAlert -ScriptName "Invoke-VeeamImmutableAudit.ps1" -Severity "CRITICAL" -Category "BackupImmutability" -Target $RepositoryHost -Message "Veeam repository $RepositoryPath failed $failedCount/$($checks.Count) immutability controls" | Out-Null
+        }
+        return $resObj
     }
     catch {
         $errObj = [PSCustomObject]@{
