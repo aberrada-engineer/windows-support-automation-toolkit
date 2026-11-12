@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
     ESN-HealthScore — Système de scoring santé machine pondéré, multi-domaines,
@@ -331,8 +331,14 @@ function _Score-Network {
     if ($latPts -lt 5) { $recs += "Latence élevée ($($net.LatencyAvg) ms) — possible saturation réseau ou problème FAI" }
     if ($net.PacketLoss -gt 10) { $recs += "Perte de paquets $($net.PacketLoss)% — vérifier câble, switch, carte réseau" }
 
-    # Packet loss bonus malus (intégré dans latence)
-    if ($net.PacketLoss -ge 20) { $points = [Math]::Max(0, $points - 10) }
+    # Perte de paquets (10 pts) — sans ce critère le barème plafonnait à 90
+    $lossPts = if ($net.PacketLoss -le 0) { 10 } elseif ($net.PacketLoss -le 5) { 7 } elseif ($net.PacketLoss -le 10) { 4 } else { 0 }
+    $points += $lossPts
+    $details += @{ Check="Perte de paquets"; Val="$($net.PacketLoss)%"; Pts=$lossPts; Max=10; Sev=$(if ($lossPts -ge 7) { "ok" } elseif ($lossPts -ge 4) { "warn" } else { "critical" }) }
+
+    # Une couche réseau fondamentale en échec rend le poste inopérant : plafond du score
+    if ($net.APIPA) { $points = [Math]::Min($points, 25) }
+    elseif (-not $net.Gateway -or -not $net.GatewayPing -or -not $net.InternetOK -or -not $net.DNSResolve) { $points = [Math]::Min($points, 60) }
 
     $score = [Math]::Min(100, [Math]::Max(0, $points))
     return @{ Score=$score; Label=(Get-ScoreLabel $score); Details=$details; Recommendations=$recs }
@@ -402,6 +408,8 @@ function _Score-System {
     $crLoss  = 10 - $crPts; $points -= $crLoss
     $details += @{ Check="Crash dumps (minidump)"; Val="$($sys.CrashDumps) fichier(s)"; Pts=$crPts; Max=10; Sev=$crSev }
     if ($sys.CrashDumps -gt 0) { $recs += "$($sys.CrashDumps) crash dump(s) détecté(s) dans C:\Windows\Minidump — analyser avec WinDbg ou BlueScreenView" }
+
+    if (@($ramSev, $cpuSev, $evtSev, $crSev) -contains "critical") { $points = [Math]::Min($points, 60) }
 
     $score = [Math]::Min(100, [Math]::Max(0, $points))
     return @{ Score=$score; Label=(Get-ScoreLabel $score); Details=$details; Recommendations=$recs }
@@ -548,7 +556,7 @@ function _Score-Storage {
         $points -= $loss
 
         $details += @{
-            Check = "Disque $($disk.Name):" + (if($isSystem){" [Système]"}else{""})
+            Check = "Disque $($disk.Name):" + $(if ($isSystem) { " [Système]" } else { "" })
             Val   = "$($disk.UsedPct)% utilisé — $($disk.FreeGB) Go libres / $($disk.TotalGB) Go"
             Pts   = $pts; Max = $weight; Sev = $sev
         }

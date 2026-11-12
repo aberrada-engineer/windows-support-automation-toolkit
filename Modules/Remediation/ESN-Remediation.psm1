@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
     ESN-Remediation — Système d'auto-remédiation modulaire et sécurisé.
@@ -801,11 +801,11 @@ function Invoke-Remediation {
     foreach ($rem in $detected) {
         Write-Host "  [$i] " -NoNewline -ForegroundColor DarkGray
         Write-Host "$($rem.Name)" -ForegroundColor White -NoNewline
-        Write-Host " [$($rem.Risk) risk]" -ForegroundColor (
+        Write-Host " [$($rem.Risk) risk]" -ForegroundColor $(
             switch ($rem.Risk) { "High"{"Red"} "Medium"{"Yellow"} default{"Green"} }
         )
         Write-Host "      $($rem.Description)" -ForegroundColor DarkGray
-        if ((& $rem.Detect | Out-Null; $rem.RequiresAdmin)) {
+        if ($rem.RequiresAdmin) {
             Write-Host "      ⚠️  Nécessite des droits administrateur" -ForegroundColor Yellow
         }
         $i++

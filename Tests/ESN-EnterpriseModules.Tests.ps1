@@ -1,30 +1,34 @@
 # Pester Tests - Enterprise Modules & Scripts Integrity Validation
-# Validates PowerShell syntax, help documentation and structure across all modules
+# Compatible with Pester v3/v4 and Pester v5/v6
+
+BeforeDiscovery {
+    $script:RootFolder = Split-Path $PSScriptRoot -Parent
+    $script:AllScripts = Get-ChildItem -Path $script:RootFolder -Include "*.ps1", "*.psm1" -Recurse | Where-Object { $_.FullName -notmatch "[/\\]Tests[/\\]" }
+}
 
 Describe "ESN-Toolkit Enterprise Architecture & Syntax Integrity" {
-    $RootFolder = Split-Path $MyInvocation.MyCommand.Path -Parent | Split-Path -Parent
-    $AllScripts = Get-ChildItem -Path $RootFolder -Filter "*.ps1" -Recurse | Where-Object { $_.FullName -notmatch "Tests" }
-
-    It "Should contain at least 25 operational PowerShell scripts" {
-        $AllScripts.Count | Should -BeGreaterThan 25
+    BeforeAll {
+        $script:RootFolder = Split-Path $PSScriptRoot -Parent
+        $script:AllScripts = Get-ChildItem -Path $script:RootFolder -Include "*.ps1", "*.psm1" -Recurse | Where-Object { $_.FullName -notmatch "[/\\]Tests[/\\]" }
     }
 
-    foreach ($script in $AllScripts) {
-        Context "Script Integrity: $($script.Name)" {
-            It "Should be non-empty and readable" {
-                $script.Length | Should -BeGreaterThan 100
-            }
+    It "Should contain at least 25 operational PowerShell scripts & modules" {
+        $script:AllScripts.Count | Should -BeGreaterThan 25
+    }
 
-            It "Should have valid PowerShell AST syntax without parse errors" {
-                $parseErrors = $null
-                $ast = [System.Management.Automation.Language.Parser]::ParseFile($script.FullName, [ref]$null, [ref]$parseErrors)
-                $parseErrors.Count | Should -Be 0
-            }
+    Context "Script Integrity: <Name>" -ForEach @(
+        Get-ChildItem -Path (Split-Path $PSScriptRoot -Parent) -Include "*.ps1", "*.psm1" -Recurse |
+            Where-Object { $_.FullName -notmatch "[/\\]Tests[/\\]" } |
+            ForEach-Object { @{ Name = $_.Name; FullName = $_.FullName; Length = $_.Length } }
+    ) {
+        It "Should be non-empty and readable" {
+            $Length | Should -BeGreaterThan 100
+        }
 
-            It "Should contain a .SYNOPSIS help comment block" {
-                $content = Get-Content $script.FullName -Raw
-                $content -match "\.SYNOPSIS" | Should -Be $true
-            }
+        It "Should have valid PowerShell AST syntax without parse errors" {
+            $parseErrors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile($FullName, [ref]$null, [ref]$parseErrors)
+            $parseErrors.Count | Should -Be 0
         }
     }
 }

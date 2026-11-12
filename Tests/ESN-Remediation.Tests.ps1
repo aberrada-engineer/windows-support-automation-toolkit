@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
     Tests Pester v5 — Module ESN-Remediation.
@@ -58,7 +58,7 @@ Describe "ESN-Remediation — Catalogue" -Tag "Catalog" {
         $catalog = & (Get-Module ESN-Remediation) { $script:Catalog }
         $expectedIds = @("DNS","Winsock","Services","Teams","Outlook","OneDrive","TempFiles","WindowsUpdate")
         foreach ($id in $expectedIds) {
-            $catalog.ContainsKey($id) | Should -Be $true -Because "Le catalogue doit contenir $id"
+            $catalog.Contains($id) | Should -Be $true -Because "Le catalogue doit contenir $id"
         }
     }
 

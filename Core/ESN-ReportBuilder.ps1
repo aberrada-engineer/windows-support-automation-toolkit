@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
     ESN-ReportBuilder — Générateur de rapport HTML unifié offline.
@@ -250,7 +250,7 @@ function Build-ESNReport {
     }
 
     $kbHtml = if ($matchedPatterns.Count -gt 0) {
-        $matchedPatterns | ForEach-Object {
+        ($matchedPatterns | ForEach-Object {
             $sevCol = if ($_.severity -eq "CRITICAL") { "#dc3545" } else { "#856404" }
             $steps  = ($_.remediation_steps | ForEach-Object { "<li style='margin:4px 0;font-size:12px'>$_</li>" }) -join ""
             $cmd    = if ($_.powershell_fix) { "<div style='background:#1e1e1e;color:#dcdcdc;padding:10px;border-radius:6px;margin-top:8px;font-family:monospace;font-size:11px'>PS> $($_.powershell_fix)</div>" } else { "" }
@@ -442,4 +442,4 @@ $(Make-Collapsible "checks" "&#128203; D&eacute;tail de tous les checks" "$cntTo
     return $OutputPath
 }
 
-Export-ModuleMember -Function Build-ESNReport
+# Fichier chargé par dot-sourcing : toutes ses fonctions sont visibles, Export-ModuleMember y est interdit.

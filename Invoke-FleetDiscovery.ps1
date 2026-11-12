@@ -1,4 +1,5 @@
 ﻿#Requires -RunAsAdministrator
+#Requires -Version 7.0
 <#
 .SYNOPSIS
     Invoke-FleetDiscovery v3.0 - Cartographie Réseau & Découverte Automatisée du Parc IT.
@@ -77,7 +78,8 @@ $portsToTest = @(22, 80, 443, 445, 3389)
         elseif ($openPorts -contains 22) { $type = "Linux / Réseau (SSH)" }
         elseif ($openPorts -contains 80 -or $openPorts -contains 443) { $type = "Équipement Web (Switch / Imprimante / Pare-feu)" }
 
-        $using:aliveHosts.Add([PSCustomObject]@{
+        $bag = $using:aliveHosts  # appel de méthode direct sur `$using: interdit en -Parallel
+        $bag.Add([PSCustomObject]@{
             IP        = $ip
             Nom       = $hostname
             Type      = $type

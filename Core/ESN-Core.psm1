@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
     ESN-Core — Module fondation du toolkit ESN.
@@ -39,7 +39,7 @@ $script:Session = @{
 function Initialize-ESNSession {
     [CmdletBinding()]
     param(
-        [string]$ScriptName   = (Split-Path $MyInvocation.PSCommandPath -Leaf),
+        [string]$ScriptName   = $(if ($MyInvocation.PSCommandPath) { Split-Path $MyInvocation.PSCommandPath -Leaf } else { 'Interactive' }),
         [string]$IncidentId   = "INC-$(Get-Date -Format 'yyyyMMdd-HHmm')",
         [string]$ComputerName = $env:COMPUTERNAME
     )
@@ -423,14 +423,17 @@ function Show-ESNSummary {
 # HELPER : TEST CONNECTIVITÉ
 # ─────────────────────────────────────────────
 function Test-ESNPort {
-    param([string]$Host, [int]$Port, [int]$TimeoutMs = 1000)
+    # $Host est une variable automatique en lecture seule : le paramètre s'appelle ComputerName (alias Host conservé)
+    param([Alias('Host')][string]$ComputerName, [int]$Port, [int]$TimeoutMs = 1000)
+    $tcp = [System.Net.Sockets.TcpClient]::new()
     try {
-        $tcp = New-Object System.Net.Sockets.TcpClient
-        $r   = $tcp.BeginConnect($Host, $Port, $null, $null)
-        $ok  = $r.AsyncWaitHandle.WaitOne($TimeoutMs, $false)
-        $tcp.Close()
-        return $ok
+        $r = $tcp.BeginConnect($ComputerName, $Port, $null, $null)
+        # WaitOne est vrai aussi quand la connexion est REFUSÉE : il faut vérifier Connected
+        if (-not $r.AsyncWaitHandle.WaitOne($TimeoutMs, $false)) { return $false }
+        $tcp.EndConnect($r)
+        return $tcp.Connected
     } catch { return $false }
+    finally { $tcp.Close() }
 }
 
 function Test-ESNAdmin {

@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
     ESN-OutputSchema — Schéma de sortie JSON unifié pour tous les modules ESN-Toolkit.
@@ -243,8 +243,4 @@ function Export-ESNResultJson {
     return $OutputPath
 }
 
-Export-ModuleMember -Function @(
-    'New-ESNCheck', 'New-ESNDomainResult', 'Get-ESNCheckId',
-    'Get-ESNSeverityColor', 'Get-ESNSeverityIcon', 'Get-ESNSeverityTextColor',
-    'ConvertTo-ESNCheck', 'Export-ESNResultJson'
-)
+# Fichier chargé par dot-sourcing : toutes ses fonctions sont visibles, Export-ModuleMember y est interdit.
