@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Amine BERRADA — Pitch Deck Technique & Plateforme d'Ingénierie AIOps</title>
+    <style>
+        :root {
+            --bg-color: #0b0f19;
+            --card-bg: #111827;
+            --accent-blue: #38bdf8;
+            --accent-green: #34d399;
+            --accent-red: #f87171;
+            --text-main: #f9fafb;
+            --text-dim: #9ca3af;
+            --border-color: #1f2937;
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+        .slide-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 30px;
+            position: relative;
+        }
+        .slide {
+            display: none;
+            width: 100%;
+            max-width: 1100px;
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 40px 50px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+            animation: fadeIn 0.4s ease-out forwards;
+        }
+        .slide.active { display: block; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(15px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .slide-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 16px;
+            margin-bottom: 28px;
+        }
+        .slide-title {
+            margin: 0;
+            font-size: 26px;
+            color: var(--accent-blue);
+            font-weight: 800;
+        }
+        .badge {
+            background-color: #0284c7;
+            color: white;
+            padding: 6px 14px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 13px;
+            text-transform: uppercase;
+        }
+        .hero-title {
+            font-size: 42px;
+            font-weight: 900;
+            margin: 0 0 10px 0;
+            background: linear-gradient(135deg, #38bdf8 0%, #818cf8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .hero-sub {
+            font-size: 20px;
+            color: var(--text-dim);
+            margin-bottom: 30px;
+        }
+        .grid-3 {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin: 20px 0;
+        }
+        .card {
+            background-color: var(--bg-color);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 20px;
+        }
+        .card-num {
+            font-size: 32px;
+            font-weight: 900;
+            color: var(--accent-blue);
+            margin-bottom: 6px;
+        }
+        .card-label {
+            font-size: 13px;
+            text-transform: uppercase;
+            color: var(--text-dim);
+            font-weight: 600;
+        }
+        .card-desc {
+            font-size: 14px;
+            color: #d1d5db;
+            margin-top: 8px;
+            line-height: 1.5;
+        }
+        ul.check-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        ul.check-list li {
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            font-size: 15px;
+        }
+        ul.check-list li::before {
+            content: "✓";
+            color: var(--accent-green);
+            font-weight: bold;
+            margin-right: 12px;
+            font-size: 18px;
+        }
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 40px;
+            background-color: var(--card-bg);
+            border-top: 1px solid var(--border-color);
+        }
+        .btn-nav {
+            background-color: #1f2937;
+            color: var(--text-main);
+            border: 1px solid #374151;
+            padding: 10px 22px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-nav:hover {
+            background-color: #374151;
+            color: var(--accent-blue);
+        }
+        .progress-indicator {
+            font-size: 14px;
+            color: var(--text-dim);
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="slide-container">
+        <!-- SLIDE 1 : INTRO & POSITIONNEMENT -->
+        <div class="slide active" id="slide-1">
+            <div class="slide-header">
+                <span class="badge">Soutenance & Présentation Technique</span>
+                <span style="color: var(--text-dim); font-size: 13px;">Plateforme AIOps v3.7</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 24px; margin-top: 15px;">
+                <img src="Assets/photo_amine_officielle.jpg" style="width: 100px; height: 100px; border-radius: 50%; border: 3px solid var(--accent-blue); object-fit: cover;" alt="Amine Berrada">
+                <div>
+                    <h1 class="hero-title" style="margin: 0;">Amine BERRADA</h1>
+                    <div class="hero-sub" style="margin-top: 6px;">Administrateur Systèmes & Réseaux Confirmé • Référent Technique N3</div>
+                </div>
+            </div>
+            <p style="color: #d1d5db; font-size: 16px; line-height: 1.6; max-width: 800px;">
+                5 ans d'expérience opérationnelle sur des parcs critiques multi-clients en ESN (Suisse & France).  
+                Concepteur d'une plateforme d'opérations d'ingénierie et d'auto-réparation (AIOps) de plus de <strong>13 600 lignes de code PowerShell natif</strong>.
+            </p>
+            <div class="grid-3" style="margin-top: 32px;">
+                <div class="card">
+                    <div class="card-num">+200</div>
+                    <div class="card-label">Infrastructures Infogérées</div>
+                    <div class="card-desc">PME, ETI et grands comptes de luxe (Porsche, TAG Heuer, Hublot).</div>
+                </div>
+                <div class="card">
+                    <div class="card-num">99.9%</div>
+                    <div class="card-label">SLA Haute Disponibilité</div>
+                    <div class="card-desc">Astreinte 24/7, GTI &lt; 15 min, GTR &lt; 4h sur incidents critiques P1/P2.</div>
+                </div>
+                <div class="card">
+                    <div class="card-num">100%</div>
+                    <div class="card-label">Natif Windows & Zéro Dépendance</div>
+                    <div class="card-desc">Exécution immédiate en production sans prérequis externe.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 2 : PÉRIMÈTRE & CONTEXTES CLIENTS -->
+        <div class="slide" id="slide-2">
+            <div class="slide-header">
+                <h2 class="slide-title">2. Périmètre Opérationnel & Contextes Clients Réels</h2>
+                <span class="badge">Expérience Terrain</span>
+            </div>
+            <div class="grid-3">
+                <div class="card" style="border-top: 4px solid var(--accent-blue);">
+                    <div style="font-weight: 800; font-size: 18px; color: var(--accent-blue);">AEXIN — Genève</div>
+                    <div style="color: var(--text-dim); font-size: 12px; margin-top: 2px;">Ingénieur Système (CDI)</div>
+                    <div class="card-desc" style="margin-top: 12px;">
+                        • ESN haut de gamme (~150 clients)<br>
+                        • Référent N3 dernier niveau<br>
+                        • Clusters Nutanix & VMware vSphere<br>
+                        • Grands comptes horlogers & luxe<br>
+                        • Astreinte 24/7 (SLA P1/P2) & COPIL
+                    </div>
+                </div>
+                <div class="card" style="border-top: 4px solid var(--accent-green);">
+                    <div style="font-weight: 800; font-size: 18px; color: var(--accent-green);">BY THE WAY — Lille</div>
+                    <div style="color: var(--text-dim); font-size: 12px; margin-top: 2px;">Admin Systèmes & Réseaux (CDI)</div>
+                    <div class="card-desc" style="margin-top: 12px;">
+                        • ESN Infogérance (~50 clients)<br>
+                        • MCO multi-infrastructures critiques<br>
+                        • Exchange Hybride & Active Directory<br>
+                        • Réseaux FortiGate & Switches Aruba<br>
+                        • Migration inter-domaines AD
+                    </div>
+                </div>
+                <div class="card" style="border-top: 4px solid #f59e0b;">
+                    <div style="font-weight: 800; font-size: 18px; color: #f59e0b);">TEXDECOR GROUP</div>
+                    <div style="color: var(--text-dim); font-size: 12px; margin-top: 2px;">Technicien Informatique (Alternance)</div>
+                    <div class="card-desc" style="margin-top: 12px;">
+                        • Client final industriel (250 collab.)<br>
+                        • Unique technicien sur site<br>
+                        • Migration MDT de ~200 postes W7&rarr;W10<br>
+                        • Gestion intégrale du parc via GLPI<br>
+                        • Support utilisateur N1/N2 & serveurs
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 3 : LES 6 PROJETS MAJEURS -->
+        <div class="slide" id="slide-3">
+            <div class="slide-header">
+                <h2 class="slide-title">3. Soutenance Technique des 6 Projets Majeurs</h2>
+                <span class="badge">Architecture & Code</span>
+            </div>
+            <div class="grid-2">
+                <div>
+                    <ul class="check-list">
+                        <li><strong>Migration Inter-Domaines AD :</strong> Translation SID History, sauvegarde droits NTFS (icacls) sans coupure.</li>
+                        <li><strong>Rollout EDR +200 Postes :</strong> Remplacement silencieux d'antivirus legacy et injection de Site Token SentinelOne.</li>
+                        <li><strong>Commutation ArubaOS-CX (~20 Switches) :</strong> VLANs étanches, LACP Uplinks, BPDU Guard & supervision PRTG.</li>
+                    </ul>
+                </div>
+                <div>
+                    <ul class="check-list">
+                        <li><strong>Déploiement Windows LAPS :</strong> Mots de passe administrateurs locaux uniques, rotation 30j anti Pass-the-Hash.</li>
+                        <li><strong>Bascule Datacenter Veeam :</strong> Orchestration de failover planifié avec RTO mesuré à 38 min (SLA 4h).</li>
+                        <li><strong>Industrialisation MDT 200+ Postes :</strong> Déploiement Zero-Touch avec méthode Total Control drivers.</li>
+                    </ul>
+                </div>
+            </div>
+            <div style="background-color: #1e1b4b; border-left: 4px solid #818cf8; padding: 12px 18px; border-radius: 6px; font-size: 13px; color: #e0e7ff; margin-top: 16px;">
+                💡 <strong>Preuve concrète :</strong> Tous ces projets sont codés sous forme de playbooks automatisés exécutables dans le dossier <code>Projects/</code> du repository GitHub.
+            </div>
+        </div>
+
+        <!-- SLIDE 4 : AIOPS & ASTREINTE 24/7 -->
+        <div class="slide" id="slide-4">
+            <div class="slide-header">
+                <h2 class="slide-title">4. AIOps, Astreinte 24/7 & Cybersécurité Opérationnelle</h2>
+                <span class="badge">Résilience</span>
+            </div>
+            <div class="grid-3">
+                <div class="card">
+                    <div style="font-weight: bold; font-size: 16px; color: var(--accent-green); margin-bottom: 8px;">🤖 Gardien Self-Healing</div>
+                    <div class="card-desc">Tâche de fond exécutée toutes les 15 min. Relance les services plantés (Spooler, Defender, DNS), purge C: dès 85% d'occupation. <strong>Résout 80% des tickets N1 en totale autonomie.</strong></div>
+                </div>
+                <div class="card">
+                    <div style="font-weight: bold; font-size: 16px; color: var(--accent-red); margin-bottom: 8px;">🚨 Triage d'Urgence P1</div>
+                    <div class="card-desc">Boîte noire d'astreinte. Extrait les Minidumps BSOD, les erreurs critiques et génère un rapport Flash en 30 secondes pour respecter la <strong>GTI &lt; 15 min</strong>.</div>
+                </div>
+                <div class="card">
+                    <div style="font-weight: bold; font-size: 16px; color: #f59e0b; margin-bottom: 8px;">🛑 Ransomware KillSwitch</div>
+                    <div class="card-desc">Isolement réseau d'urgence en 1 clic. Coupure des interfaces, blocage SMB/RDP, protection des snapshots VSS et dump mémoire pour le SOC.</div>
+                </div>
+            </div>
+            <div class="grid-2" style="margin-top: 16px;">
+                <div class="card">
+                    <div style="font-weight: bold; font-size: 15px; color: var(--accent-blue);">🔮 Analyse Prédictive Saturation & SSD</div>
+                    <div class="card-desc">Régression linéaire calculant la date exacte de saturation de stockage et indicateur d'usure SSD (TBW).</div>
+                </div>
+                <div class="card">
+                    <div style="font-weight: bold; font-size: 15px; color: var(--accent-blue);">🛡️ Audit Zero-Trust (ANSSI Baseline)</div>
+                    <div class="card-desc">Validation TPM 2.0, SecureBoot, Virtualization-Based Security (VBS) et Credential Guard anti-dumping.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 5 : DÉMONSTRATION EN DIRECT & CONCLUSION -->
+        <div class="slide" id="slide-5">
+            <div class="slide-header">
+                <h2 class="slide-title">5. Démonstration en Direct & Valeur pour l'Entreprise</h2>
+                <span class="badge">Opérationnel Immédiat</span>
+            </div>
+            <p style="font-size: 16px; color: #d1d5db; line-height: 1.6;">
+                Cette plateforme démontre ma capacité à concevoir, sécuriser et maintenir des architectures complexes, tout en apportant une méthode rigoureuse et automatisée dès le premier jour :
+            </p>
+            <div class="grid-2" style="margin-top: 24px;">
+                <div class="card">
+                    <div style="font-weight: bold; color: var(--accent-blue); font-size: 16px; margin-bottom: 6px;">🖥️ Interface Graphique (ESN-GUI)</div>
+                    <div class="card-desc">6 onglets métiers avec console temps réel RichTextBox pour les équipes support et infogérance.</div>
+                </div>
+                <div class="card">
+                    <div style="font-weight: bold; color: var(--accent-blue); font-size: 16px; margin-bottom: 6px;">⌨️ Console TUI (ESN-Console)</div>
+                    <div class="card-desc">35 options numérotées utilisables en session RDP dégradée ou PowerShell distant.</div>
+                </div>
+            </div>
+            <div style="text-align: center; margin-top: 36px;">
+                <div style="font-size: 18px; font-weight: bold; color: var(--accent-green);">Disponible immédiatement pour échanger sur vos défis d'infrastructure !</div>
+                <div style="font-size: 13px; color: var(--text-dim); margin-top: 6px;">Email : berradapro@outlook.com • Téléphone : +33 7 75 69 17 86</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CONTRÔLES DE NAVIGATION -->
+    <div class="controls">
+        <button class="btn-nav" id="btn-prev" onclick="prevSlide()">◀ Diapositive Précédente</button>
+        <span class="progress-indicator" id="slide-indicator">Diapositive 1 sur 5</span>
+        <button class="btn-nav" id="btn-next" onclick="nextSlide()">Diapositive Suivante ▶</button>
+    </div>
+
+    <script>
+        let currentSlide = 1;
+        const totalSlides = 5;
+
+        function updateSlide() {
+            document.querySelectorAll('.slide').forEach((s, idx) => {
+                s.classList.toggle('active', idx + 1 === currentSlide);
+            });
+            document.getElementById('slide-indicator').textContent = `Diapositive ${currentSlide} sur ${totalSlides}`;
+            document.getElementById('btn-prev').disabled = currentSlide === 1;
+            document.getElementById('btn-next').disabled = currentSlide === totalSlides;
+        }
+
+        function nextSlide() {
+            if (currentSlide < totalSlides) {
+                currentSlide++;
+                updateSlide();
+            }
+        }
+
+        function prevSlide() {
+            if (currentSlide > 1) {
+                currentSlide--;
+                updateSlide();
+            }
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight' || e.key === ' ') nextSlide();
+            if (e.key === 'ArrowLeft') prevSlide();
+        });
+
+        updateSlide();
+    </script>
+</body>
+</html>
