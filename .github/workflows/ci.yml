@@ -8,60 +8,16 @@ on:
 
 jobs:
   powershell-quality-gate:
-    name: PowerShell AST, Lint & Pester (${{ matrix.shell }})
+    name: AST, PSScriptAnalyzer & Pester (PS 7 + PS 5.1)
     runs-on: windows-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        shell: [ pwsh, powershell ]
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Validate PowerShell AST Syntax (.ps1 and .psm1)
-        shell: ${{ matrix.shell }}
-        run: |
-          Write-Host "=== Validation syntaxique AST ($($PSVersionTable.PSVersion)) ===" -ForegroundColor Cyan
-          $scripts = Get-ChildItem -Path . -Include "*.ps1", "*.psm1" -Recurse | Where-Object { $_.FullName -notmatch "[/\\]Tests[/\\]" }
-          $errorsCount = 0
-          foreach ($s in $scripts) {
-              $parseErrors = $null
-              [void][System.Management.Automation.Language.Parser]::ParseFile($s.FullName, [ref]$null, [ref]$parseErrors)
-              if ($parseErrors.Count -gt 0) {
-                  Write-Error "Erreur syntaxe dans $($s.FullName) : $($parseErrors.Message)"
-                  $errorsCount++
-              }
-          }
-          if ($errorsCount -gt 0) {
-              Write-Error "Échec : $errorsCount scripts comportent des erreurs syntaxiques."
-              exit 1
-          }
-          Write-Host "[OK] $($scripts.Count) scripts/modules valides sous $($PSVersionTable.PSVersion)." -ForegroundColor Green
-
-      - name: Run PSScriptAnalyzer Error Gate
-        if: matrix.shell == 'pwsh'
+      - name: Quality Gate on PowerShell 7+ (AST, Analyzer, Pester v5)
         shell: pwsh
-        run: |
-          if (-not (Get-Module -ListAvailable -Name PSScriptAnalyzer)) {
-              Install-Module PSScriptAnalyzer -Scope CurrentUser -Force -ErrorAction Stop
-          }
-          $findings = Invoke-ScriptAnalyzer -Path . -Recurse -Severity Error | Where-Object { $_.ScriptPath -notmatch "[/\\]Tests[/\\]" }
-          if ($findings) {
-              $findings | Format-Table ScriptName, Line, RuleName, Message -AutoSize
-              exit 1
-          }
-          Write-Host "[OK] Zéro erreur critique PSScriptAnalyzer." -ForegroundColor Green
+        run: ./.github/scripts/Invoke-QualityGate.ps1 -RunAnalyzer
 
-      - name: Run Pester v5 Enterprise Suite
-        shell: ${{ matrix.shell }}
-        run: |
-          $pester5 = Get-Module -ListAvailable -Name Pester | Where-Object { $_.Version.Major -ge 5 } | Select-Object -First 1
-          if (-not $pester5) {
-              Install-Module Pester -MinimumVersion 5.0.0 -Scope CurrentUser -Force -SkipPublisherCheck -ErrorAction Stop
-          }
-          Import-Module Pester -MinimumVersion 5.0.0 -Force
-          $res = Invoke-Pester -Path @('./Tests/ESN-EnterpriseModules.Tests.ps1', './Tests/WSAT-Enterprise.Tests.ps1') -Output Detailed -PassThru
-          if ($res.FailedCount -gt 0) {
-              Write-Error "Échec Pester : $($res.FailedCount) test(s) en erreur."
-              exit 1
-          }
+      - name: Quality Gate on Windows PowerShell 5.1 (AST, Pester v5)
+        shell: powershell
+        run: ./.github/scripts/Invoke-QualityGate.ps1
