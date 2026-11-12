@@ -1,20 +1,20 @@
 <div align="center">
 
-# 🖥️ ESN-Toolkit & AIOps Platform v3.5
+# 🖥️ ESN-Toolkit & AIOps Platform v3.6
 
 ### Autonomous Workstation, Infrastructure & Cloud Operations Platform
 
 **Plateforme PowerShell enterprise d'auto-réparation (Self-Healing), astreinte 24/7 P1/P2, gouvernance COPIL,  
-virtualisation (VMware / Nutanix), SecOps ANSSI et automatisation de 6 projets majeurs d'ingénierie.**
+virtualisation (VMware / Nutanix), SecOps ANSSI, supervision PRTG, Linux et automatisation de 6 projets majeurs d'ingénierie.**
 
 ---
 
-![Version](https://img.shields.io/badge/version-3.5.0-blue?style=flat-square)
+![Version](https://img.shields.io/badge/version-3.6.0-blue?style=flat-square)
 ![PowerShell](https://img.shields.io/badge/PowerShell-5.1%2B%20%7C%207%2B-5391FE?style=flat-square&logo=powershell&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11%20%7C%20Server%202016--2022-0078D4?style=flat-square&logo=windows&logoColor=white)
 ![AIOps](https://img.shields.io/badge/AIOps-Self--Healing%20%26%20Predictive-brightgreen?style=flat-square)
 ![Security](https://img.shields.io/badge/Compliance-ANSSI%20%2F%20CIS%20Benchmark-red?style=flat-square)
-![Code Size](https://img.shields.io/badge/Lines%20of%20Code-12%2C200%2B-purple?style=flat-square)
+![Code Size](https://img.shields.io/badge/Lines%20of%20Code-13%2C180%2B-purple?style=flat-square)
 ![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
 [![GitHub](https://img.shields.io/badge/GitHub-aberrada--engineer-181717?style=flat-square&logo=github)](https://github.com/aberrada-engineer/windows-support-automation-toolkit)
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-Amine%20BERRADA-0077B5?style=flat-square&logo=linkedin)](https://www.linkedin.com/in/amine-berrada-infra/)
@@ -25,8 +25,9 @@ virtualisation (VMware / Nutanix), SecOps ANSSI et automatisation de 6 projets m
 [Architecture Modulaire](#-architecture-modulaire) •
 [6 Projets Majeurs Déployés](#-6-projets-majeurs-déployés-en-production) •
 [AIOps & Astreinte 24/7](#-aiops-astreinte-247--résilience) •
-[Infrastructure & Cloud](#-infrastructure-hyperviseurs--cloud-hybride) •
+[Infrastructure, Linux & Supervision](#-infrastructure-hyperviseurs--cloud-hybride) •
 [Interfaces GUI & Console](#-interfaces-graphique--console-interactive) •
+[Roadmap](#-feuille-de-route-roadmap) •
 [Auteur & Référent](#-auteur--référent-technique)
 
 </div>
@@ -35,7 +36,7 @@ virtualisation (VMware / Nutanix), SecOps ANSSI et automatisation de 6 projets m
 
 ## 🎯 À propos
 
-**ESN-Toolkit v3.5** est une plateforme d'ingénierie et d'automatisation des opérations informatiques (**AIOps**) conçue pour couvrir l'intégralité du spectre opérationnel d'une DSI ou d'une ESN :
+**ESN-Toolkit v3.6** est une plateforme d'ingénierie et d'automatisation des opérations informatiques (**AIOps**) conçue pour couvrir l'intégralité du spectre opérationnel d'une DSI ou d'une ESN :
 du **support poste de travail (N1/N2)**, à **l'administration système et maintien en conditions opérationnelles (N2/N3)**, jusqu'au **pilotage de projets d'infrastructure critiques (N3 / Architecte)**.
 
 Conçue sur le retour d'expérience de plus de **200 infrastructures multi-clients infogérées** et d'environnements critiques (notamment grands comptes horlogers et luxe genevois tels que *Porsche, TAG Heuer, Hublot*), cette boîte à outils garantit une autonomie opérationnelle maximale.
@@ -46,7 +47,7 @@ Conçue sur le retour d'expérience de plus de **200 infrastructures multi-clien
 
 ## 🏗️ Architecture Modulaire
 
-La plateforme compte **plus de 12 200 lignes de code PowerShell & Batch**, structurées en 4 couches opérationnelles :
+La plateforme compte **plus de 13 180 lignes de code PowerShell & Batch**, structurées en 4 couches opérationnelles :
 
 ```
 ESN-Toolkit/
@@ -56,7 +57,7 @@ ESN-Toolkit/
 │   ├── Install-ESNToolkit.ps1             # Déploiement silencieux vers C:\ESN-Toolkit, config execution policy & raccourcis
 │   ├── Install-EnterpriseSilent.bat       # Script de déploiement de masse pour GPO / Intune Win32 App / SCCM
 │   ├── ESN-GUI.ps1 & ESN-Launcher.bat     # Interface Graphique Windows Forms (6 onglets métiers, RichTextBox logs)
-│   ├── ESN-Console.ps1 & ESN-Console.bat  # Console Interactive TUI avec 29 options d'administration directe
+│   ├── ESN-Console.ps1 & ESN-Console.bat  # Console Interactive TUI avec 33 options d'administration directe
 │   └── WebDashboard/ & Invoke-CentralDashboard.ps1 # Dashboard Web offline Datadog-style avec jauges SVG
 │
 ├── 🤖 AIOPS, AUTO-GUÉRISON & ASTREINTE 24/7
@@ -70,10 +71,14 @@ ESN-Toolkit/
 │   ├── Invoke-ZeroTouchProvisioning.ps1   # Provisioning de poste neuf (renommage CLI-%SERIAL%, Winget, TPM BitLocker)
 │   ├── Invoke-FullStationMigration.ps1    # Migration A à Z (Données, PST, Profils Wi-Fi avec clés, Mappages, Imprimantes)
 │   ├── Invoke-FleetDiscovery.ps1          # Scan réseau multi-threadé /24 (Windows, Linux, Switchs, Imprimantes)
-│   └── Invoke-GLPIInventoryAgent.ps1      # Agent d'inventaire complet matériel/logiciel exportable en JSON/XML pour GLPI
+│   ├── Invoke-GLPIInventoryAgent.ps1      # Agent d'inventaire complet matériel/logiciel exportable en JSON/XML pour GLPI
+│   └── Invoke-WSUSComplianceManager.ps1   # Audit conformité WSUS, détection hotfixes manquants et resynchronisation
 │
-├── 🏢 GOUVERNANCE, AUDIT INFRASTRUCTURE & SERVEURS
+├── 🏢 GOUVERNANCE, AUDIT INFRASTRUCTURE, LINUX & SUPERVISION
 │   ├── Invoke-COPILReportGenerator.ps1    # Générateur de Rapport Mensuel Exécutif COPIL / COTECH (SLA 99.9%, MTTR)
+│   ├── Invoke-DRPGenerator.ps1            # Générateur de Dossier Officiel de Plan de Reprise d'Activité (PRA / DRP)
+│   ├── Invoke-PRTGSensorDeployer.ps1      # Déployeur de sondes PRTG Network Monitor avancées (XML/JSON Veeam/Disque/DHCP)
+│   ├── Invoke-LinuxHeterogeneousAudit.ps1 # Audit à distance de serveurs Linux (Ubuntu/Debian) via SSH natif Windows
 │   ├── Invoke-HypervisorAudit.ps1         # Audit VMware vSphere & Nutanix (Snapshots > 72h, saturation datastores)
 │   ├── Invoke-ExchangeHealthCheck.ps1     # Audit Exchange Hybride/On-Premise, files d'attente et contrôle SPF/DKIM/DMARC
 │   ├── Invoke-CoreServicesAudit.ps1       # Audit DHCP (saturation scopes), Scavenging DNS et certificats SSL expirant

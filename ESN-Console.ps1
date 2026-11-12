@@ -1,7 +1,7 @@
 ﻿#Requires -RunAsAdministrator
 <#
 .SYNOPSIS
-    ESN-Console v3.5 - Console d'Administration, AIOps & Ingénierie d'Infrastructure.
+    ESN-Console v3.6 - Console d'Administration, AIOps & Ingénierie d'Infrastructure.
     Développé pour Amine BERRADA — Administrateur Systèmes & Réseaux / Référent Technique N3.
 #>
 
@@ -10,7 +10,7 @@ $ScriptDir = Split-Path $MyInvocation.PSCommandPath -Parent
 function Show-Header {
     Clear-Host
     Write-Host "================================================================================" -ForegroundColor Cyan
-    Write-Host "   🖥️  ESN-TOOLKIT v3.5 — CONSOLE D'EXPLOITATION & AIOPS TOTALE" -ForegroundColor White
+    Write-Host "   🖥️  ESN-TOOLKIT v3.6 — CONSOLE D'EXPLOITATION & AIOPS TOTALE" -ForegroundColor White
     Write-Host "       Astreinte 24/7, SecOps, PRA/PCA, Virtualisation & Gouvernance — Amine BERRADA" -ForegroundColor Gray
     Write-Host "================================================================================" -ForegroundColor Cyan
     Write-Host "  Hôte : $env:COMPUTERNAME  |  Utilisateur : $env:USERNAME  |  Date : $(Get-Date -Format 'dd/MM/yyyy HH:mm')" -ForegroundColor DarkCyan
@@ -50,12 +50,16 @@ do {
     Write-Host " [24] 📑 Générateur de Rapport Mensuel Exécutif COPIL / COTECH (SLA 99.9%)" -ForegroundColor Green
     Write-Host " [25] 🔒 Offboarding Collaborateur Sécurisé & Procès-Verbal de Restitution" -ForegroundColor Yellow
     Write-Host " [26] 🛠️  Menu des 6 Projets Majeurs Réalisés (MDT, EDR, AD, Aruba, LAPS, Veeam)" -ForegroundColor Blue
-    Write-Host " [27] 🖥️  Ouvrir le Tableau de Bord Web Centralisé (ESN-Central Dashboard)" -ForegroundColor Blue
-    Write-Host " [28] 📂 Ouvrir le dernier rapport HTML dans le navigateur" -ForegroundColor Blue
-    Write-Host " [29] 📦 Générer l'archive ZIP incident pour le ticket (Jira / GLPI / ServiceNow)" -ForegroundColor Cyan
+    Write-Host " [27] 🐧 Audit Serveur Linux Distant (Ubuntu / Debian via SSH natif)" -ForegroundColor Green
+    Write-Host " [28] 📡 Générateur & Déployeur de Sondes PRTG Network Monitor (XML/JSON)" -ForegroundColor Yellow
+    Write-Host " [29] 🔄 Audit de Conformité WSUS & Forçage de Détection de Patchs" -ForegroundColor Cyan
+    Write-Host " [30] 📑 Générateur de Dossier Officiel de Plan de Reprise d'Activité (PRA / DRP)" -ForegroundColor Magenta
+    Write-Host " [31] 🖥️  Ouvrir le Tableau de Bord Web Centralisé (ESN-Central Dashboard)" -ForegroundColor Blue
+    Write-Host " [32] 📂 Ouvrir le dernier rapport HTML dans le navigateur" -ForegroundColor Blue
+    Write-Host " [33] 📦 Générer l'archive ZIP incident pour le ticket (Jira / GLPI / ServiceNow)" -ForegroundColor Cyan
     Write-Host " [Q]  ❌ Quitter" -ForegroundColor DarkGray
     Write-Host "--------------------------------------------------------------------------------" -ForegroundColor DarkGray
-    $choice = Read-Host " Entrez votre choix (1-29 ou Q)"
+    $choice = Read-Host " Entrez votre choix (1-33 ou Q)"
 
     switch ($choice.ToUpper()) {
         "1" { & "$ScriptDir\Invoke-IncidentAnalysis.ps1" -OpenReport; Read-Host "`nAppuyez sur Entrée pour continuer..." }
@@ -129,8 +133,17 @@ do {
             }
             Read-Host "`nAppuyez sur Entrée pour revenir au menu principal..."
         }
-        "27" { & "$ScriptDir\Invoke-CentralDashboard.ps1"; Start-Sleep -Seconds 2 }
-        "28" {
+        "27" {
+            $lHost = Read-Host "Entrez l'IP ou le nom du serveur Linux (défaut: 192.168.1.50)"
+            if (-not $lHost) { $lHost = "192.168.1.50" }
+            & "$ScriptDir\Invoke-LinuxHeterogeneousAudit.ps1" -TargetHost $lHost -SimulationMode -OpenReport
+            Read-Host "`nAppuyez sur Entrée pour continuer..."
+        }
+        "28" { & "$ScriptDir\Invoke-PRTGSensorDeployer.ps1" -TargetSensor "All"; Read-Host "`nAppuyez sur Entrée pour continuer..." }
+        "29" { & "$ScriptDir\Invoke-WSUSComplianceManager.ps1" -OpenReport; Read-Host "`nAppuyez sur Entrée pour continuer..." }
+        "30" { & "$ScriptDir\Invoke-DRPGenerator.ps1" -OpenReport; Read-Host "`nAppuyez sur Entrée pour continuer..." }
+        "31" { & "$ScriptDir\Invoke-CentralDashboard.ps1"; Start-Sleep -Seconds 2 }
+        "32" {
             $latestReport = Get-ChildItem "C:\ESN-Toolkit\Reports\*.html", "$env:SystemDrive\ESN-Reports\*\*.html" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
             if ($latestReport) {
                 Start-Process $latestReport.FullName
@@ -140,7 +153,7 @@ do {
             }
             Start-Sleep -Seconds 2
         }
-        "29" {
+        "33" {
             $ticket = Read-Host "Entrez le numéro de ticket (ex: INC-10492)"
             if (-not $ticket) { $ticket = "INC-$(Get-Date -Format 'yyyyMMdd-HHmm')" }
             & "$ScriptDir\Invoke-IncidentAnalysis.ps1" -IncidentId $ticket -ExportZip
