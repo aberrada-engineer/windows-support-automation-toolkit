@@ -5,6 +5,49 @@ Format : [Version] — Date — Description
 
 ---
 
+## [3.8.0] — 2026-11-12 — Dossier d'Ingénierie, Pitch Deck Interactif, Compendium REX & Live Demo
+
+### Nouveautés & Livrables Recruteurs
+- **Dossier Technique d'Entretien (`Docs/DOSSIER-TECHNIQUE-ENTRETIEN.md`)** : Guide complet de soutenance technique des projets, vision d'ingénierie et argumentaire d'architecture (AD FSMO, Veeam immuable 3-2-1, Nutanix/VMware, SecOps ANSSI).
+- **Pitch Deck de Présentation Technique (`Presentation/index.html`)** : Présentation interactive moderne en 5 slides dark mode prête à être partagée en visioconférence d'embauche (Teams / Google Meet / Zoom).
+- **Le Livre Noir des Incidents (`Docs/INCIDENT-LOGBOOK.md`)** : Compendium de 8 études de cas réels d'incidents critiques P1/P2 résolus en production (snapshots VMware, Ransomware, boucle réseau, USN Rollback AD, Backpressure Exchange).
+- **Schémas d'Architecture Système & Réseau (`Docs/ARCHITECTURE-SCHEMAS.md`)** : Diagrammes Mermaid documentant la topologie multi-sites WAN MPLS, les clusters N+1 et les flux de réplication intersites PRA.
+- **Simulateur d'Incidents Live Demo (`Invoke-IncidentLabSimulator.ps1`)** : Moteur de simulation contrôlée permettant d'effectuer une démonstration d'auto-remédiation en direct devant un jury technique (scénarios N1, P1 et SecOps).
+- **Console v3.8 & GUI v3.8** : Intégration des boutons et options directes pour piloter le simulateur et lancer le pitch deck.
+
+---
+
+## [3.7.0] — 2026-11-12 — Posture Zero-Trust, Intégration ITSM REST & Runbook d'Astreinte 24/7
+
+### Nouveautés Majeures
+- **Audit de Posture Zero-Trust (`Invoke-ZeroTrustAudit.ps1`)** : Contrôle de conformité TPM 2.0, SecureBoot, Virtualization-Based Security (VBS), Credential Guard / LSA PPL et enrôlement Microsoft Entra ID avec score sur 100.
+- **Connecteur d'Intégration ITSM (`Invoke-ITSMConnector.ps1`)** : Dispatching d'alertes enrichies (Adaptive Cards) vers Microsoft Teams et création automatique de tickets d'incidents via les API REST de GLPI (`/apirest.php/Ticket`) et ServiceNow.
+- **Runbook d'Astreinte 24/7 (`Docs/RUNBOOK-ONCALL-P1-P2.md`)** : Manuel de référence pour le traitement des urgences P1/P2 (GTI < 15 min, GTR < 4h), arbre de décision et modèles de communication de crise.
+- **Pipeline d'Intégration Continue (`.github/workflows/ci.yml`)** : Workflow GitHub Actions validant la conformité syntaxique (AST Parser) et exécutant la suite de tests Pester.
+
+---
+
+## [3.6.0] — 2026-11-12 — Supervision PRTG, Parcs Linux SSH, WSUS & Dossier PRA / DRP
+
+### Nouveautés Majeures
+- **Générateur & Déployeur de Sondes PRTG (`Invoke-PRTGSensorDeployer.ps1`)** : Déploiement automatique de sondes XML/JSON avancées pour superviser les jobs Veeam, la saturation des datastores, les scopes DHCP et l'expiration des certificats SSL/TLS.
+- **Audit de Serveurs Linux Distants (`Invoke-LinuxHeterogeneousAudit.ps1`)** : Connexion SSH native sans outil tiers pour auditer la santé des serveurs Ubuntu / Debian (systemd, stockage, durcissement SSH, mises à jour APT, partages Samba/NFS).
+- **Audit de Conformité WSUS (`Invoke-WSUSComplianceManager.ps1`)** : Contrôle de la politique GPO du client Windows Update, détection des redémarrages en attente et forçage de détection.
+- **Générateur de Dossier Officiel PRA / DRP (`Invoke-DRPGenerator.ps1`)** : Livrable complet conforme ISO 22301 & ANSSI intégrant l'annuaire de crise, la matrice RTO/RPO et le runbook séquentiel de bascule.
+- **Suite de Tests Pester Enterprise (`Tests/ESN-EnterpriseModules.Tests.ps1`)** : Validation de l'intégrité syntaxique et structurelle de tous les scripts.
+
+---
+
+## [3.5.0] — 2026-11-12 — Playbooks des 6 Projets Majeurs, Hyperviseurs & COPIL
+
+### Nouveautés Majeures
+- **Playbooks Projets (`Projects/`)** : Migration inter-domaines AD, Rollout massif EDR SentinelOne (+200 hôtes), Commutation ArubaOS-CX, Windows LAPS anti Pass-the-Hash, Bascule Datacenter Veeam, Industrialisation MDT/WDS (200 postes Texdecor), Refonte WAN multi-sites MPLS & PRA.
+- **Audit Hyperviseurs & Virtualisation (`Invoke-HypervisorAudit.ps1`)** : Santé des clusters VMware vSphere & Nutanix, traque des snapshots obsolètes (> 72h).
+- **Audit Exchange & Flux SMTP (`Invoke-ExchangeHealthCheck.ps1`)** : Contrôle du Backpressure, des files d'attente et des protocoles SPF, DKIM et DMARC.
+- **Services Cœur de Réseau (`Invoke-CoreServicesAudit.ps1`)** : Saturation DHCP, Scavenging DNS et certificats SSL.
+- **Gouvernance COPIL / COTECH (`Invoke-COPILReportGenerator.ps1`)** : Rapport mensuel exécutif avec cadran SLA 99.9% et métriques MTTR.
+- **Inventaire GLPI / OCS (`Invoke-GLPIInventoryAgent.ps1`)** : Générateur d'inventaire matériel et logiciel JSON/XML.
+
 ## [3.0.0] — 2025-05-15 — Phase Industrialisation & Cohérence Globale
 
 ### Objectifs atteints
