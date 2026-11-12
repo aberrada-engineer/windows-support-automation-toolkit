@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
     ESN-AD — Audit Active Directory + actions utilisateur (unlock, reset, audit comptes).
@@ -185,8 +185,9 @@ function Invoke-ADUserReset {
     }
 
     if (-not $Simulation) {
+        $secPwd = ([System.Net.NetworkCredential]::new('', $NewPassword)).SecurePassword
         Set-ADAccountPassword -Identity $Username `
-            -NewPassword (ConvertTo-SecureString $NewPassword -AsPlainText -Force) -Reset
+            -NewPassword $secPwd -Reset
         Set-ADUser -Identity $Username -ChangePasswordAtLogon $true
     }
 
@@ -264,7 +265,7 @@ function New-ADUserESN {
                 Department            = $Department
                 Title                 = $Title
                 Company               = $Company
-                AccountPassword       = (ConvertTo-SecureString $mdpTemp -AsPlainText -Force)
+                AccountPassword       = ([System.Net.NetworkCredential]::new('', $mdpTemp)).SecurePassword
                 Enabled               = $true
                 ChangePasswordAtLogon = $true
                 Path                  = $ou

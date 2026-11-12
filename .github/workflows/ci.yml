@@ -7,17 +7,20 @@ on:
     branches: [ main ]
 
 jobs:
-  powershell-quality-gate:
-    name: AST, PSScriptAnalyzer & Pester (PS 7 + PS 5.1)
+  quality-gate-pwsh:
+    name: PowerShell 7+ (AST, Analyzer, Pester v5)
     runs-on: windows-latest
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Quality Gate on PowerShell 7+ (AST, Analyzer, Pester v5)
+      - uses: actions/checkout@v4
+      - name: Run Quality Gate (pwsh)
         shell: pwsh
         run: ./.github/scripts/Invoke-QualityGate.ps1 -RunAnalyzer
 
-      - name: Quality Gate on Windows PowerShell 5.1 (AST, Pester v5)
+  quality-gate-winps51:
+    name: Windows PowerShell 5.1 (AST, Pester v5)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Quality Gate (powershell 5.1)
         shell: powershell
         run: ./.github/scripts/Invoke-QualityGate.ps1

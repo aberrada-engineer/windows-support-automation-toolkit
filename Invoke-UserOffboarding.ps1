@@ -72,7 +72,8 @@ foreach ($g in $groups) {
 Write-Host " [OK] Retiré de tous les groupes de sécurité et de distribution." -ForegroundColor Green
 
 # 4. RANDOM PASSWORD & EXPIRATION
-$randomPwd = [System.Web.Security.Membership]::GeneratePassword(16, 4) | ConvertTo-SecureString -AsPlainText -Force
+$rawPwd = [System.Web.Security.Membership]::GeneratePassword(16, 4)
+$randomPwd = ([System.Net.NetworkCredential]::new('', $rawPwd)).SecurePassword
 Set-ADAccountPassword -Identity $Username -NewPassword $randomPwd -Reset
 Set-ADUser -Identity $Username -AccountExpirationDate (Get-Date)
 Write-Host " [OK] Mot de passe réinitialisé aléatoirement et compte expiré." -ForegroundColor Green
