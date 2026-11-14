@@ -16,8 +16,9 @@ param(
     [string]$GLPIApiUrl = "",
     [string]$GLPIUserToken = "",
     [string]$OutputDir = "",
-    [switch]$OpenReport = $true
+    [switch]$OpenReport
 )
+if (-not $PSBoundParameters.ContainsKey('OpenReport')) { $OpenReport = $true }
 
 Import-Module "$PSScriptRoot\Core\ESN-Core.psm1" -ErrorAction SilentlyContinue
 if ([string]::IsNullOrWhiteSpace($OutputDir)) {
@@ -105,6 +106,9 @@ $glpiPayload = [PSCustomObject]@{
 $jsonFile = Join-Path $OutputDir "GLPI_Inventory_$env:COMPUTERNAME.json"
 $glpiPayload | ConvertTo-Json -Depth 6 | Out-File $jsonFile -Encoding UTF8
 Write-Host "`n [OK] Fichier d'inventaire GLPI généré : $jsonFile" -ForegroundColor Green
+if ($GLPIApiUrl -and $GLPIUserToken) {
+    Write-Host " [*] Endpoint API REST GLPI configuré : $GLPIApiUrl (jeton utilisateur prêt)" -ForegroundColor Cyan
+}
 
 # FICHE D'INVENTAIRE HTML
 $reportPath = Join-Path $OutputDir "Fiche-Inventaire-$env:COMPUTERNAME.html"

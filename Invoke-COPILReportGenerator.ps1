@@ -210,3 +210,6 @@ Write-Host "====================================================================
 Write-Host "   RAPPORT COPIL GÉNÉRÉ AVEC SUCCÈS                                        " -ForegroundColor Green
 Write-Host "==========================================================================" -ForegroundColor Green
 Write-Host "[+] Fichier HTML Exécutif : $HtmlFile" -ForegroundColor White
+if ($OpenInBrowser) {
+    Start-Process $HtmlFile
+}

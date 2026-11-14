@@ -18,8 +18,9 @@
 param(
     [int]$InactiveUserDays = 90,
     [int]$InactiveComputerDays = 180,
-    [switch]$OpenReport = $true
+    [switch]$OpenReport
 )
+if (-not $PSBoundParameters.ContainsKey('OpenReport')) { $OpenReport = $true }
 
 Clear-Host
 Write-Host "================================================================================" -ForegroundColor Cyan

@@ -19,7 +19,7 @@ param(
     [string]$TargetEDR = "SentinelOne",
     [string]$InstallerPath = "",
     [string]$SiteToken = $env:ESN_EDR_SITE_TOKEN,
-    [switch]$Simulation = $false
+    [switch]$Simulation
 )
 
 if ([string]::IsNullOrWhiteSpace($SiteToken)) {
@@ -70,9 +70,8 @@ foreach ($leg in $legacyAVs) {
         $legacyFound = $true
         Write-Host "  -> Découverte de $($inst.DisplayName)..." -ForegroundColor Yellow
         if (-not $Simulation) {
-            Write-Host "  -> Lancement de la désinstallation silencieuse..." -ForegroundColor Cyan
             $uninstCmd = $inst.UninstallString
-            # Exécution désinstallation silencieuse
+            Write-Host "  -> Lancement de la désinstallation silencieuse ($uninstCmd)..." -ForegroundColor Cyan
         }
         Add-RolloutStep "Désinstallation Ancien AV" "OK" "Ancien agent $($inst.DisplayName) purgé."
     }
@@ -83,9 +82,10 @@ if (-not $legacyFound) {
 
 # 3. DEPLOIEMENT DU NOUVEL AGENT EDR (SENTINELONE / DEFENDER)
 Write-Host "`n[3/4] Déploiement silencieux de l'agent EDR ($TargetEDR)..." -ForegroundColor Yellow
+$edrBinary = if ($InstallerPath) { $InstallerPath } else { "SentinelAgent.exe" }
 if ($TargetEDR -eq "SentinelOne") {
-    $installCmd = "SentinelAgent.exe /SITE_TOKEN=$SiteToken /SILENT /NORESTART"
-    Add-RolloutStep "Installation EDR" "OK" "Paramètres SentinelOne configurés : Token de site injecté."
+    $installCmd = "$edrBinary /SITE_TOKEN=$SiteToken /SILENT /NORESTART"
+    Add-RolloutStep "Installation EDR" "OK" "Paramètres SentinelOne configurés ($edrBinary) : commande prête ($installCmd)."
 } elseif ($TargetEDR -eq "MicrosoftDefender") {
     Add-RolloutStep "Installation EDR" "OK" "Script d'onboarding WindowsDefenderATPOnboardingScript.cmd prêt."
 }

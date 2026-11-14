@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Agentless Active Directory heuristic threat hunter (Kerberoasting, AS-REP Roasting, AdminSDHolder/adminCount anomalies & dangerous ACLs).
 

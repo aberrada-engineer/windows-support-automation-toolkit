@@ -57,7 +57,7 @@ function Write-MDTLog {
     Add-Content -Path $LogFile -Value $line -Encoding UTF8
 }
 
-Write-MDTLog "Démarrage de l'analyse et industrialisation MDT..." "INFO"
+Write-MDTLog "Démarrage de l'analyse et industrialisation MDT (GenerateConfigsOnly=$GenerateConfigsOnly, ReportOnly=$ReportOnly)..." "INFO"
 
 # 1. Vérification des prérequis MDT / ADK
 Write-MDTLog "[1/5] Audit des prérequis système (MDT 8456, Windows ADK, WinPE Add-on)..." "INFO"

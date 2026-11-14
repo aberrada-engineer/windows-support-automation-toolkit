@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     High-speed multi-threaded RunspacePool auditor capable of scanning 500+ Windows servers in under 60 seconds.
 

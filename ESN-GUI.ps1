@@ -13,13 +13,37 @@ Add-Type -AssemblyName Microsoft.VisualBasic
 $ScriptDir = Split-Path $MyInvocation.PSCommandPath -Parent
 $script:PwshHost = if ($PSVersionTable.PSEdition -eq "Core" -and (Get-Command pwsh -ErrorAction SilentlyContinue)) { "pwsh" } else { "powershell.exe" }
 
+function Write-GuiLog {
+    param([string]$Message, [string]$Color = "White")
+    if ($null -eq $script:logBox) { return }
+    $timestamp = Get-Date -Format "HH:mm:ss"
+    $fullMsg = "[$timestamp] $Message`n"
+    $script:logBox.SelectionStart = $script:logBox.TextLength
+    $script:logBox.SelectionLength = 0
+    $script:logBox.SelectionColor = switch ($Color) {
+        "Green"   { [System.Drawing.Color]::FromArgb(78, 201, 176) }
+        "Red"     { [System.Drawing.Color]::FromArgb(244, 71, 71) }
+        "Yellow"  { [System.Drawing.Color]::FromArgb(220, 200, 90) }
+        "Cyan"    { [System.Drawing.Color]::FromArgb(86, 156, 214) }
+        "Blue"    { [System.Drawing.Color]::FromArgb(100, 160, 250) }
+        "Magenta" { [System.Drawing.Color]::FromArgb(218, 112, 214) }
+        default   { [System.Drawing.Color]::White }
+    }
+    $script:logBox.AppendText($fullMsg)
+    $script:logBox.ScrollToCaret()
+}
+Set-Alias -Name Append-Log -Value Write-GuiLog
+
 function Start-ESNModuleProcess {
+    [CmdletBinding(SupportsShouldProcess)]
     param([Parameter(Mandatory)][string]$ArgumentList)
     try {
-        Start-Process $script:PwshHost -ArgumentList $ArgumentList -ErrorAction Stop
+        if ($PSCmdlet.ShouldProcess($ArgumentList, "Start-Process $script:PwshHost")) {
+            Start-Process $script:PwshHost -ArgumentList $ArgumentList -ErrorAction Stop
+        }
     }
     catch [System.Exception] {
-        Append-Log "[ERREUR] Impossible de lancer le module : $($_.Exception.Message)" "Red"
+        Write-GuiLog "[ERREUR] Impossible de lancer le module : $($_.Exception.Message)" "Red"
     }
 }
 
@@ -69,7 +93,8 @@ $tabControl.Location = New-Object System.Drawing.Point(15, 95)
 $tabControl.Size = New-Object System.Drawing.Size(915, 330)
 $tabControl.Font = New-Object System.Drawing.Font("Segoe UI", 9.5, [System.Drawing.FontStyle]::Regular)
 
-function Create-ModernButton {
+function New-ModernButton {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '')]
     param(
         [string]$Text,
         [int]$X,
@@ -92,6 +117,7 @@ function Create-ModernButton {
     $btn.Add_Click($Action)
     return $btn
 }
+Set-Alias -Name Create-ModernButton -Value New-ModernButton
 
 # --- ONGLET 1 : DIAGNOSTIC & AUTO-FIX ---
 $tab1 = New-Object System.Windows.Forms.TabPage
@@ -393,10 +419,9 @@ $eliteButtons = @(
     @{ Text = "🧪 Chaos Lab (DNS/Disk/DFSR)"; Script = "Invoke-IncidentLabSimulator.ps1"; Args = "-Scenario Chaos-DnsNtpStorm -Simulate"; Log = "Chaos Engineering Lab Simulator..."; R = 200; G = 120; B = 0; X = 600; Y = 85 }
 )
 foreach ($eb in $eliteButtons) {
-    $b = Create-ModernButton -Text $eb.Text -X $eb.X -Y $eb.Y -Width 270 -Height 46 -BgColor ([System.Drawing.Color]::FromArgb($eb.R, $eb.G, $eb.B)) -Action {
-        param($sender, $e)
-        $cfg = $sender.Tag
-        Append-Log $cfg.Log "Cyan"
+    $b = New-ModernButton -Text $eb.Text -X $eb.X -Y $eb.Y -Width 270 -Height 46 -BgColor ([System.Drawing.Color]::FromArgb($eb.R, $eb.G, $eb.B)) -Action {
+        $cfg = $this.Tag
+        Write-GuiLog $cfg.Log "Cyan"
         Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\$($cfg.Script)`" $($cfg.Args)"
     }
     $b.Tag = $eb
@@ -419,24 +444,7 @@ $logBox.ReadOnly = $true
 $logBox.BorderStyle = "None"
 $form.Controls.Add($logBox)
 
-function Append-Log {
-    param([string]$Message, [string]$Color = "White")
-    $timestamp = Get-Date -Format "HH:mm:ss"
-    $fullMsg = "[$timestamp] $Message`n"
-    $logBox.SelectionStart = $logBox.TextLength
-    $logBox.SelectionLength = 0
-    $logBox.SelectionColor = switch ($Color) {
-        "Green"  { [System.Drawing.Color]::FromArgb(78, 201, 176) }
-        "Red"    { [System.Drawing.Color]::FromArgb(244, 71, 71) }
-        "Yellow" { [System.Drawing.Color]::FromArgb(220, 200, 90) }
-        "Cyan"   { [System.Drawing.Color]::FromArgb(86, 156, 214) }
-        "Blue"   { [System.Drawing.Color]::FromArgb(100, 160, 250) }
-        "Magenta"{ [System.Drawing.Color]::FromArgb(218, 112, 214) }
-        default  { [System.Drawing.Color]::White }
-    }
-    $logBox.AppendText($fullMsg)
-    $logBox.ScrollToCaret()
-}
+
 
 # Message initial
 Append-Log "Bienvenue dans ESN-Toolkit v3.9 (Environnement Enterprise Initialisé)" "Green"

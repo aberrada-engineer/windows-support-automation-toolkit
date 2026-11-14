@@ -228,4 +228,44 @@ Describe "PS 5.1 Compatibility, Security Hardening & Live Guards" {
         $res.CriticalCount | Should -BeGreaterOrEqual 1
         ($res.Findings | Where-Object { $_.MITRETechnique -eq 'T1558.003' }).SourceWorkstation | Should -Contain '10.99.99.50'
     }
+
+    It "Get-ESNToolkitRoot supports -Ensure after dot-sourcing Core/ESN-OutputSchema.ps1" {
+        Import-Module (Join-Path $script:RootDir "Core/ESN-Core.psm1") -Force
+        . (Join-Path $script:RootDir "Core/ESN-OutputSchema.ps1")
+        $dir = Get-ESNToolkitRoot -SubFolder "Reports" -Ensure
+        $dir | Should -Not -BeNullOrEmpty
+        Test-Path $dir | Should -BeTrue
+    }
+
+    It "Build-ESNReport encodes XSS payloads and uses direct sibling CSS selector" {
+        . (Join-Path $script:RootDir "Core/ESN-ReportBuilder.ps1")
+        $chkXss = New-ESNCheck -Domain "Security" -Check "<script>alert(1)</script>" -Severity "CRITICAL" -Value "<img src=x onerror=alert(2)>" -Detail "Test XSS" -ScoreImpact 25
+        $sess = [PSCustomObject]@{
+            StartTime = (Get-Date).AddMinutes(-1)
+            Results   = @($chkXss)
+            Score     = 75
+            Errors    = @()
+            Warnings  = @()
+        }
+        $outHtml = Join-Path $script:TmpOut "xss-report.html"
+        $written = Build-ESNReport -SessionData $sess -ComputerName "TEST-XSS" -IncidentId "INC-XSS" -OutputPath $outHtml
+        $rawHtml = Get-Content $written -Raw
+        $rawHtml | Should -Match "#sec-checks:checked ~ #body-checks"
+        $rawHtml | Should -Not -Match "<script>alert\(1\)</script>"
+        $rawHtml | Should -Match "&lt;script&gt;alert\(1\)&lt;/script&gt;"
+        $rawHtml | Should -Match "25 pts"
+    }
+
+    It "New-ESNRandomPassword uses CSPRNG without static Aa1! suffix and Ping helpers work on localhost" {
+        Import-Module (Join-Path $script:RootDir "Core/ESN-Core.psm1") -Force
+        Import-Module (Join-Path $script:RootDir "Modules/AD/ESN-AD.psm1") -Force
+        $pwd1 = New-ESNRandomPassword -Length 16
+        $pwd2 = New-ESNRandomPassword -Length 16
+        $pwd1.Length | Should -Be 16
+        $pwd1 | Should -Not -Be $pwd2
+        $pwd1.EndsWith("Aa1!") | Should -BeFalse
+        (Test-ESNHostPing -ComputerName "127.0.0.1" -TimeoutMs 1000) | Should -BeTrue
+        $lat = Measure-ESNPingLatency -ComputerName "127.0.0.1" -Count 2 -TimeoutMs 1000
+        $lat.Reachable | Should -BeTrue
+    }
 }

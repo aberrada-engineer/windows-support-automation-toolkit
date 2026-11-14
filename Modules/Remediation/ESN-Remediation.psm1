@@ -116,13 +116,17 @@ $script:Catalog = [ordered]@{
             # Détection : pertes réseau, latence anormale, ou erreurs Winsock dans les events
             $winsockErrors = Get-WinEvent -FilterHashtable @{
                 LogName='System'; StartTime=(Get-Date).AddHours(-24)
-            } -ErrorAction SilentlyContinue |
+            } -MaxEvents 250 -ErrorAction SilentlyContinue |
             Where-Object { $_.Message -match "(?i)winsock|LSP|tcpip|network stack" } |
             Select-Object -First 3
 
             $latency = try {
-                $p = Test-Connection "8.8.8.8" -Count 3 -EA Stop
-                ($p | Measure-Object ResponseTime -Average).Average
+                $pingObj = [System.Net.NetworkInformation.Ping]::new()
+                $reply   = $pingObj.Send("8.8.8.8", 1000)
+                $pingObj.Dispose()
+                if ($null -ne $reply -and $reply.Status -eq [System.Net.NetworkInformation.IPStatus]::Success) {
+                    [double]$reply.RoundtripTime
+                } else { 9999 }
             } catch { 9999 }
 
             return (@($winsockErrors).Count -gt 0) -or ($latency -gt 300)
@@ -227,7 +231,7 @@ $script:Catalog = [ordered]@{
 
             # Détecter crash récent ou cache > 1 Go
             $crashLogs = Get-ChildItem (Join-Path $teamsCache "logs.txt") -EA SilentlyContinue
-            return ($sizeMB -gt 1024) -or ($crashLogs -ne $null)
+            return ($sizeMB -gt 1024) -or ($null -ne $crashLogs)
         }
         Remediate     = {
             param([bool]$sim)
@@ -303,7 +307,7 @@ $script:Catalog = [ordered]@{
                 "HKCU:\Software\Microsoft\Office\16.0\Outlook\Resiliency\CrashedExtensibility" `
                 -EA SilentlyContinue
 
-            return ($offlineMode -eq 1) -or ($ostSize -gt 25) -or ($crashedAddins -ne $null)
+            return ($offlineMode -eq 1) -or ($ostSize -gt 25) -or ($null -ne $crashedAddins)
         }
         Remediate     = {
             param([bool]$sim)
@@ -396,7 +400,7 @@ $script:Catalog = [ordered]@{
             $syncIssues = Get-ChildItem (Join-Path $env:USERPROFILE "OneDrive") `
                 -Filter "*.lock" -Recurse -EA SilentlyContinue | Select-Object -First 1
 
-            return (-not $running) -or ($syncIssues -ne $null)
+            return (-not $running) -or ($null -ne $syncIssues)
         }
         Remediate     = {
             param([bool]$sim)
@@ -473,8 +477,9 @@ $script:Catalog = [ordered]@{
             $total = 0
             foreach ($p in $paths) {
                 if (Test-Path $p) {
-                    $total += (Get-ChildItem $p -Recurse -EA SilentlyContinue |
-                        Measure-Object Length -Sum).Sum
+                    $sum = (Get-ChildItem $p -File -Recurse -EA SilentlyContinue |
+                        Measure-Object -Property Length -Sum).Sum
+                    if ($null -ne $sum) { $total += $sum }
                 }
             }
             return $total -gt 500MB
@@ -538,7 +543,7 @@ $script:Catalog = [ordered]@{
             $wuau    = if ($wuauSvc) { $wuauSvc.Status } else { $null }
             $wuErrors = Get-WinEvent -FilterHashtable @{
                 LogName='System'; StartTime=(Get-Date).AddDays(-7)
-            } -EA SilentlyContinue |
+            } -MaxEvents 250 -EA SilentlyContinue |
             Where-Object { $_.ProviderName -match "WindowsUpdateClient|wuauclt" -and $_.Level -le 2 } |
             Select-Object -First 3
 
@@ -730,6 +735,7 @@ function Invoke-Remediation {
     # Essayer d'utiliser le logger ESN-Core si disponible
     $coreLoaded = $null -ne (Get-Command Write-ESNLog -EA SilentlyContinue)
     function RLog {
+        [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseApprovedVerbs', '')]
         param([string]$m, [string]$l = "INFO")
         if ($coreLoaded) { Write-ESNLog $m $l }
         else {
@@ -948,6 +954,7 @@ function Invoke-Remediation {
 # RAPPORT HTML REMÉDIATION
 # ─────────────────────────────────────────────────────────────
 function _Export-RemediationReport {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseApprovedVerbs', '')]
     param(
         [System.Collections.Generic.List[RemediationResult]]$Results,
         [string]$OutputPath,

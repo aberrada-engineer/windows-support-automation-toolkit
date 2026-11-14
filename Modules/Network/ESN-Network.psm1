@@ -47,8 +47,9 @@ function Invoke-NetworkDiag {
         $gw = Get-NetRoute -DestinationPrefix '0.0.0.0/0' -ErrorAction SilentlyContinue |
               Sort-Object RouteMetric | Select-Object -First 1
         $out.Gateway     = if ($gw) { $gw.NextHop } else { $null }
+        $pingSender = [System.Net.NetworkInformation.Ping]::new()
         $out.GatewayPing = if ($gw -and $gw.NextHop) {
-            Test-Connection $gw.NextHop -Count 2 -Quiet -ErrorAction SilentlyContinue
+            try { ($pingSender.Send($gw.NextHop, 1000)).Status -eq [System.Net.NetworkInformation.IPStatus]::Success } catch { $false }
         } else { $false }
 
         # ── DNS ─────────────────────────────────────────
@@ -60,22 +61,18 @@ function Invoke-NetworkDiag {
             (Resolve-DnsName 'google.com' -ErrorAction Stop | Select-Object -First 1).IPAddress
         } catch { $null }
 
-        # ── Internet ────────────────────────────────────
-        $out.InternetPing = Test-Connection '8.8.8.8' -Count 1 -Quiet -ErrorAction SilentlyContinue
-
-        # ── Latence (5 pings) ───────────────────────────
-        $rawPings = @(Test-Connection '8.8.8.8' -Count 5 -ErrorAction SilentlyContinue | ForEach-Object {
-            if ($_.PSObject.Properties['Replies']) { $_.Replies } else { $_ }
-        })
-        $pings = @($rawPings | Where-Object {
-            ($_.PSObject.Properties['StatusCode'] -and $_.StatusCode -eq 0) -or
-            ($_.PSObject.Properties['Status'] -and "$($_.Status)" -eq 'Success')
-        })
-        $latVals = @($pings | ForEach-Object {
-            if ($_.PSObject.Properties['ResponseTime']) { [double]$_.ResponseTime }
-            elseif ($_.PSObject.Properties['Latency']) { [double]$_.Latency }
-            elseif ($_.PSObject.Properties['RoundtripTime']) { [double]$_.RoundtripTime }
-        } | Where-Object { $null -ne $_ })
+        # ── Internet & Latence (court-circuit si ICMP bloqué) ──
+        $latVals = [System.Collections.Generic.List[double]]::new()
+        for ($pi = 0; $pi -lt 5; $pi++) {
+            $pr = try { $pingSender.Send('8.8.8.8', 1000) } catch { $null }
+            if ($null -ne $pr -and $pr.Status -eq [System.Net.NetworkInformation.IPStatus]::Success) {
+                $latVals.Add([double]$pr.RoundtripTime)
+            } elseif ($pi -eq 0) {
+                break
+            }
+        }
+        $pingSender.Dispose()
+        $out.InternetPing = $latVals.Count -gt 0
         $out.LatencyAvg = if ($latVals.Count -gt 0) {
             [math]::Round(($latVals | Measure-Object -Average).Average, 0)
         } else { 9999 }

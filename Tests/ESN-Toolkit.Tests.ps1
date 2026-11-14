@@ -188,6 +188,9 @@ Describe "ESN-Network — Module réseau" -Tag "Network" {
     BeforeAll {
         $netPath = Join-Path (Split-Path $PSScriptRoot -Parent) "Modules\Network\ESN-Network.psm1"
         Import-Module $netPath -Force
+        Initialize-ESNSession -ScriptName "test.ps1" -IncidentId "TEST-NET"
+        Invoke-NetworkDiag -ComputerName $env:COMPUTERNAME
+        $script:NetDiagResults = (Get-ESNSession).Results
     }
 
     It "Exporte Invoke-NetworkDiag" {
@@ -195,16 +198,11 @@ Describe "ESN-Network — Module réseau" -Tag "Network" {
     }
 
     It "Invoke-NetworkDiag s'exécute en local sans erreur critique" {
-        Initialize-ESNSession -ScriptName "test.ps1" -IncidentId "TEST-NET"
-        { Invoke-NetworkDiag -ComputerName $env:COMPUTERNAME } | Should -Not -Throw
-        $s = Get-ESNSession
-        $s.Results.Count | Should -BeGreaterThan 3
+        $script:NetDiagResults.Count | Should -BeGreaterThan 3
     }
 
     It "Détecte au moins une adresse IP valide en local" {
-        Initialize-ESNSession -ScriptName "test.ps1" -IncidentId "TEST-NET2"
-        Invoke-NetworkDiag -ComputerName $env:COMPUTERNAME
-        $ipResult = (Get-ESNSession).Results | Where-Object { $_.Check -eq "Adresse IP" }
+        $ipResult = $script:NetDiagResults | Where-Object { $_.Check -eq "Adresse IP" }
         $ipResult | Should -Not -BeNullOrEmpty
     }
 }
@@ -218,6 +216,9 @@ Describe "ESN-Windows — Module système" -Tag "Windows" {
     BeforeAll {
         $winPath = Join-Path (Split-Path $PSScriptRoot -Parent) "Modules\Windows\ESN-Windows.psm1"
         Import-Module $winPath -Force
+        Initialize-ESNSession -ScriptName "test.ps1" -IncidentId "TEST-WIN"
+        Invoke-WindowsDiag -ComputerName $env:COMPUTERNAME
+        $script:WinDiagResults = (Get-ESNSession).Results
     }
 
     It "Exporte Invoke-WindowsDiag" {
@@ -225,23 +226,18 @@ Describe "ESN-Windows — Module système" -Tag "Windows" {
     }
 
     It "Invoke-WindowsDiag s'exécute sans erreur critique" {
-        Initialize-ESNSession -ScriptName "test.ps1" -IncidentId "TEST-WIN"
-        { Invoke-WindowsDiag -ComputerName $env:COMPUTERNAME } | Should -Not -Throw
+        $script:WinDiagResults.Count | Should -BeGreaterThan 3
     }
 
     It "Détecte l'OS, la RAM et au moins un disque" {
-        Initialize-ESNSession -ScriptName "test.ps1" -IncidentId "TEST-WIN2"
-        Invoke-WindowsDiag -ComputerName $env:COMPUTERNAME
-        $results = (Get-ESNSession).Results
+        $results = $script:WinDiagResults
         ($results | Where-Object Check -eq "Système d'exploitation") | Should -Not -BeNullOrEmpty
         ($results | Where-Object Check -eq "RAM")                    | Should -Not -BeNullOrEmpty
         ($results | Where-Object { $_.Check -like "Disque*" })       | Should -Not -BeNullOrEmpty
     }
 
     It "Le check Defender retourne OK ou ERROR (jamais null)" {
-        Initialize-ESNSession -ScriptName "test.ps1" -IncidentId "TEST-WIN3"
-        Invoke-WindowsDiag -ComputerName $env:COMPUTERNAME
-        $def = (Get-ESNSession).Results | Where-Object Check -eq "Windows Defender"
+        $def = $script:WinDiagResults | Where-Object Check -eq "Windows Defender"
         $def | Should -Not -BeNullOrEmpty
         $def.Status | Should -BeIn @("OK","ERROR","WARN")
     }

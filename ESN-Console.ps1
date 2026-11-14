@@ -95,7 +95,7 @@ do {
         "10" { & "$ScriptDir\Invoke-DRTest.ps1"; Read-Host "`nAppuyez sur Entrée pour continuer..." }
         "11" { & "$ScriptDir\Invoke-SelfHealingService.ps1" -InstallServiceTask; Read-Host "`nAppuyez sur Entrée pour continuer..." }
         "12" { & "$ScriptDir\Invoke-PredictiveHealthAnalysis.ps1"; Read-Host "`nAppuyez sur Entrée pour continuer..." }
-        "13" { & "$ScriptDir\Invoke-ZeroTouchProvisioning.ps1"; Read-Host "`nAppuyez sur Entrée pour continuer..." }
+        "13" { & "$ScriptDir\Invoke-ZeroTouchProvisioning.ps1" -Simulation -SkipSoftwareInstall; Read-Host "`nAppuyez sur Entrée pour continuer..." }
         "14" {
             $enforce = Read-Host "Souhaitez-vous appliquer automatiquement les corrections ? (O/N)"
             if ($enforce.ToUpper() -eq "O") { & "$ScriptDir\Invoke-SecurityHardening.ps1" -Enforce }

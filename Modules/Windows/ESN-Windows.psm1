@@ -89,8 +89,10 @@ function Invoke-WindowsDiag {
 
         # ── Windows Update (en attente) ──────────────────
         try {
-            $wu  = New-Object -ComObject Microsoft.Update.Session
-            $res = $wu.CreateUpdateSearcher().Search("IsInstalled=0 and Type='Software'")
+            $wu       = New-Object -ComObject Microsoft.Update.Session
+            $searcher = $wu.CreateUpdateSearcher()
+            $searcher.Online = $false
+            $res      = $searcher.Search("IsInstalled=0 and Type='Software'")
             $out.WU_Pending  = $res.Updates.Count
             $out.WU_Critical = ($res.Updates | Where-Object { $_.MsrcSeverity -eq 'Critical' }).Count
         } catch {
@@ -101,7 +103,7 @@ function Invoke-WindowsDiag {
         # ── Temp & crash ────────────────────────────────
         $out.CrashDumps = @(Get-ChildItem 'C:\Windows\Minidump' -Filter '*.dmp' -EA SilentlyContinue).Count
         $out.TempSizeMB = try {
-            [math]::Round((Get-ChildItem $env:TEMP -Recurse -EA SilentlyContinue |
+            [math]::Round((Get-ChildItem $env:TEMP -File -Recurse -EA SilentlyContinue |
                 Measure-Object Length -Sum).Sum / 1MB, 0)
         } catch { 0 }
 

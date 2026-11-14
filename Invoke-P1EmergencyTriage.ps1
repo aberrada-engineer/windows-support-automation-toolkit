@@ -98,8 +98,10 @@ try {
 
         # 4. CONNECTIVITÉ RÉSEAU D'URGENCE
         $gw = (Get-NetRoute -DestinationPrefix "0.0.0.0/0" -ErrorAction SilentlyContinue | Select-Object -First 1).NextHop
-        $gwPing = if ($gw) { Test-Connection -ComputerName $gw -Count 1 -Quiet -TimeoutSeconds 1 } else { $false }
-        $dnsPing = Test-Connection -ComputerName $ExternalTestHost -Count 1 -Quiet -TimeoutSeconds 1
+        $pingObj = [System.Net.NetworkInformation.Ping]::new()
+        $gwPing  = if ($gw) { try { ($pingObj.Send($gw, 1000)).Status -eq 'Success' } catch { $false } } else { $false }
+        $dnsPing = try { ($pingObj.Send($ExternalTestHost, 1000)).Status -eq 'Success' } catch { $false }
+        $pingObj.Dispose()
         $triageReport.NetworkStatus = if ($gwPing -and $dnsPing) { "Opérationnel (Passerelle $gw joignable)" } elseif ($gwPing) { "Dégradé (Passerelle OK, Sortie Internet KO)" } else { "CRITIQUE (Passerelle injoignable)" }
     }
 
@@ -109,7 +111,7 @@ try {
     $reportPath = Join-Path $reportDir "Flash-Incident-P1-$hostLabel.html"
 
     $eventRows = ($triageReport.CriticalEvents | Select-Object -First 20 | ForEach-Object {
-        "<tr><td><b>$($_.Date)</b></td><td>$($_.Source)</td><td><code>ID $($_.EventID)</code></td><td>$($_.Message)</td></tr>"
+        "<tr><td><b>$([System.Net.WebUtility]::HtmlEncode([string]$_.Date))</b></td><td>$([System.Net.WebUtility]::HtmlEncode([string]$_.Source))</td><td><code>ID $($_.EventID)</code></td><td>$([System.Net.WebUtility]::HtmlEncode([string]$_.Message))</td></tr>"
     }) -join "`n"
 
     $bsodBadge = if ($triageReport.BSODDetected) { "<span style='background:#d83b01;color:white;padding:4px 8px;border-radius:4px;'>CRASH DUMP DETECTE</span>" } else { "<span style='background:#107c41;color:white;padding:4px 8px;border-radius:4px;'>AUCUN CRASH BSOD</span>" }

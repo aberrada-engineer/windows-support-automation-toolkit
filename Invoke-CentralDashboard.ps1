@@ -7,8 +7,9 @@
 
 [CmdletBinding()]
 param(
-    [switch]$OpenBrowser = $true
+    [switch]$OpenBrowser
 )
+if (-not $PSBoundParameters.ContainsKey('OpenBrowser')) { $OpenBrowser = $true }
 
 $ScriptDir = Split-Path $MyInvocation.PSCommandPath -Parent
 $DashboardPath = Join-Path $ScriptDir "WebDashboard\index.html"

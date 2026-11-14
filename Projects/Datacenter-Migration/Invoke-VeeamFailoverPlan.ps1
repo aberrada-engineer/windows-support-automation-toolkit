@@ -16,9 +16,11 @@
 param(
     [string]$PlanName = "MIGRATION-DC1-VERS-DC2",
     [string]$TargetDatacenterIP = "10.200.0.1",
-    [switch]$Simulation = $true,
-    [switch]$OpenReport = $true
+    [switch]$Simulation,
+    [switch]$OpenReport
 )
+if (-not $PSBoundParameters.ContainsKey('Simulation')) { $Simulation = $true }
+if (-not $PSBoundParameters.ContainsKey('OpenReport')) { $OpenReport = $true }
 
 Clear-Host
 Write-Host "================================================================================" -ForegroundColor Cyan
@@ -46,7 +48,7 @@ Add-FOStep "Réplication Veeam" "OK" "Points de réplication synchronisés (Delt
 
 # 2. TEST DU RESEAU CIBLE DATACENTER 2
 Write-Host "`n[2/4] Test de connectivité vers le Datacenter cible ($TargetDatacenterIP)..." -ForegroundColor Yellow
-$pingTarget = Test-Connection -ComputerName $TargetDatacenterIP -Count 2 -Quiet -TimeoutSeconds 1
+$pingTarget = try { $p = [System.Net.NetworkInformation.Ping]::new(); $r = $p.Send($TargetDatacenterIP, 1000); $p.Dispose(); ($r.Status -eq 'Success') } catch { $false }
 if ($pingTarget) {
     Add-FOStep "Liaison Intersites" "OK" "Lien 10 Gbps / MPLS opérationnel vers le nouveau Datacenter."
 } else {

@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Automated integrity & immutability auditor for Veeam Hardened Linux Repositories (XFS Fast Clone & chattr +i verification).
 

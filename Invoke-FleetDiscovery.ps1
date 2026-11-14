@@ -19,8 +19,9 @@
 [CmdletBinding()]
 param(
     [string]$Subnet = "", # Ex: "192.168.1" (laisser vide pour auto-détection)
-    [switch]$OpenReport = $true
+    [switch]$OpenReport
 )
+if (-not $PSBoundParameters.ContainsKey('OpenReport')) { $OpenReport = $true }
 
 Clear-Host
 Write-Host "================================================================================" -ForegroundColor Cyan

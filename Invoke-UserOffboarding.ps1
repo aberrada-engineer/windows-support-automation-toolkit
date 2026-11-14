@@ -13,12 +13,15 @@
     6. Génération du Procès-Verbal (PV) officiel de clôture de compte
 #>
 
-[CmdletBinding()]
+[CmdletBinding(SupportsShouldProcess)]
 param(
     [Parameter(Mandatory)][string]$Username,
     [string]$ManagerName = "Direction / RH",
-    [switch]$OpenReport = $true
+    [switch]$Force,
+    [switch]$Simulation,
+    [switch]$OpenReport
 )
+if (-not $PSBoundParameters.ContainsKey('OpenReport')) { $OpenReport = $true }
 
 Clear-Host
 Write-Host "================================================================================" -ForegroundColor Yellow
@@ -43,10 +46,12 @@ if (-not $user) {
 Write-Host " Utilisateur ciblé : $($user.Name) ($($user.UserPrincipalName))" -ForegroundColor Cyan
 Write-Host " Poste : $($user.Title) | Service : $($user.Department)" -ForegroundColor DarkGray
 
-$confirm = Read-Host "`n Confirmez-vous la clôture immédiate de ce compte ? (O/N)"
-if ($confirm.ToUpper() -ne "O") {
-    Write-Host " Opération annulée." -ForegroundColor Yellow
-    return
+if (-not $Force -and -not $Simulation) {
+    $confirm = Read-Host "`n Confirmez-vous la clôture immédiate de ce compte ? (O/N)"
+    if ($confirm.ToUpper() -ne "O") {
+        Write-Host " Opération annulée." -ForegroundColor Yellow
+        return
+    }
 }
 
 Import-Module "$PSScriptRoot\Core\ESN-Core.psm1" -ErrorAction SilentlyContinue
@@ -56,28 +61,41 @@ $backupDir = if (Get-Command Get-ESNToolkitRoot -ErrorAction SilentlyContinue) {
 if (-not (Test-Path $backupDir)) { New-Item $backupDir -ItemType Directory -Force | Out-Null }
 $backupFile = Join-Path $backupDir "$Username-Groups-Backup.json"
 
-$groups = $user.MemberOf
+$groups = @($user.MemberOf | Where-Object { $_ })
 $groups | ConvertTo-Json | Out-File $backupFile -Encoding UTF8
 Write-Host "`n [OK] Groupes sauvegardés pour traçabilité dans : $backupFile" -ForegroundColor Green
 
 # 2. DESACTIVATION DU COMPTE
-Disable-ADAccount -Identity $Username
+if (-not $Simulation -and $PSCmdlet.ShouldProcess($Username, "Disable-ADAccount")) {
+    Disable-ADAccount -Identity $Username
+}
 Write-Host " [OK] Compte Active Directory désactivé." -ForegroundColor Green
 
 # 3. SUPPRESSION DES GROUPES (Sauf 'Domain Users' obligatoire)
 foreach ($g in $groups) {
-    $groupName = (Get-ADGroup -Identity $g).Name
-    if ($groupName -ne "Domain Users") {
-        Remove-ADGroupMember -Identity $g -Members $Username -Confirm:$false -ErrorAction SilentlyContinue
+    try {
+        $groupName = (Get-ADGroup -Identity $g -ErrorAction Stop).Name
+        if ($groupName -ne "Domain Users" -and -not $Simulation -and $PSCmdlet.ShouldProcess($groupName, "Remove-ADGroupMember $Username")) {
+            Remove-ADGroupMember -Identity $g -Members $Username -Confirm:$false -ErrorAction Stop
+        }
+    } catch {
+        Write-Warning "Retrait du groupe $g en échec : $($_.Exception.Message)"
     }
 }
 Write-Host " [OK] Retiré de tous les groupes de sécurité et de distribution." -ForegroundColor Green
 
-# 4. RANDOM PASSWORD & EXPIRATION
-$rawPwd = [System.Web.Security.Membership]::GeneratePassword(16, 4)
+# 4. RANDOM PASSWORD & EXPIRATION (CSPRNG compatible PS 5.1 & PS 7+)
+$rngBytes = New-Object byte[] 20
+$rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+$rng.GetBytes($rngBytes)
+$rng.Dispose()
+$pwdChars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%&*+-=?'
+$rawPwd = (-join ($rngBytes | ForEach-Object { $pwdChars[$_ % $pwdChars.Length] })) + 'A9#z'
 $randomPwd = ([System.Net.NetworkCredential]::new('', $rawPwd)).SecurePassword
-Set-ADAccountPassword -Identity $Username -NewPassword $randomPwd -Reset
-Set-ADUser -Identity $Username -AccountExpirationDate (Get-Date)
+if (-not $Simulation -and $PSCmdlet.ShouldProcess($Username, "Set-ADAccountPassword & Expiration")) {
+    Set-ADAccountPassword -Identity $Username -NewPassword $randomPwd -Reset
+    Set-ADUser -Identity $Username -AccountExpirationDate (Get-Date)
+}
 Write-Host " [OK] Mot de passe réinitialisé aléatoirement et compte expiré." -ForegroundColor Green
 
 # 5. GENERATION DU PROCES-VERBAL OFFICIEL (HTML)
@@ -103,9 +121,9 @@ $pvHtml = @"
     <div class='sheet'>
         <h1>PROCES-VERBAL DE CLÔTURE DE COMPTE IT</h1>
         <div class='meta'>
-            <b>Collaborateur concerné :</b> $($user.Name)<br>
-            <b>Identifiant de session :</b> $Username<br>
-            <b>Intitulé du poste :</b> $($user.Title)<br>
+            <b>Collaborateur concerné :</b> $([System.Net.WebUtility]::HtmlEncode([string]$user.Name))<br>
+            <b>Identifiant de session :</b> $([System.Net.WebUtility]::HtmlEncode([string]$Username))<br>
+            <b>Intitulé du poste :</b> $([System.Net.WebUtility]::HtmlEncode([string]$user.Title))<br>
             <b>Date de clôture effective :</b> $(Get-Date -Format 'dd/MM/yyyy à HH:mm')<br>
             <b>Responsable IT / Opérateur :</b> Amine BERRADA (Administrateur Systèmes & Réseaux)
         </div>
@@ -125,7 +143,7 @@ $pvHtml = @"
             </div>
             <div class='sig-box'>
                 <b>Pour la Direction / RH</b><br><br><br>
-                <i>$ManagerName</i>
+                <i>$([System.Net.WebUtility]::HtmlEncode([string]$ManagerName))</i>
             </div>
         </div>
     </div>

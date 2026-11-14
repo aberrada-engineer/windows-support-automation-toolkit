@@ -18,9 +18,10 @@
 
 [CmdletBinding()]
 param(
-    [switch]$Enforce = $false, # Applique les corrections si vrai, sinon audit seul
-    [switch]$OpenReport = $true
+    [switch]$Enforce, # Applique les corrections si vrai, sinon audit seul
+    [switch]$OpenReport
 )
+if (-not $PSBoundParameters.ContainsKey('OpenReport')) { $OpenReport = $true }
 
 Clear-Host
 Write-Host "================================================================================" -ForegroundColor Red
@@ -34,6 +35,7 @@ $totalPoints = 0
 $earnedPoints = 0
 
 function Check-Rule {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseApprovedVerbs', '')]
     param(
         [string]$Name,
         [int]$Weight,

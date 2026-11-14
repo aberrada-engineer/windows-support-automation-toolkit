@@ -17,7 +17,7 @@ param(
     [string]$CustomAdminAccountName = "AdmLocal_ESN",
     [int]$PasswordAgeDays = 30,
     [int]$PasswordLength = 16,
-    [switch]$AuditOnly = $false
+    [switch]$AuditOnly
 )
 
 Clear-Host

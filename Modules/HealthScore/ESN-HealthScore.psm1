@@ -89,6 +89,7 @@ function Get-ScoreIcon([int]$score) {
 # COLLECTE DONNÉES (local ou distant)
 # ─────────────────────────────────────────────────────────────
 function _Collect-MachineData {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseApprovedVerbs', '')]
     param([string]$ComputerName, [int]$HoursBack)
 
     $sb = {
@@ -108,8 +109,9 @@ function _Collect-MachineData {
         $gw = Get-NetRoute -DestinationPrefix '0.0.0.0/0' -ErrorAction SilentlyContinue |
               Sort-Object RouteMetric | Select-Object -First 1
         $data.Net.Gateway     = if ($gw) { $gw.NextHop } else { $null }
+        $pingSender = [System.Net.NetworkInformation.Ping]::new()
         $data.Net.GatewayPing = if ($gw -and $gw.NextHop) {
-            Test-Connection $gw.NextHop -Count 2 -Quiet -ErrorAction SilentlyContinue
+            try { ($pingSender.Send($gw.NextHop, 1000)).Status -eq [System.Net.NetworkInformation.IPStatus]::Success } catch { $false }
         } else { $false }
 
         $data.Net.DNSResolve  = try {
@@ -117,24 +119,24 @@ function _Collect-MachineData {
             $true
         } catch { $false }
 
-        $rawPings = @(Test-Connection '8.8.8.8' -Count 5 -ErrorAction SilentlyContinue | ForEach-Object {
-            if ($_.PSObject.Properties['Replies']) { $_.Replies } else { $_ }
-        })
-        $pings = @($rawPings | Where-Object {
-            ($_.PSObject.Properties['StatusCode'] -and $_.StatusCode -eq 0) -or
-            ($_.PSObject.Properties['Status'] -and "$($_.Status)" -eq 'Success')
-        })
-        $data.Net.InternetOK  = $pings.Count -gt 0
-        $data.Net.LatencyAvg  = if ($pings.Count -gt 0) {
-            $latVals = @($pings | ForEach-Object {
-                if ($_.PSObject.Properties['ResponseTime']) { [double]$_.ResponseTime }
-                elseif ($_.PSObject.Properties['Latency']) { [double]$_.Latency }
-                elseif ($_.PSObject.Properties['RoundtripTime']) { [double]$_.RoundtripTime }
-            } | Where-Object { $null -ne $_ })
-            if ($latVals.Count -gt 0) { [math]::Round(($latVals | Measure-Object -Average).Average, 0) } else { 0 }
+        $latVals = [System.Collections.Generic.List[double]]::new()
+        $sentPings = 0
+        for ($pi = 0; $pi -lt 5; $pi++) {
+            $sentPings++
+            $pr = try { $pingSender.Send('8.8.8.8', 1000) } catch { $null }
+            if ($null -ne $pr -and $pr.Status -eq [System.Net.NetworkInformation.IPStatus]::Success) {
+                $latVals.Add([double]$pr.RoundtripTime)
+            } elseif ($pi -eq 0) {
+                break
+            }
+        }
+        $pingSender.Dispose()
+        $data.Net.InternetOK  = $latVals.Count -gt 0
+        $data.Net.LatencyAvg  = if ($latVals.Count -gt 0) {
+            [math]::Round(($latVals | Measure-Object -Average).Average, 0)
         } else { 9999 }
-        $data.Net.PacketLoss  = if ($pings.Count -gt 0) {
-            [math]::Round((1 - $pings.Count / 5) * 100, 0)
+        $data.Net.PacketLoss  = if ($latVals.Count -gt 0) {
+            [math]::Round((1 - $latVals.Count / [double]$sentPings) * 100, 0)
         } else { 100 }
 
         $dns = Get-DnsClientServerAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
@@ -183,7 +185,7 @@ function _Collect-MachineData {
             [math]::Round(((Get-Date) - $def.QuickScanStartTime).TotalDays, 0)
         } else { 999 }
 
-        $fw = @(try { Get-NetFirewallProfile -ErrorAction SilentlyContinue } catch { })
+        $fw = @(try { Get-NetFirewallProfile -ErrorAction SilentlyContinue } catch { $_ = $null })
         $fwDom = $fw | Where-Object Name -eq 'Domain'  | Select-Object -First 1
         $fwPri = $fw | Where-Object Name -eq 'Private' | Select-Object -First 1
         $fwPub = $fw | Where-Object Name -eq 'Public'  | Select-Object -First 1
@@ -293,6 +295,7 @@ function _Collect-MachineData {
 # CALCUL SCORE RÉSEAU (max 100)
 # ─────────────────────────────────────────────────────────────
 function _Score-Network {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseApprovedVerbs', '')]
     param($net)
 
     # Grille de points (total possible = 100)
@@ -371,6 +374,7 @@ function _Score-Network {
 # CALCUL SCORE SYSTÈME (max 100)
 # ─────────────────────────────────────────────────────────────
 function _Score-System {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseApprovedVerbs', '')]
     param($sys)
 
     $points  = 100
@@ -442,6 +446,7 @@ function _Score-System {
 # CALCUL SCORE SÉCURITÉ (max 100)
 # ─────────────────────────────────────────────────────────────
 function _Score-Security {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseApprovedVerbs', '')]
     param($sec)
 
     $points  = 0
@@ -557,6 +562,7 @@ function _Score-Security {
 # CALCUL SCORE STOCKAGE (max 100)
 # ─────────────────────────────────────────────────────────────
 function _Score-Storage {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseApprovedVerbs', '')]
     param($storage)
 
     $points  = 100
@@ -618,6 +624,7 @@ function _Score-Storage {
 # CALCUL SCORE SERVICES (max 100)
 # ─────────────────────────────────────────────────────────────
 function _Score-Services {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseApprovedVerbs', '')]
     param($svc)
 
     $points  = 100
@@ -665,6 +672,7 @@ function _Score-Services {
 # SCORE GLOBAL PONDÉRÉ
 # ─────────────────────────────────────────────────────────────
 function _Score-Global {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseApprovedVerbs', '')]
     param($scores)
     $w = $script:Weights
     $global = [math]::Round(
@@ -681,6 +689,7 @@ function _Score-Global {
 # RAPPORT HTML SCORING
 # ─────────────────────────────────────────────────────────────
 function _Export-ScoreReport {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseApprovedVerbs', '')]
     param($AllScores, [string]$Computer, [string]$OutputPath, [bool]$Sim)
 
     $global     = $AllScores.Global
@@ -691,6 +700,7 @@ function _Export-ScoreReport {
 
     # Génération des gauges SVG pour chaque domaine
     function Make-Gauge {
+        [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseApprovedVerbs', '')]
         param([int]$Score, [string]$Label, [string]$DomainName)
         $color   = Get-ScoreColor $Score
         $radius  = 52
@@ -714,6 +724,7 @@ function _Export-ScoreReport {
 
     # Détails d'un domaine en tableau
     function Make-DomainTable {
+        [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseApprovedVerbs', '')]
         param($DomainScore, [string]$DomainName)
         $color  = Get-ScoreColor $DomainScore.Score
         $rows   = ($DomainScore.Details | ForEach-Object {

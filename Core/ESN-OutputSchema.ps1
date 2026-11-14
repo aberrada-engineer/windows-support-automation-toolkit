@@ -112,6 +112,7 @@ function New-ESNCheck {
 .PARAMETER Tags
     Tags libres pour la recherche dans la base de connaissance.
 #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '')]
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][string]$Domain,
@@ -146,6 +147,7 @@ function New-ESNDomainResult {
 .SYNOPSIS
     Agrège les checks d'un domaine en un résultat structuré avec score calculé.
 #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '')]
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][string]$Domain,
@@ -196,7 +198,10 @@ function Get-ESNSeverityTextColor([string]$Severity) {
 
 function Get-ESNToolkitRoot {
     [CmdletBinding()]
-    param([string]$SubFolder = "")
+    param(
+        [string]$SubFolder = "",
+        [switch]$Ensure
+    )
     $base = if (-not [string]::IsNullOrWhiteSpace($env:ESN_TOOLKIT_ROOT)) {
         $env:ESN_TOOLKIT_ROOT
     } elseif ($env:OS -match 'Windows' -and $env:SystemDrive) {
@@ -205,7 +210,7 @@ function Get-ESNToolkitRoot {
         Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit"
     }
     $target = if ([string]::IsNullOrWhiteSpace($SubFolder)) { $base } else { Join-Path $base $SubFolder }
-    if (-not (Test-Path -Path $target)) {
+    if (($Ensure -or -not $PSBoundParameters.ContainsKey('Ensure')) -and -not (Test-Path -Path $target)) {
         New-Item -Path $target -ItemType Directory -Force | Out-Null
     }
     return $target

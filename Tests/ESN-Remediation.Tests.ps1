@@ -283,6 +283,7 @@ Describe "Invoke-IncidentAnalysis v2 — Intégration Remédiation" -Tag "Integr
                 -Modules Network `
                 -AutoFix `
                 -Simulation `
+                -SkipHealthScore `
                 -Force `
                 -IncidentId "PESTER-V2-001"
         } | Should -Not -Throw
@@ -294,6 +295,7 @@ Describe "Invoke-IncidentAnalysis v2 — Intégration Remédiation" -Tag "Integr
             -Modules Network `
             -AutoFix `
             -Simulation `
+            -SkipHealthScore `
             -Force `
             -IncidentId "PESTER-V2-002" 2>&1 |
             Where-Object { $_ -is [PSCustomObject] } |

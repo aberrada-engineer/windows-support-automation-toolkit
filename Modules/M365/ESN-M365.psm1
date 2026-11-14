@@ -82,7 +82,7 @@ function Invoke-M365Audit {
         $cutoff  = (Get-Date).AddDays(-$InactiveDays)
         $inactive = ($users | Where-Object {
             $_.AccountEnabled -and $_.UserType -eq 'Member' -and
-            ($_.LastSignIn -eq $null -or [datetime]$_.LastSignIn -lt $cutoff)
+            ($null -eq $_.LastSignIn -or [datetime]$_.LastSignIn -lt $cutoff)
         }).Count
 
         Add-ESNResult "M365" "Utilisateurs total"        "INFO" $total   ""
@@ -154,7 +154,7 @@ function Set-M365UserLicense {
 .PARAMETER SkuPartNumber
     Numéro de SKU (ex: ENTERPRISEPACK, SPB). Laissez vide pour voir les disponibles.
 #>
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess)]
     param(
         [Parameter(Mandatory)][string]$UserUPN,
         [ValidateSet("Assign","Remove")][string]$Action = "Assign",
@@ -188,7 +188,7 @@ function Set-M365UserLicense {
 
     try {
         $user = Get-MgUser -UserId $UserUPN -ErrorAction Stop
-        if (-not $Simulation) {
+        if (-not $Simulation -and $PSCmdlet.ShouldProcess($UserUPN, "Set-MgUserLicense ($Action $SkuPartNumber)")) {
             if ($Action -eq "Assign") {
                 Set-MgUserLicense -UserId $user.Id `
                     -AddLicenses @{ SkuId = $sku.SkuId } -RemoveLicenses @()

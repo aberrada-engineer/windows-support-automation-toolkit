@@ -9,11 +9,13 @@
 [CmdletBinding()]
 param(
     [string]$TargetDir = "C:\ESN-Toolkit",
-    [switch]$CreateDesktopShortcut = $true,
-    [switch]$RegisterDailyAuditTask = $false
+    [switch]$CreateDesktopShortcut,
+    [switch]$RegisterDailyAuditTask,
+    [switch]$Silent
 )
+if (-not $PSBoundParameters.ContainsKey('CreateDesktopShortcut')) { $CreateDesktopShortcut = $true }
 
-Clear-Host
+if (-not $Silent) { Clear-Host }
 Write-Host "=================================================================" -ForegroundColor Cyan
 Write-Host "        DEPLOIEMENT D'ESN-TOOLKIT - AMINE BERRADA" -ForegroundColor White
 Write-Host "=================================================================" -ForegroundColor Cyan

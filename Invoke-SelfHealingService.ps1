@@ -18,12 +18,13 @@ param(
     [int]$DiskWarningPercent    = 85,
     [int]$DiskCriticalPercent   = 92,
     [string]$WebhookUrl         = "",
-    [switch]$SingleRun          = $true,
-    [switch]$InstallServiceTask = $false,
-    [switch]$UninstallTask      = $false,
+    [switch]$SingleRun,
+    [switch]$InstallServiceTask,
+    [switch]$UninstallTask,
     [string]$OutputPath         = "",
     [switch]$Simulate
 )
+if (-not $PSBoundParameters.ContainsKey('SingleRun')) { $SingleRun = $true }
 
 $ErrorActionPreference = "Stop"
 $schemaScript = Join-Path $PSScriptRoot "Core/ESN-OutputSchema.ps1"
@@ -36,6 +37,7 @@ $SiemLog = Join-Path $logBase "SelfHealing-SIEM.jsonl"
 $script:LogBuffer = [System.Collections.Generic.List[string]]::new()
 
 function Log-SelfHealing {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseApprovedVerbs', '')]
     param([string]$Message, [string]$Level = "INFO")
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     $formatted = "[$timestamp][$Level] $Message"
@@ -75,7 +77,8 @@ try {
         return [PSCustomObject]@{ Action = "UninstallTask"; Status = "OK" }
     }
 
-    Log-SelfHealing "=== CYCLE D'AUTO-REPARATION ESN DEMARRE ($hostLabel) ===" "INFO"
+    $runModeLabel = if ($SingleRun) { "SingleRun" } else { "Daemon" }
+    Log-SelfHealing "=== CYCLE D'AUTO-REPARATION ESN DEMARRE ($hostLabel | Mode: $runModeLabel) ===" "INFO"
     $actionsHealed = [System.Collections.Generic.List[string]]::new()
 
     if ($Simulate -or -not (Get-Command Get-CimInstance -ErrorAction SilentlyContinue)) {
@@ -113,7 +116,8 @@ try {
             $usedPercent = [math]::Round((1 - ($cDrive.FreeSpace / $cDrive.Size)) * 100, 1)
             $freeGB      = [math]::Round($cDrive.FreeSpace / 1GB, 1)
             if ($usedPercent -ge $DiskWarningPercent -and $PSCmdlet.ShouldProcess("Disque C:", "Purge temporaires ($usedPercent% utilisé)")) {
-                Log-SelfHealing "Alerte espace disque C: $usedPercent% utilisé ($freeGB Go libres)" "WARN"
+                $diskSev = if ($usedPercent -ge $DiskCriticalPercent) { "CRITICAL" } else { "WARN" }
+                Log-SelfHealing "Alerte espace disque C: $usedPercent% utilisé ($freeGB Go libres, critique >= $DiskCriticalPercent%)" $diskSev
                 $tempDirs = @("$env:SystemRoot\Temp\*", "$env:LOCALAPPDATA\Temp\*", "$env:SystemRoot\SoftwareDistribution\Download\*")
                 $clearedMB = 0
                 foreach ($td in $tempDirs) {

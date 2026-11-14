@@ -15,8 +15,9 @@
 [CmdletBinding()]
 param(
     [double]$EstimatedDailyGrowthGB = 1.5,
-    [switch]$OpenReport = $true
+    [switch]$OpenReport
 )
+if (-not $PSBoundParameters.ContainsKey('OpenReport')) { $OpenReport = $true }
 
 Clear-Host
 Write-Host "================================================================================" -ForegroundColor Cyan

@@ -133,6 +133,7 @@ function Write-ESNLog {
 }
 
 function _WriteLogFile {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseApprovedVerbs', '')]
     param([string]$Line)
     if ($script:Session.LogFile -and (Test-Path (Split-Path $script:Session.LogFile))) {
         Add-Content -Path $script:Session.LogFile -Value $Line -Encoding UTF8
@@ -198,7 +199,7 @@ function Export-ESNReport {
     $duration   = ((Get-Date) - $script:Session.StartTime).ToString("h\h\ mm\m\ ss\s")
     $score      = $script:Session.Score
     $scoreColor = if ($score -ge 80) { "#28a745" } elseif ($score -ge 50) { "#ffc107" } else { "#dc3545" }
-    $scoreLabel = if ($score -ge 80) { "Bon" }     elseif ($score -ge 50) { "Dégradé" } else { "Critique" }
+    $scoreLabel = if ($score -ge 90) { "Excellent" } elseif ($score -ge 80) { "Bon" } elseif ($score -ge 60) { "Dégradé" } elseif ($score -ge 40) { "Mauvais" } else { "Critique" }
 
     $cntOK   = @($script:Session.Results | Where-Object Status -eq "OK").Count
     $cntWARN = @($script:Session.Results | Where-Object Status -eq "WARN").Count
@@ -216,25 +217,30 @@ function Export-ESNReport {
             "OK"    { "✅" } "WARN" { "⚠️" } "ERROR" { "❌" }
             "INFO"  { "ℹ️" } default { "⏭️" }
         }
+        $eTime = [System.Net.WebUtility]::HtmlEncode([string]$_.Time)
+        $eCat  = [System.Net.WebUtility]::HtmlEncode([string]$_.Category)
+        $eChk  = [System.Net.WebUtility]::HtmlEncode([string]$_.Check)
+        $eVal  = [System.Net.WebUtility]::HtmlEncode([string]$_.Value)
+        $eDet  = [System.Net.WebUtility]::HtmlEncode([string]$_.Details)
         "<tr style='background:$bg'>
-          <td>$($_.Time)</td>
-          <td><strong>$($_.Category)</strong></td>
-          <td>$($_.Check)</td>
+          <td>$eTime</td>
+          <td><strong>$eCat</strong></td>
+          <td>$eChk</td>
           <td>$icon&nbsp;<strong>$($_.Status)</strong></td>
-          <td>$($_.Value)</td>
-          <td style='color:#555;font-size:.85em'>$($_.Details)</td>
+          <td>$eVal</td>
+          <td style='color:#555;font-size:.85em'>$eDet</td>
         </tr>"
     }) -join "`n"
 
     # Blocs erreurs / warnings
     $errBlock  = if ($script:Session.Errors.Count -gt 0) {
         "<div class='alert alert-danger'><strong>❌ Erreurs ($($script:Session.Errors.Count))</strong><ul>" +
-        (($script:Session.Errors | ForEach-Object { "<li>$_</li>" }) -join "") + "</ul></div>"
+        (($script:Session.Errors | ForEach-Object { "<li>$([System.Net.WebUtility]::HtmlEncode([string]$_))</li>" }) -join "") + "</ul></div>"
     } else { "" }
 
     $warnBlock = if ($script:Session.Warnings.Count -gt 0) {
         "<div class='alert alert-warning'><strong>⚠️ Avertissements ($($script:Session.Warnings.Count))</strong><ul>" +
-        (($script:Session.Warnings | ForEach-Object { "<li>$_</li>" }) -join "") + "</ul></div>"
+        (($script:Session.Warnings | ForEach-Object { "<li>$([System.Net.WebUtility]::HtmlEncode([string]$_))</li>" }) -join "") + "</ul></div>"
     } else { "" }
 
     $html = @"
@@ -467,7 +473,76 @@ function Get-ESNSession { return $script:Session }
 # ─────────────────────────────────────────────
 # EXPORTS
 # ─────────────────────────────────────────────
+
+function Test-ESNHostPing {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$ComputerName,
+        [int]$TimeoutMs = 1000
+    )
+    $ping = $null
+    try {
+        $ping  = [System.Net.NetworkInformation.Ping]::new()
+        $reply = $ping.Send($ComputerName, $TimeoutMs)
+        return ($null -ne $reply -and $reply.Status -eq [System.Net.NetworkInformation.IPStatus]::Success)
+    } catch {
+        return $false
+    } finally {
+        if ($ping) { $ping.Dispose() }
+    }
+}
+
+function Measure-ESNPingLatency {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$ComputerName,
+        [int]$Count = 4,
+        [int]$TimeoutMs = 1000
+    )
+    $ping = $null
+    $times = [System.Collections.Generic.List[double]]::new()
+    $sent = 0
+    try {
+        $ping = [System.Net.NetworkInformation.Ping]::new()
+        for ($i = 0; $i -lt $Count; $i++) {
+            $sent++
+            $reply = $ping.Send($ComputerName, $TimeoutMs)
+            if ($null -ne $reply -and $reply.Status -eq [System.Net.NetworkInformation.IPStatus]::Success) {
+                $times.Add([double]$reply.RoundtripTime)
+            } elseif ($i -eq 0) {
+                break
+            }
+        }
+    } catch {
+        $_ = $null
+    } finally {
+        if ($ping) { $ping.Dispose() }
+    }
+
+    if ($times.Count -eq 0) {
+        return [PSCustomObject]@{
+            Reachable = $false
+            AvgMs     = 0.0
+            JitterMs  = 0.0
+            LossPct   = 100.0
+        }
+    }
+    $avg  = [math]::Round(($times | Measure-Object -Average).Average, 1)
+    $max  = ($times | Measure-Object -Maximum).Maximum
+    $min  = ($times | Measure-Object -Minimum).Minimum
+    $jit  = [math]::Round(($max - $min), 1)
+    $loss = [math]::Round((($sent - $times.Count) / [double]$sent) * 100, 0)
+    return [PSCustomObject]@{
+        Reachable = $true
+        AvgMs     = $avg
+        JitterMs  = $jit
+        LossPct   = $loss
+    }
+}
+
 Export-ModuleMember -Function @(
+    'Test-ESNHostPing',
+    'Measure-ESNPingLatency',
     'Initialize-ESNSession', 'Write-ESNLog',    'Add-ESNResult',
     'Export-ESNReport',      'Export-ESNZip',   'Show-ESNSummary',
     'Test-ESNPort',          'Test-ESNAdmin',

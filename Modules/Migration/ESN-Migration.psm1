@@ -24,6 +24,7 @@ Set-StrictMode -Version Latest
 # ─────────────────────────────────────────────────────────────
 
 function _MIG-FolderStats {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseApprovedVerbs', '')]
     param([string]$Path)
     if (-not (Test-Path $Path)) { return @{ Exists=$false; Files=0; SizeMB=0; SizeBytes=0 } }
     $items = Get-ChildItem $Path -Recurse -ErrorAction SilentlyContinue
@@ -42,6 +43,7 @@ function _MIG-FolderStats {
 }
 
 function _MIG-MigrationScore {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseApprovedVerbs', '')]
     param([hashtable]$Results)
     $score     = 0
     $maxPoints = 0
@@ -68,6 +70,7 @@ function _MIG-MigrationScore {
 }
 
 function _MIG-HtmlReport {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseApprovedVerbs', '')]
     param(
         [PSCustomObject]$Manifest,
         [hashtable]$ValResults,
@@ -203,6 +206,7 @@ function Invoke-UserStateCapture {
     $captureStats = @{}
 
     function L {
+        [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseApprovedVerbs', '')]
         param([string]$m, [string]$l = "INFO")
         $ts  = Get-Date -Format "HH:mm:ss"
         $col = @{ OK="Green"; WARN="Yellow"; ERROR="Red"; INFO="Cyan" }

@@ -18,8 +18,9 @@ param(
     [int]$TargetRPOHours = 24,
     [int]$TargetRTOHours = 4,
     [string]$SecondarySiteIP = "",
-    [switch]$OpenReport = $true
+    [switch]$OpenReport
 )
+if (-not $PSBoundParameters.ContainsKey('OpenReport')) { $OpenReport = $true }
 
 Clear-Host
 Write-Host "================================================================================" -ForegroundColor Cyan
@@ -81,7 +82,7 @@ Add-DRCheck -Element "Immuabilité Dépôt (WORM)" -Target "Verrouillé WORM" -A
 # 4. TEST DE LIAISON VERS SITE DE SECOURS (DATACENTER SECONDARY SITE)
 if ($SecondarySiteIP) {
     Write-Host "`n [*] Test de bascule et joignabilité du site secondaire ($SecondarySiteIP)..." -ForegroundColor Yellow
-    $pingSec = Test-Connection -ComputerName $SecondarySiteIP -Count 2 -Quiet -TimeoutSeconds 1
+    $pingSec = if (Get-Command Test-ESNHostPing -ErrorAction SilentlyContinue) { Test-ESNHostPing -ComputerName $SecondarySiteIP -TimeoutMs 1000 } else { Test-Connection -ComputerName $SecondarySiteIP -Count 1 -Quiet -ErrorAction SilentlyContinue }
     if ($pingSec) {
         Add-DRCheck -Element "Lien Site Secondaire" -Target "Latence < 20ms" -Actual "Joignable (< 5ms)" -Status "CONFORME" -Detail "Liaison intersites WAN MPLS / VPN IPsec opérationnelle pour bascule."
     } else {

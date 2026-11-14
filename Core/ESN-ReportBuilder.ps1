@@ -115,7 +115,9 @@ function Build-ESNReport {
     $machineDom   = Get-ESNProp ($results | Where-Object { (Get-ESNProp $_ @("Check","check")) -eq "Domaine" } | Select-Object -First 1) @("Value","value")
 
     # ── Fonctions helpers HTML ────────────────────────────────
-    function Make-Gauge([int]$Score, [string]$Label, [string]$DomLabel) {
+    function Make-Gauge {
+        [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseApprovedVerbs', '')]
+        param([int]$Score, [string]$Label, [string]$DomLabel)
         $c   = if ($Score -ge 80) {"#28a745"} elseif ($Score -ge 60) {"#ffc107"} elseif ($Score -ge 40) {"#fd7e14"} else {"#dc3545"}
         $r   = 44
         $ci  = [math]::Round(2 * 3.14159 * $r, 1)
@@ -137,14 +139,18 @@ function Build-ESNReport {
 "@
     }
 
-    function Make-SeverityBadge([string]$Status) {
+    function Make-SeverityBadge {
+        [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseApprovedVerbs', '')]
+        param([string]$Status)
         $bg   = switch ($Status) { "OK"{"#d4edda"} "WARN"{"#fff3cd"} "WARNING"{"#fff3cd"} "ERROR"{"#f8d7da"} "CRITICAL"{"#f8d7da"} "INFO"{"#e2f3fd"} default{"#f8f9fa"} }
         $tc   = switch ($Status) { "OK"{"#155724"} "WARN"{"#856404"} "WARNING"{"#856404"} "ERROR"{"#721c24"} "CRITICAL"{"#721c24"} "INFO"{"#0c5460"} default{"#333"} }
         $lbl  = switch ($Status) { "WARN"{"WARNING"} "ERROR"{"CRITICAL"} default{$Status} }
         return "<span style='background:$bg;color:$tc;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700'>$lbl</span>"
     }
 
-    function Make-Collapsible([string]$Id, [string]$Title, [string]$Count, [string]$TitleColor, [string]$Body) {
+    function Make-Collapsible {
+        [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseApprovedVerbs', '')]
+        param([string]$Id, [string]$Title, [string]$Count, [string]$TitleColor, [string]$Body)
         return @"
 <div style='margin:12px 0;border:1px solid #e0e0e0;border-radius:8px;overflow:hidden'>
   <input type='checkbox' id='sec-$Id' style='display:none'>
@@ -160,18 +166,18 @@ function Build-ESNReport {
   </label>
   <div style='display:none' id='body-$Id'>$Body</div>
 </div>
-<style>#sec-$Id:checked ~ * #body-$Id { display:block !important }</style>
+<style>#sec-$Id:checked ~ #body-$Id { display:block !important }</style>
 "@
     }
 
     # ── Résultats par check ────────────────────────────────────
     $checkRows = ($results | ForEach-Object {
-        $rTime = Get-ESNProp $_ @("Time","timestamp")
-        $rCat  = Get-ESNProp $_ @("Category","domain")
-        $rChk  = Get-ESNProp $_ @("Check","check")
+        $rTime = [System.Net.WebUtility]::HtmlEncode([string](Get-ESNProp $_ @("Time","timestamp")))
+        $rCat  = [System.Net.WebUtility]::HtmlEncode([string](Get-ESNProp $_ @("Category","domain")))
+        $rChk  = [System.Net.WebUtility]::HtmlEncode([string](Get-ESNProp $_ @("Check","check")))
         $rSt   = Get-ESNProp $_ @("Status","severity") "INFO"
-        $rVal  = Get-ESNProp $_ @("Value","value")
-        $rDet  = Get-ESNProp $_ @("Details","detail")
+        $rVal  = [System.Net.WebUtility]::HtmlEncode([string](Get-ESNProp $_ @("Value","value")))
+        $rDet  = [System.Net.WebUtility]::HtmlEncode([string](Get-ESNProp $_ @("Details","detail")))
         $bg    = switch ($rSt) { "OK"{"#d4edda"} "WARN"{"#fff3cd"} "WARNING"{"#fff3cd"} "ERROR"{"#f8d7da"} "CRITICAL"{"#f8d7da"} "INFO"{"#e2f3fd"} default{"#f8f9fa"} }
         "<tr style='background:$bg'>
           <td style='padding:6px 10px;font-size:12px'>$rTime</td>
@@ -197,12 +203,16 @@ function Build-ESNReport {
     $impactItems = @($results | Where-Object { (Get-ESNProp $_ @("Status","severity")) -in "WARN","WARNING","ERROR","CRITICAL" })
     $impactRows  = ($impactItems | ForEach-Object {
         $iSt  = Get-ESNProp $_ @("Status","severity")
-        $imp  = if ($iSt -in "ERROR","CRITICAL") { "−15 pts" } elseif ($iSt -in "WARN","WARNING") { "−5 pts" } else { "0 pt" }
+        $rawImp = Get-ESNProp $_ @("ScoreImpact","scoreImpact") ""
+        $imp  = if ($rawImp -ne "") { "−$rawImp pts" } elseif ($iSt -in "ERROR","CRITICAL") { "−10 pts" } elseif ($iSt -in "WARN","WARNING") { "−5 pts" } else { "0 pt" }
         $col  = if ($iSt -in "ERROR","CRITICAL") { "#dc3545" } else { "#856404" }
+        $iCat = [System.Net.WebUtility]::HtmlEncode([string](Get-ESNProp $_ @("Category","domain")))
+        $iChk = [System.Net.WebUtility]::HtmlEncode([string](Get-ESNProp $_ @("Check","check")))
+        $iVal = [System.Net.WebUtility]::HtmlEncode([string](Get-ESNProp $_ @("Value","value")))
         "<tr>
-          <td style='padding:6px 10px;font-size:12px'><strong>$(Get-ESNProp $_ @("Category","domain"))</strong></td>
-          <td style='padding:6px 10px;font-size:12px'>$(Get-ESNProp $_ @("Check","check"))</td>
-          <td style='padding:6px 10px;font-size:12px'>$(Get-ESNProp $_ @("Value","value"))</td>
+          <td style='padding:6px 10px;font-size:12px'><strong>$iCat</strong></td>
+          <td style='padding:6px 10px;font-size:12px'>$iChk</td>
+          <td style='padding:6px 10px;font-size:12px'>$iVal</td>
           <td style='padding:6px 10px;font-size:12px;color:$col;font-weight:700'>$imp</td>
         </tr>"
     }) -join "`n"

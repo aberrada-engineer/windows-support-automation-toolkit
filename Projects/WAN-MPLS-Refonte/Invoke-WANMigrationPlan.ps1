@@ -52,7 +52,7 @@ function Write-WANLog {
     Add-Content -Path $LogFile -Value $line -Encoding UTF8
 }
 
-Write-WANLog "Démarrage de l'audit de performance et de bascule WAN..." "INFO"
+Write-WANLog "Démarrage de l'audit de performance et de bascule WAN (SimulateFailover=$SimulateFailover, ReportOnly=$ReportOnly)..." "INFO"
 
 # 1. Test MTU Path Discovery (Recherche de fragmentation)
 Write-WANLog "[1/4] Audit MTU Path Discovery (Vérification Don't Fragment DF-bit)..." "INFO"
@@ -78,13 +78,23 @@ $SiteResults = @()
 foreach ($site in $RemoteSiteIPs) {
     $pings = @()
     $lost = 0
-    for ($i = 1; $i -le 4; $i++) {
-        $p = Test-Connection -ComputerName $site -Count 1 -ErrorAction SilentlyContinue
-        if ($p) {
-            $pings += $p.ResponseTime
-        } else {
-            $lost++
+    $pinger = [System.Net.NetworkInformation.Ping]::new()
+    try {
+        for ($i = 1; $i -le 4; $i++) {
+            try {
+                $reply = $pinger.Send($site, 1000)
+                if ($reply -and $reply.Status -eq [System.Net.NetworkInformation.IPStatus]::Success) {
+                    $pings += [double]$reply.RoundtripTime
+                } else {
+                    $lost++
+                    if ($i -eq 1) { $lost = 4; break }
+                }
+            } catch {
+                $lost = 4; break
+            }
         }
+    } finally {
+        $pinger.Dispose()
     }
 
     $avgLatency = if ($pings.Count -gt 0) { [math]::Round(($pings | Measure-Object -Average).Average, 1) } else { 999 }

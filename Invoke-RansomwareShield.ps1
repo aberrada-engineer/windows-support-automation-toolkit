@@ -15,12 +15,14 @@
 
 [CmdletBinding(SupportsShouldProcess = $true)]
 param(
-    [switch]$IsolateHost = $true,
-    [switch]$RestoreNetwork = $false,
-    [switch]$CollectForensics = $true,
+    [switch]$IsolateHost,
+    [switch]$RestoreNetwork,
+    [switch]$CollectForensics,
     [string]$OutputPath = "",
     [switch]$Simulate
 )
+if (-not $PSBoundParameters.ContainsKey('IsolateHost')) { $IsolateHost = $true }
+if (-not $PSBoundParameters.ContainsKey('CollectForensics')) { $CollectForensics = $true }
 
 $ErrorActionPreference = "Stop"
 $schemaScript = Join-Path $PSScriptRoot "Core/ESN-OutputSchema.ps1"

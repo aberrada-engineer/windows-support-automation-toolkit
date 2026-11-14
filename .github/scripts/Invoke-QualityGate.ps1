@@ -1,4 +1,4 @@
-param(
+﻿param(
     [ValidateSet('All', 'AST', 'Analyzer', 'Pester')]
     [string]$Stage = 'All',
     [switch]$RunAnalyzer
@@ -53,11 +53,13 @@ try {
         $advisory = @($allFindings | Where-Object { $_.Severity -eq 'Warning' -and $_.RuleName -notin $secRules })
         if ($advisory.Count -gt 0) {
             Write-Host "[INFO] $($advisory.Count) avertissement(s) stylistique(s) PSScriptAnalyzer (non bloquants)." -ForegroundColor Yellow
-            foreach ($w in ($advisory | Select-Object -First 10)) {
+            foreach ($w in $advisory) {
                 if ($env:GITHUB_ACTIONS -eq 'true') {
                     Write-Host "::warning file=$($w.ScriptPath),line=$($w.Line)::PSScriptAnalyzer [$($w.ScriptName):$($w.Line)] $($w.RuleName): $($w.Message)"
                 }
             }
+        } else {
+            Write-Host "[OK] Zero avertissement consultatif PSScriptAnalyzer." -ForegroundColor Green
         }
         if ($blocking.Count -gt 0) {
             $blocking | Format-Table ScriptName, Line, Severity, RuleName, Message -AutoSize

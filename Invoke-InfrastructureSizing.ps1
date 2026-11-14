@@ -16,8 +16,9 @@
 param(
     [int]$EstimatedVMCount = 10,
     [int]$AnnualGrowthPercent = 20,
-    [switch]$OpenReport = $true
+    [switch]$OpenReport
 )
+if (-not $PSBoundParameters.ContainsKey('OpenReport')) { $OpenReport = $true }
 
 Clear-Host
 Write-Host "================================================================================" -ForegroundColor Cyan

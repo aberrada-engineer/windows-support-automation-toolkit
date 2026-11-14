@@ -79,7 +79,7 @@ function Invoke-ADAudit {
 
     $cutoff  = (Get-Date).AddDays(-$InactiveDays)
     $inactive = ($allUsers | Where-Object {
-        $_.Enabled -and ($_.LastLogonDate -eq $null -or $_.LastLogonDate -lt $cutoff)
+        $_.Enabled -and ($null -eq $_.LastLogonDate -or $_.LastLogonDate -lt $cutoff)
     }).Count
 
     Add-ESNResult "AD" "Utilisateurs total"     "INFO" $total       ""
@@ -169,7 +169,9 @@ function Invoke-ADUserReset {
 
     # Déverrouillage
     if ($user.LockedOut) {
-        if (-not $Simulation) { Unlock-ADAccount -Identity $Username }
+        if (-not $Simulation -and $PSCmdlet.ShouldProcess($Username, "Unlock-ADAccount")) {
+            Unlock-ADAccount -Identity $Username
+        }
         Add-ESNResult "AD" "Déverrouillage $Username" "OK" $(if($Simulation){"[SIM]"}else{"Déverrouillé"}) ""
     } else {
         Add-ESNResult "AD" "Verrouillage $Username" "OK" "Non verrouillé" "BadLogonCount: $($user.BadLogonCount)"
@@ -177,32 +179,30 @@ function Invoke-ADUserReset {
 
     if ($UnlockOnly) { return }
 
-    # Génération MDP si non fourni
+    # Génération MDP CSPRNG si non fourni
     $generatedPwd = ""
     if ($null -eq $NewPassword -or $NewPassword.Length -eq 0) {
-        $chars   = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$'
-        $generatedPwd = -join (1..10 | ForEach-Object { $chars[(Get-Random -Max $chars.Length)] })
-        $generatedPwd += 'Aa1!'  # garantit complexité
+        $generatedPwd = New-ESNRandomPassword -Length 16
         $secPwd = ([System.Net.NetworkCredential]::new('', $generatedPwd)).SecurePassword
     } else {
         $secPwd = $NewPassword
     }
 
-    if (-not $Simulation) {
+    if (-not $Simulation -and $PSCmdlet.ShouldProcess($Username, "Set-ADAccountPassword")) {
         Set-ADAccountPassword -Identity $Username `
             -NewPassword $secPwd -Reset
         Set-ADUser -Identity $Username -ChangePasswordAtLogon $true
     }
 
-    $pwdSummary = if ($generatedPwd) { $generatedPwd } else { "(SecureString fourni)" }
     Add-ESNResult "AD" "Reset MDP $Username" "OK" `
-        $(if($Simulation){"[SIM] MDP: $pwdSummary"}else{"MDP réinitialisé — À communiquer : $pwdSummary"}) `
+        $(if($Simulation){"[SIM] MDP généré (masqué)"}else{"MDP réinitialisé (masqué dans le rapport)"}) `
         "Changement requis à la prochaine connexion"
 
     Write-ESNLog "━━━ INFORMATIONS À TRANSMETTRE À L'UTILISATEUR ━━━" "SECTION"
     Write-ESNLog "Login      : $Username" "OK"
-    Write-ESNLog "MDP temp   : $pwdSummary" "WARN"
+    Write-ESNLog "MDP temp   : [MASQUÉ DANS LES JOURNAUX — Voir retour console/objet]" "INFO"
     Write-ESNLog "Instruction: Changer le MDP à la prochaine connexion" "INFO"
+    return [PSCustomObject]@{ Username = $Username; TemporaryPassword = $generatedPwd; Simulation = [bool]$Simulation }
 }
 
 # ─────────────────────────────────────────────────────────────
@@ -233,7 +233,9 @@ function New-ADUserESN {
     Import-Module ActiveDirectory -ErrorAction Stop
 
     # Nettoyage accent → ASCII
-    function Clean([string]$s) {
+    function Clean {
+        [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseApprovedVerbs', '')]
+        param([string]$s)
         $s.ToLower() -replace '[éèêë]','e' -replace '[àâä]','a' -replace '[îï]','i' `
                      -replace '[ôö]','o'   -replace '[ùûü]','u' -replace '[ç]','c' `
                      -replace '[^a-z0-9]',''
@@ -241,24 +243,25 @@ function New-ADUserESN {
 
     $fnClean = Clean $FirstName
     $lnClean = Clean $LastName
+    if (-not $fnClean) { $fnClean = "x" }
+    if (-not $lnClean) { $lnClean = "user" }
     $sam     = "$($fnClean.Substring(0,1))$lnClean"
     if ($sam.Length -gt 20) { $sam = $sam.Substring(0,20) }
 
     # Gérer doublons
     $base = $sam; $i = 1
-    while (Get-ADUser -Filter "SamAccountName -eq '$sam'" -EA SilentlyContinue) {
+    while (Get-ADUser -Filter { SamAccountName -eq $sam } -EA SilentlyContinue) {
         $sam = "$base$i"; $i++
     }
 
     $upn     = "$sam@$DomainFQDN"
     $display = "$($LastName.ToUpper()) $FirstName"
-    $chars   = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$'
-    $mdpTemp = (-join (1..10 | ForEach-Object { $chars[(Get-Random -Max $chars.Length)] })) + 'Aa1!'
+    $mdpTemp = New-ESNRandomPassword -Length 16
 
     $ou = if ($OUPath) { $OUPath } else { "CN=Users,$((Get-ADDomain).DistinguishedName)" }
 
     try {
-        if (-not $Simulation) {
+        if (-not $Simulation -and $PSCmdlet.ShouldProcess($upn, "New-ADUser")) {
             $params = @{
                 Name                  = $display
                 GivenName             = $FirstName
@@ -275,7 +278,7 @@ function New-ADUserESN {
                 Path                  = $ou
             }
             if ($Manager) {
-                $mgr = Get-ADUser -Filter "SamAccountName -eq '$Manager'" -EA SilentlyContinue
+                $mgr = Get-ADUser -Filter { SamAccountName -eq $Manager } -EA SilentlyContinue
                 if ($mgr) { $params.Manager = $mgr.DistinguishedName }
             }
             New-ADUser @params
@@ -286,7 +289,7 @@ function New-ADUserESN {
         Write-ESNLog "Display  : $display"  "OK"
         Write-ESNLog "Login    : $sam"       "OK"
         Write-ESNLog "UPN      : $upn"       "OK"
-        Write-ESNLog "MDP temp : $mdpTemp"   "WARN"
+        Write-ESNLog "MDP temp : [MASQUÉ DANS LES JOURNAUX]" "INFO"
         if ($Simulation) { Write-ESNLog "[MODE SIMULATION — aucun compte créé]" "WARN" }
 
         return [PSCustomObject]@{ Sam=$sam; UPN=$upn; Password=$mdpTemp; Display=$display }
@@ -296,4 +299,4 @@ function New-ADUserESN {
     }
 }
 
-Export-ModuleMember -Function @('Invoke-ADAudit','Invoke-ADUserReset','New-ADUserESN','Test-ADAvailable')
+Export-ModuleMember -Function @('Invoke-ADAudit','Invoke-ADUserReset','New-ADUserESN','New-ESNRandomPassword','Test-ADAvailable')

@@ -86,7 +86,12 @@ if ($CbsReboot -or $WuReboot -or $PendingFileRename) {
     Write-Host "  -> Aucun redémarrage en attente (Système à jour)." -ForegroundColor Green
 }
 
-# 4. Forçage de la synchronisation si demandé
+# 4. Forçage de la synchronisation / Reset cache si demandé
+if ($ResetWuCache) {
+    Write-Host "[*] Réinitialisation du cache Windows Update demandée (-ResetWuCache)..." -ForegroundColor Yellow
+    Stop-Service -Name wuauserv, bits -Force -ErrorAction SilentlyContinue
+    Start-Service -Name wuauserv, bits -ErrorAction SilentlyContinue
+}
 if ($ForceSync) {
     Write-Host "[*] Déclenchement forcé de la synchronisation WSUS (USOClient & wuauclt)..." -ForegroundColor Cyan
     Start-Process -FilePath "usoclient.exe" -ArgumentList "StartScan" -ErrorAction SilentlyContinue

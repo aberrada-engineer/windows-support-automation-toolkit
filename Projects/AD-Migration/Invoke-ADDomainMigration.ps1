@@ -19,9 +19,10 @@ param(
     [string]$TargetDomain = "target.local",
     [string]$SharePathToMigrate = "", # Ex: D:\Partages\Comptabilite
     [string]$OutputDirectory = "",
-    [switch]$PreserveSIDHistory = $true,
-    [switch]$ExportAclOnly = $false
+    [switch]$PreserveSIDHistory,
+    [switch]$ExportAclOnly
 )
+if (-not $PSBoundParameters.ContainsKey('PreserveSIDHistory')) { $PreserveSIDHistory = $true }
 
 $repoCore = Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) "Core\ESN-Core.psm1"
 if (-not (Get-Command Get-ESNToolkitRoot -ErrorAction SilentlyContinue) -and (Test-Path $repoCore)) {
@@ -50,6 +51,10 @@ if ($SharePathToMigrate -and (Test-Path $SharePathToMigrate)) {
     Write-Host "  [OK] Permissions NTFS sauvegardées avec succès dans : $aclBackupFile" -ForegroundColor Green
 } else {
     Write-Host "[1/4] Aucun chemin de partage spécifié (-SharePathToMigrate ignoré)." -ForegroundColor DarkGray
+}
+
+if ($ExportAclOnly) {
+    Write-Host "  [i] Mode -ExportAclOnly actif : sauvegarde prioritaire des ACL NTFS." -ForegroundColor Cyan
 }
 
 # 2. INVENTAIRE DES COMPTES UTILISATEURS & GROUPES A MIGRER

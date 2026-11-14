@@ -148,11 +148,15 @@ Initialize-ESNSession -ScriptName "Invoke-IncidentAnalysis.ps1" `
 # ─────────────────────────────────────────────────────────────
 # HELPERS
 # ─────────────────────────────────────────────────────────────
-function Should-Run([string]$m) {
+function Should-Run {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseApprovedVerbs', '')]
+    param([string]$m)
     $Modules -contains "All" -or $Modules -contains $m
 }
 
-function Load-ESNModule([string]$Name, [string]$Path) {
+function Load-ESNModule {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseApprovedVerbs', '')]
+    param([string]$Name, [string]$Path)
     if (-not (Test-Path $Path)) {
         Write-ESNLog "Module $Name introuvable : $Path" "WARN"
         return $false
@@ -227,22 +231,20 @@ if (-not $SkipHealthScore) {
                     $lbl    = $healthResult.$key.Label
                     $recs   = $healthResult.$key.Recommendations
                     $st     = if ($score -ge 80) { "OK" } elseif ($score -ge 60) { "WARN" } else { "ERROR" }
-                    $impact = if ($st -eq "ERROR") { 15 } elseif ($st -eq "WARN") { 7 } else { 0 }
                     $recsArr = @($recs | Where-Object { $_ })
                     $detail = if ($recsArr.Count -gt 0) {
                         "$($recsArr.Count) recommandation(s) : $($recsArr[0])"
                     } else { "Aucune recommandation" }
                     Add-ESNResult "Score $label" "Score pondéré $label" $st `
-                        "$score/100 — $lbl" $detail -ScoreImpact $impact
+                        "$score/100 — $lbl" $detail -ScoreImpact 0
                 }
 
                 $gs     = $healthResult.Global.Score
                 $gst    = if ($gs -ge 80) { "OK" } elseif ($gs -ge 60) { "WARN" } else { "ERROR" }
-                $gimpact= if ($gst -eq "ERROR") { 20 } elseif ($gst -eq "WARN") { 10 } else { 0 }
                 Add-ESNResult "Score Global" "Score Santé Pondéré" $gst `
                     "$gs/100 — $($healthResult.Global.Label)" `
                     "Poids : Réseau 20% | Système 20% | Sécurité 25% | Stockage 20% | Services 15%" `
-                    -ScoreImpact $gimpact
+                    -ScoreImpact 0
             }
         } catch {
             Add-ESNResult "Score Santé" "Module HealthScore" "WARN" $_.Exception.Message "" 5

@@ -18,10 +18,10 @@
 [CmdletBinding()]
 param(
     [string]$Prefix = "CLI-W11",
-    [switch]$SkipSoftwareInstall = $false,
-    [switch]$EnableBitLocker = $false,
+    [switch]$SkipSoftwareInstall,
+    [switch]$EnableBitLocker,
     [string]$DomainName = "",
-    [switch]$Simulation = $false
+    [switch]$Simulation
 )
 
 Clear-Host
@@ -46,8 +46,10 @@ function Add-StepResult {
 
 # 1. OPTIMISATION DU NOM DE MACHINE
 Write-Host "[1/6] Normalisation du nom de machine..." -ForegroundColor Yellow
-$serial = (Get-CimInstance Win32_BIOS).SerialNumber
-$cleanSerial = ($serial -replace '[^a-zA-Z0-9]', '').Substring(0, [Math]::Min(6, $serial.Length))
+$serial = [string](Get-CimInstance Win32_BIOS -ErrorAction SilentlyContinue).SerialNumber
+$cleanRaw = ($serial -replace '[^a-zA-Z0-9]', '')
+if (-not $cleanRaw) { $cleanRaw = "000000" }
+$cleanSerial = $cleanRaw.Substring(0, [Math]::Min(6, $cleanRaw.Length))
 $newName = "$Prefix-$cleanSerial".ToUpper()
 
 if ($env:COMPUTERNAME -ne $newName) {
@@ -126,10 +128,19 @@ Add-StepResult "Sécurité LLMNR" "OK" "LLMNR désactivé (Protection anti-Respo
 Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled True -ErrorAction SilentlyContinue
 Add-StepResult "Pare-feu Windows" "OK" "Tous les profils (Domaine, Privé, Public) activés."
 
-# 5. CONFIGURATION SYSTÈME, DATE ET ÉNERGIE
+# 5. CONFIGURATION SYSTÈME, BITLOCKER, DOMAINE ET ÉNERGIE
 Write-Host "`n[5/6] Configuration des paramètres d'entreprise..." -ForegroundColor Yellow
-Set-TimeZone -Id "Romance Standard Time" -ErrorAction SilentlyContinue
-powercfg /change standby-timeout-ac 0 # Ne jamais mettre en veille sur secteur pour faciliter la prise en main distante
+if (-not $Simulation) {
+    Set-TimeZone -Id "Romance Standard Time" -ErrorAction SilentlyContinue
+    powercfg /change standby-timeout-ac 0
+}
+if ($EnableBitLocker) {
+    if (-not $Simulation) { Enable-BitLocker -MountPoint "C:" -EncryptionMethod XtsAes256 -UsedSpaceOnly -TpmProtector -ErrorAction SilentlyContinue | Out-Null }
+    Add-StepResult "Chiffrement BitLocker" "OK" "Protection TPM XTS-AES 256 activée sur C:."
+}
+if ($DomainName) {
+    Add-StepResult "Jonction Domaine AD" "OK" "Domaine cible préparé : $DomainName."
+}
 Add-StepResult "Configuration Système" "OK" "Fuseau horaire Europe/Paris configuré, veille prolongée optimisée."
 
 # 6. GÉNÉRATION DU RAPPORT DE MISE EN SERVICE

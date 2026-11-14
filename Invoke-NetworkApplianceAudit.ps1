@@ -18,8 +18,9 @@ param(
     [string]$ApplianceIP = "",
     [ValidateSet("FortiGate", "Stormshield", "Aruba", "Cisco")]
     [string]$ApplianceType = "FortiGate",
-    [switch]$OpenReport = $true
+    [switch]$OpenReport
 )
+if (-not $PSBoundParameters.ContainsKey('OpenReport')) { $OpenReport = $true }
 
 Clear-Host
 Write-Host "================================================================================" -ForegroundColor Cyan
@@ -47,12 +48,12 @@ if ([string]::IsNullOrWhiteSpace($GatewayIP)) {
     $GatewayIP = (Get-NetRoute -DestinationPrefix "0.0.0.0/0" -ErrorAction SilentlyContinue | Select-Object -First 1).NextHop
 }
 
+Import-Module "$PSScriptRoot\Core\ESN-Core.psm1" -ErrorAction SilentlyContinue
 Write-Host " [*] Audit de la passerelle par défaut ($GatewayIP)..." -ForegroundColor Yellow
 if ($GatewayIP) {
-    $pings = Test-Connection -ComputerName $GatewayIP -Count 4 -ErrorAction SilentlyContinue
-    if ($pings) {
-        $avgLat = [math]::Round(($pings | Measure-Object -Property ResponseTime -Average).Average, 1)
-        Add-NetCheck -Element "Passerelle Principale ($GatewayIP)" -Value "$avgLat ms" -Status "OK" -Detail "Excellente réactivité sans perte de paquets."
+    $gwStat = if (Get-Command Measure-ESNPingLatency -ErrorAction SilentlyContinue) { Measure-ESNPingLatency -ComputerName $GatewayIP -Count 4 -TimeoutMs 1000 } else { $null }
+    if ($gwStat -and $gwStat.Reachable) {
+        Add-NetCheck -Element "Passerelle Principale ($GatewayIP)" -Value "$($gwStat.AvgMs) ms" -Status "OK" -Detail "Excellente réactivité sans perte de paquets."
     } else {
         Add-NetCheck -Element "Passerelle Principale ($GatewayIP)" -Value "Injoignable" -Status "CRITIQUE" -Detail "Passerelle par défaut ne répond pas aux requêtes ICMP."
     }
@@ -61,7 +62,7 @@ if ($GatewayIP) {
 # 2. TEST DES TUNNELS VPN IPSEC (IKE 500 / NAT-T 4500)
 if ($RemoteVpnIP) {
     Write-Host "`n [*] Contrôle de la liaison VPN IPsec vers le site distant ($RemoteVpnIP)..." -ForegroundColor Yellow
-    $vpnPing = Test-Connection -ComputerName $RemoteVpnIP -Count 2 -Quiet -TimeoutSeconds 1
+    $vpnPing = if (Get-Command Test-ESNHostPing -ErrorAction SilentlyContinue) { Test-ESNHostPing -ComputerName $RemoteVpnIP -TimeoutMs 1000 } else { Test-Connection -ComputerName $RemoteVpnIP -Count 1 -Quiet -ErrorAction SilentlyContinue }
     
     # Test port UDP 500 (IKE) via UDP Client
     $udp500 = try {
@@ -95,7 +96,8 @@ Import-Module "$PSScriptRoot\Core\ESN-Core.psm1" -ErrorAction SilentlyContinue
 $backupDir = if (Get-Command Get-ESNToolkitRoot -ErrorAction SilentlyContinue) { Get-ESNToolkitRoot -SubFolder "Network_Backups" -Ensure } else { Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/Network_Backups" }
 if (-not (Test-Path $backupDir)) { New-Item $backupDir -ItemType Directory -Force | Out-Null }
 
-Add-NetCheck -Element "Archivage Configuration $ApplianceType" -Value "Dépôt Prêt" -Status "OK" -Detail "Répertoire de sauvegarde centralisé initialisé : $backupDir"
+$appLabel = if ($ApplianceIP) { "$ApplianceType ($ApplianceIP)" } else { $ApplianceType }
+Add-NetCheck -Element "Archivage Configuration $appLabel" -Value "Dépôt Prêt" -Status "OK" -Detail "Répertoire de sauvegarde centralisé initialisé : $backupDir"
 
 # 5. GENERATION DU RAPPORT HTML
 $reportDir  = if (Get-Command Get-ESNToolkitRoot -ErrorAction SilentlyContinue) { Get-ESNToolkitRoot -SubFolder "Reports" -Ensure } else { Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/Reports" }

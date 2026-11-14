@@ -19,15 +19,17 @@ param(
     [string]$HypervisorPlatform = "Auto",
     [string]$ClusterEndpoint = "",
     [int]$SnapshotMaxAgeHours = 72,
-    [switch]$OpenReport = $true
+    [switch]$OpenReport
 )
+if (-not $PSBoundParameters.ContainsKey('OpenReport')) { $OpenReport = $true }
 
 Clear-Host
 Write-Host "================================================================================" -ForegroundColor Cyan
 Write-Host "   🖥️  AUDIT HYPERVISEURS & CLUSTERS HA (VMWARE & NUTANIX) — ESN-TOOLKIT" -ForegroundColor White
 Write-Host "       Contrôle Clusters, Datastores & Chasse aux Snapshots — Amine BERRADA" -ForegroundColor Gray
 Write-Host "================================================================================" -ForegroundColor Cyan
-Write-Host "  Plateforme : $HypervisorPlatform | Règle Snapshots : Max $SnapshotMaxAgeHours heures`n" -ForegroundColor Yellow
+$epInfo = if ($ClusterEndpoint) { " ($ClusterEndpoint)" } else { "" }
+Write-Host "  Plateforme : $HypervisorPlatform$epInfo | Règle Snapshots : Max $SnapshotMaxAgeHours heures`n" -ForegroundColor Yellow
 
 $virtResults = [System.Collections.Generic.List[PSCustomObject]]::new()
 
