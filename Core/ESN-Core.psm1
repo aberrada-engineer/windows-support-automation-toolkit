@@ -200,9 +200,9 @@ function Export-ESNReport {
     $scoreColor = if ($score -ge 80) { "#28a745" } elseif ($score -ge 50) { "#ffc107" } else { "#dc3545" }
     $scoreLabel = if ($score -ge 80) { "Bon" }     elseif ($score -ge 50) { "Dégradé" } else { "Critique" }
 
-    $cntOK   = ($script:Session.Results | Where-Object Status -eq "OK").Count
-    $cntWARN = ($script:Session.Results | Where-Object Status -eq "WARN").Count
-    $cntERR  = ($script:Session.Results | Where-Object Status -eq "ERROR").Count
+    $cntOK   = @($script:Session.Results | Where-Object Status -eq "OK").Count
+    $cntWARN = @($script:Session.Results | Where-Object Status -eq "WARN").Count
+    $cntERR  = @($script:Session.Results | Where-Object Status -eq "ERROR").Count
     $cntTOT  = $script:Session.Results.Count
 
     # Lignes tableau
@@ -229,12 +229,12 @@ function Export-ESNReport {
     # Blocs erreurs / warnings
     $errBlock  = if ($script:Session.Errors.Count -gt 0) {
         "<div class='alert alert-danger'><strong>❌ Erreurs ($($script:Session.Errors.Count))</strong><ul>" +
-        ($script:Session.Errors | ForEach-Object { "<li>$_</li>" }) -join "" + "</ul></div>"
+        (($script:Session.Errors | ForEach-Object { "<li>$_</li>" }) -join "") + "</ul></div>"
     } else { "" }
 
     $warnBlock = if ($script:Session.Warnings.Count -gt 0) {
         "<div class='alert alert-warning'><strong>⚠️ Avertissements ($($script:Session.Warnings.Count))</strong><ul>" +
-        ($script:Session.Warnings | ForEach-Object { "<li>$_</li>" }) -join "" + "</ul></div>"
+        (($script:Session.Warnings | ForEach-Object { "<li>$_</li>" }) -join "") + "</ul></div>"
     } else { "" }
 
     $html = @"
@@ -430,11 +430,11 @@ function Show-ESNSummary {
     Write-Host "" -ForegroundColor Cyan
     Write-Host "║  Durée    : $dur" -ForegroundColor Cyan
     Write-Host "║  OK       : " -NoNewline -ForegroundColor Cyan
-    Write-Host "$(($script:Session.Results | Where-Object Status -eq 'OK').Count)" -ForegroundColor Green
+    Write-Host "$(@($script:Session.Results | Where-Object Status -eq 'OK').Count)" -ForegroundColor Green
     Write-Host "║  Warnings : " -NoNewline -ForegroundColor Cyan
-    Write-Host "$(($script:Session.Results | Where-Object Status -eq 'WARN').Count)" -ForegroundColor Yellow
+    Write-Host "$(@($script:Session.Results | Where-Object Status -eq 'WARN').Count)" -ForegroundColor Yellow
     Write-Host "║  Erreurs  : " -NoNewline -ForegroundColor Cyan
-    Write-Host "$(($script:Session.Results | Where-Object Status -eq 'ERROR').Count)" -ForegroundColor Red
+    Write-Host "$(@($script:Session.Results | Where-Object Status -eq 'ERROR').Count)" -ForegroundColor Red
     Write-Host "║  Log      : $($script:Session.LogFile)" -ForegroundColor DarkGray
     Write-Host "╚══════════════════════════════════════════╝" -ForegroundColor Cyan
 }

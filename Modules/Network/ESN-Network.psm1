@@ -64,12 +64,23 @@ function Invoke-NetworkDiag {
         $out.InternetPing = Test-Connection '8.8.8.8' -Count 1 -Quiet -ErrorAction SilentlyContinue
 
         # ── Latence (5 pings) ───────────────────────────
-        $pings = Test-Connection '8.8.8.8' -Count 5 -ErrorAction SilentlyContinue
-        $out.LatencyAvg = if ($pings) {
-            [math]::Round(($pings | Measure-Object ResponseTime -Average).Average, 0)
+        $rawPings = @(Test-Connection '8.8.8.8' -Count 5 -ErrorAction SilentlyContinue | ForEach-Object {
+            if ($_.PSObject.Properties['Replies']) { $_.Replies } else { $_ }
+        })
+        $pings = @($rawPings | Where-Object {
+            ($_.PSObject.Properties['StatusCode'] -and $_.StatusCode -eq 0) -or
+            ($_.PSObject.Properties['Status'] -and "$($_.Status)" -eq 'Success')
+        })
+        $latVals = @($pings | ForEach-Object {
+            if ($_.PSObject.Properties['ResponseTime']) { [double]$_.ResponseTime }
+            elseif ($_.PSObject.Properties['Latency']) { [double]$_.Latency }
+            elseif ($_.PSObject.Properties['RoundtripTime']) { [double]$_.RoundtripTime }
+        } | Where-Object { $null -ne $_ })
+        $out.LatencyAvg = if ($latVals.Count -gt 0) {
+            [math]::Round(($latVals | Measure-Object -Average).Average, 0)
         } else { 9999 }
-        $out.LatencyMax = if ($pings) {
-            ($pings | Measure-Object ResponseTime -Maximum).Maximum
+        $out.LatencyMax = if ($latVals.Count -gt 0) {
+            ($latVals | Measure-Object -Maximum).Maximum
         } else { 9999 }
 
         # ── Proxy ────────────────────────────────────────

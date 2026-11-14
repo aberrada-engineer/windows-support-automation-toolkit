@@ -183,7 +183,7 @@ function _Collect-MachineData {
             [math]::Round(((Get-Date) - $def.QuickScanStartTime).TotalDays, 0)
         } else { 999 }
 
-        $fw = try { @(Get-NetFirewallProfile -ErrorAction SilentlyContinue) } catch { @() }
+        $fw = @(try { Get-NetFirewallProfile -ErrorAction SilentlyContinue } catch { })
         $fwDom = $fw | Where-Object Name -eq 'Domain'  | Select-Object -First 1
         $fwPri = $fw | Where-Object Name -eq 'Private' | Select-Object -First 1
         $fwPub = $fw | Where-Object Name -eq 'Public'  | Select-Object -First 1
@@ -212,13 +212,13 @@ function _Collect-MachineData {
         $uac = if ($uacObj -and $uacObj.PSObject.Properties['EnableLUA']) { $uacObj.EnableLUA } else { 0 }
         $data.Sec.UAC        = $uac -eq 1
 
-        $adminLocal = try {
-            @(Get-LocalUser -ErrorAction SilentlyContinue |
-                Where-Object { $_.Name -in @('Administrateur','Administrator') -and $_.Enabled })
+        $adminLocal = @(try {
+            Get-LocalUser -ErrorAction SilentlyContinue |
+                Where-Object { $_.Name -in @('Administrateur','Administrator') -and $_.Enabled }
         } catch {
-            @(Get-CimInstance Win32_UserAccount -Filter "LocalAccount = TRUE" -ErrorAction SilentlyContinue |
-                Where-Object { $_.Name -in @('Administrateur','Administrator') -and -not $_.Disabled })
-        }
+            Get-CimInstance Win32_UserAccount -Filter "LocalAccount = TRUE" -ErrorAction SilentlyContinue |
+                Where-Object { $_.Name -in @('Administrateur','Administrator') -and -not $_.Disabled }
+        })
         $data.Sec.AdminLocalActive = $adminLocal.Count -gt 0
 
         # Certificats expirant dans 30j

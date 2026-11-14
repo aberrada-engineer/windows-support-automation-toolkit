@@ -85,7 +85,7 @@ function Build-ESNReport {
     if (Test-Path $IncidentPatternsPath) {
         try {
             $kb = Get-Content $IncidentPatternsPath -Raw -Encoding UTF8 | ConvertFrom-Json
-            $patterns = $kb.patterns
+            $patterns = @($kb.patterns | Where-Object { $null -ne $_ })
         } catch {
             Write-Warning "IncidentPatterns load skipped ($IncidentPatternsPath): $($_.Exception.Message)"
         }
@@ -223,19 +223,20 @@ function Build-ESNReport {
     $recErrors = @(Get-ESNProp $SessionData @("Errors") @()) + @(Get-ESNProp $SessionData @("Warnings") @())
     $recHtml   = if ($recErrors.Count -gt 0) {
         "<ul style='margin:0;padding-left:20px'>" +
-        ($recErrors | ForEach-Object {
+        (($recErrors | ForEach-Object {
             $isCrit = $_ -like "*CRITIQUE*" -or $_ -like "*CRITICAL*"
             $col    = if ($isCrit) { "#721c24" } else { "#856404" }
             "<li style='margin:6px 0;color:$col;font-size:13px'>$_</li>"
-        }) -join "" + "</ul>"
+        }) -join "") + "</ul>"
     } else {
         "<p style='color:#155724;font-weight:600'>&#10003; Aucune recommandation — poste en bonne santé</p>"
     }
 
     # ── Remédiations ──────────────────────────────────────────
     $remRows = ""
-    if ($RemediationData.Count -gt 0) {
-        $remRows = ($RemediationData | ForEach-Object {
+    $remArr = @($RemediationData | Where-Object { $null -ne $_ })
+    if ($remArr.Count -gt 0) {
+        $remRows = ($remArr | ForEach-Object {
             $status = if (-not $_.Detected)         { "Non détecté" }
                       elseif ($_.Applied -and $_.Success) { "Corrigé" }
                       elseif ($_.Applied)            { "Échec" }
@@ -426,8 +427,8 @@ function Build-ESNReport {
   <div class="counter"><div class="num" style="color:#856404">$cntWarn</div><div class="lbl">Avertissements</div></div>
   <div class="counter"><div class="num" style="color:#dc3545">$cntErr</div><div class="lbl">Critiques</div></div>
   <div class="counter"><div class="num">$cntTotal</div><div class="lbl">Total checks</div></div>
-  $(if ($RemediationData.Count -gt 0) {
-    $fixed = @($RemediationData | Where-Object { $_.Applied -and $_.Success }).Count
+  $(if ($remArr.Count -gt 0) {
+    $fixed = @($remArr | Where-Object { $_.Applied -and $_.Success }).Count
     "<div class='counter'><div class='num' style='color:#0078d4'>$fixed</div><div class='lbl'>Corrig&eacute;s</div></div>"
   })
 </div>
@@ -444,7 +445,7 @@ $(if ($matchedPatterns.Count -gt 0) {
 })
 
 <!-- REMÉDIATIONS -->
-$(Make-Collapsible "rem" "&#128295; R&eacute;m&eacute;diations ex&eacute;cut&eacute;es" "$($RemediationData.Count)" "#0078d4" $remTable)
+$(Make-Collapsible "rem" "&#128295; R&eacute;m&eacute;diations ex&eacute;cut&eacute;es" "$($remArr.Count)" "#0078d4" $remTable)
 
 <!-- TOUS LES CHECKS -->
 $(Make-Collapsible "checks" "&#128203; D&eacute;tail de tous les checks" "$cntTotal" "#555" $checksTable)
