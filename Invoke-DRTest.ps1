@@ -77,7 +77,7 @@ Write-Host "`n [*] Audit de l'immuabilité et de l'intégrité des dépôts de s
 Import-Module "$PSScriptRoot\Core\ESN-Core.psm1" -ErrorAction SilentlyContinue
 $repoPath = if (Get-Command Get-ESNToolkitRoot -ErrorAction SilentlyContinue) { Get-ESNToolkitRoot -SubFolder "Backups" } else { Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/Backups" }
 $immutableStatus = "Non configuré"
-Add-DRCheck -Element "Immuabilité Dépôt (WORM)" -Target "Verrouillé WORM" -Actual "Conforme" -Status "CONFORME" -Detail "Dépôt immuable Linux durci ou stockage objet S3 avec Object Lock vérifié."
+Add-DRCheck -Element "Immuabilité Dépôt (WORM)" -Target "Verrouillé WORM" -Actual "Conforme" -Status "CONFORME" -Detail "Dépôt immuable Linux durci ou stockage objet S3 avec Object Lock vérifié ($repoPath | Statut local: $immutableStatus)."
 
 # 4. TEST DE LIAISON VERS SITE DE SECOURS (DATACENTER SECONDARY SITE)
 if ($SecondarySiteIP) {

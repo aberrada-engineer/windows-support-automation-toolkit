@@ -104,6 +104,7 @@ begin {
     }
 
     function Get-LinearRunwayDays {
+        [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '')]
         param(
             [double]$CurrentUsedPct,
             [double]$DailyGrowthRatePct,

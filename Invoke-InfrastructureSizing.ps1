@@ -61,7 +61,7 @@ $ramPerNode = [math]::Ceiling($totalRequiredRAM / ($nodesCount - 1))
 
 Write-Host "  -> Pour héberger $EstimatedVMCount VMs avec tolérance de panne (N+1) :" -ForegroundColor Green
 Write-Host "     * Architecture recommandée : Cluster de $nodesCount nœuds hyperconvergés (ex: Nutanix ou VMware vSphere)" -ForegroundColor Green
-Write-Host "     * Dimensionnement par nœud  : 16 Coeurs CPU / $ramPerNode Go RAM minimum" -ForegroundColor Green
+Write-Host "     * Dimensionnement par nœud  : 16 Coeurs CPU ($physicalCoresNeeded coeurs physiques requis) / $ramPerNode Go RAM minimum" -ForegroundColor Green
 
 # 4. DIMENSIONNEMENT SAUVEGARDE 3-2-1
 $backupFullGB = $usedDiskGB

@@ -59,6 +59,7 @@ $AuDesc = switch ($AuOptions) {
 $WsusTarget = if ($WsusServerUrl) { $WsusServerUrl } elseif ($ConfiguredWsus) { $ConfiguredWsus } else { "http://wsus.corp.lan:8530" }
 
 Write-Host "  -> Serveur WSUS configuré : $(if ($ConfiguredWsus) { $ConfiguredWsus } else { 'Aucun (Windows Update direct)' })" -ForegroundColor Gray
+Write-Host "  -> Serveur Status WSUS    : $(if ($ConfiguredStatus) { $ConfiguredStatus } else { 'N/A' }) (UseWUServer=$UseWus)" -ForegroundColor Gray
 Write-Host "  -> Mode AUOptions         : $AuDesc ($AuOptions)" -ForegroundColor Gray
 
 # 2. Test de connectivité WSUS

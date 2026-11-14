@@ -25,6 +25,7 @@ Set-StrictMode -Version Latest
 
 function _MIG-FolderStats {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseApprovedVerbs', '')]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '')]
     param([string]$Path)
     if (-not (Test-Path $Path)) { return @{ Exists=$false; Files=0; SizeMB=0; SizeBytes=0 } }
     $items = Get-ChildItem $Path -Recurse -ErrorAction SilentlyContinue
@@ -535,7 +536,7 @@ function Invoke-UserStateCapture {
         L "Aucune anomalie détectée" "OK"
     }
 
-    L "Capture terminée — $totalMB Mo — $backupDir" "OK"
+    L "Capture terminée — $totalMB Mo — $backupDir (journal: $logFile)" "OK"
 
     Write-Host ""
     Write-Host "  Backup    : $backupDir" -ForegroundColor Yellow

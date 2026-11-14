@@ -166,7 +166,7 @@ function Build-ESNReport {
   </label>
   <div style='display:none' id='body-$Id'>$Body</div>
 </div>
-<style>#sec-$Id:checked ~ #body-$Id { display:block !important }</style>
+<style>#sec-${Id}:checked ~ #body-$Id { display:block !important }</style>
 "@
     }
 

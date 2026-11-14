@@ -625,6 +625,7 @@ function _Score-Storage {
 # ─────────────────────────────────────────────────────────────
 function _Score-Services {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseApprovedVerbs', '')]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '')]
     param($svc)
 
     $points  = 100

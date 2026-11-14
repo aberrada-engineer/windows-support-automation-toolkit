@@ -144,6 +144,7 @@ if (Test-Path $Paths.ReportBuilder) {
 Initialize-ESNSession -ScriptName "Invoke-IncidentAnalysis.ps1" `
                       -IncidentId $IncidentId `
                       -ComputerName $ComputerName
+Write-ESNLog "Périmètre modules : $($Modules -join ', ')" "INFO"
 
 # ─────────────────────────────────────────────────────────────
 # HELPERS

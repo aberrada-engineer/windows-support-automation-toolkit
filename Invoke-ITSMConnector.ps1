@@ -84,7 +84,7 @@ if ($Target -eq "Teams") {
     } | ConvertTo-Json -Depth 5
 
     try {
-        $response = Invoke-RestMethod -Uri $WebhookUrl -Method Post -Body $Payload -ContentType "application/json"
+        [void](Invoke-RestMethod -Uri $WebhookUrl -Method Post -Body $Payload -ContentType "application/json")
         Write-Host "[+] Alerte transmise avec succès au canal Teams !" -ForegroundColor Green
     } catch {
         Write-Host "[-] Échec de transmission Teams : $_" -ForegroundColor Red

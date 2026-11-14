@@ -128,6 +128,35 @@ function Invoke-ADAudit {
 }
 
 # ─────────────────────────────────────────────────────────────
+# HELPER CSPRNG — Génération mot de passe temporaire robuste
+# ─────────────────────────────────────────────────────────────
+function New-ESNRandomPassword {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '')]
+    param([int]$Length = 16)
+    $upper = "ABCDEFGHJKLMNPQRSTUVWXYZ"
+    $lower = "abcdefghijkmnpqrstuvwxyz"
+    $digits = "23456789"
+    $special = "!@#$%^&*-_=+"
+    $all = $upper + $lower + $digits + $special
+    $bytes = New-Object byte[] ($Length * 2)
+    $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    try { $rng.GetBytes($bytes) } finally { $rng.Dispose() }
+    $chars = [System.Collections.Generic.List[char]]::new()
+    $chars.Add($upper[$bytes[0] % $upper.Length])
+    $chars.Add($lower[$bytes[1] % $lower.Length])
+    $chars.Add($digits[$bytes[2] % $digits.Length])
+    $chars.Add($special[$bytes[3] % $special.Length])
+    for ($i = 4; $i -lt $Length; $i++) {
+        $chars.Add($all[$bytes[$i] % $all.Length])
+    }
+    for ($i = $chars.Count - 1; $i -gt 0; $i--) {
+        $j = $bytes[$Length + ($i % $Length)] % ($i + 1)
+        $tmp = $chars[$i]; $chars[$i] = $chars[$j]; $chars[$j] = $tmp
+    }
+    return (-join $chars)
+}
+
+# ─────────────────────────────────────────────────────────────
 # RESET / UNLOCK UTILISATEUR
 # ─────────────────────────────────────────────────────────────
 function Invoke-ADUserReset {

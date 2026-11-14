@@ -54,6 +54,7 @@ $P3Tickets = 42
 $MttrMinutes = 28
 $BackupSuccessRate = 100.0
 $AntivirusCoverage = 100.0
+Write-Host "  -> Disponibilité : $ActualSLA% (Uptime: $UptimeDays j) | Volume tickets : $TotalTickets" -ForegroundColor Gray
 
 Write-Host "[2/4] Analyse des seuils de capacité et de continuité..." -ForegroundColor White
 $Disks = Get-CimInstance -ClassName Win32_LogicalDisk -Filter "DriveType=3" -ErrorAction SilentlyContinue

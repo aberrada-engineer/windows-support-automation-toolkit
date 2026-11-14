@@ -733,11 +733,10 @@ function Invoke-Remediation {
     Write-Host "╚══════════════════════════════════════════════════╝`n" -ForegroundColor Cyan
 
     # Essayer d'utiliser le logger ESN-Core si disponible
-    $coreLoaded = $null -ne (Get-Command Write-ESNLog -EA SilentlyContinue)
     function RLog {
         [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseApprovedVerbs', '')]
         param([string]$m, [string]$l = "INFO")
-        if ($coreLoaded) { Write-ESNLog $m $l }
+        if (Get-Command Write-ESNLog -EA SilentlyContinue) { Write-ESNLog $m $l }
         else {
             $c = @{INFO="Cyan";OK="Green";WARN="Yellow";ERROR="Red";SECTION="Magenta"}
             $fg = if ($c.ContainsKey($l)) { $c[$l] } else { "White" }
