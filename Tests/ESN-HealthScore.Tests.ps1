@@ -593,13 +593,19 @@ Describe "ESN-HealthScore — Score Global et Pondération" -Tag "Scoring","Glob
 
 Describe "ESN-HealthScore — Invoke-HealthScore (intégration)" -Tag "Integration" {
 
+    BeforeAll {
+        $script:LocalScoreResult = $null
+    }
+
     It "S'exécute sur le poste local sans erreur" {
-        { Invoke-HealthScore -ComputerName $env:COMPUTERNAME -PassThru } |
+        { $script:LocalScoreResult = Invoke-HealthScore -ComputerName $env:COMPUTERNAME -PassThru } |
             Should -Not -Throw
+        $script:LocalScoreResult | Should -Not -BeNullOrEmpty
     }
 
     It "Retourne un objet avec toutes les propriétés requises" {
-        $r = Invoke-HealthScore -ComputerName $env:COMPUTERNAME -PassThru
+        if (-not $script:LocalScoreResult) { $script:LocalScoreResult = Invoke-HealthScore -ComputerName $env:COMPUTERNAME -PassThru }
+        $r = $script:LocalScoreResult
         $r                    | Should -Not -BeNullOrEmpty
         $r.ComputerName       | Should -Be $env:COMPUTERNAME
         $r.Global             | Should -Not -BeNullOrEmpty
@@ -612,14 +618,16 @@ Describe "ESN-HealthScore — Invoke-HealthScore (intégration)" -Tag "Integrati
     }
 
     It "Score global est un entier entre 0 et 100" {
-        $r = Invoke-HealthScore -ComputerName $env:COMPUTERNAME -PassThru
+        if (-not $script:LocalScoreResult) { $script:LocalScoreResult = Invoke-HealthScore -ComputerName $env:COMPUTERNAME -PassThru }
+        $r = $script:LocalScoreResult
         $r.Global.Score | Should -BeGreaterOrEqual 0
         $r.Global.Score | Should -BeLessOrEqual 100
         { [int]$r.Global.Score } | Should -Not -Throw
     }
 
     It "Tous les scores de domaine sont entre 0 et 100" {
-        $r = Invoke-HealthScore -ComputerName $env:COMPUTERNAME -PassThru
+        if (-not $script:LocalScoreResult) { $script:LocalScoreResult = Invoke-HealthScore -ComputerName $env:COMPUTERNAME -PassThru }
+        $r = $script:LocalScoreResult
         foreach ($dom in @('Network','System','Security','Storage','Services')) {
             $r.$dom.Score | Should -BeGreaterOrEqual 0 -Because "$dom.Score doit être ≥ 0"
             $r.$dom.Score | Should -BeLessOrEqual 100  -Because "$dom.Score doit être ≤ 100"
@@ -627,7 +635,8 @@ Describe "ESN-HealthScore — Invoke-HealthScore (intégration)" -Tag "Integrati
     }
 
     It "Chaque domaine a un Label non vide" {
-        $r = Invoke-HealthScore -ComputerName $env:COMPUTERNAME -PassThru
+        if (-not $script:LocalScoreResult) { $script:LocalScoreResult = Invoke-HealthScore -ComputerName $env:COMPUTERNAME -PassThru }
+        $r = $script:LocalScoreResult
         foreach ($dom in @('Global','Network','System','Security','Storage','Services')) {
             $r.$dom.Label | Should -Not -BeNullOrEmpty -Because "$dom.Label ne doit pas être vide"
             $r.$dom.Label | Should -BeIn @("Excellent","Bon","Dégradé","Mauvais","Critique")
@@ -635,19 +644,22 @@ Describe "ESN-HealthScore — Invoke-HealthScore (intégration)" -Tag "Integrati
     }
 
     It "Le timestamp est une date récente" {
-        $r = Invoke-HealthScore -ComputerName $env:COMPUTERNAME -PassThru
+        if (-not $script:LocalScoreResult) { $script:LocalScoreResult = Invoke-HealthScore -ComputerName $env:COMPUTERNAME -PassThru }
+        $r = $script:LocalScoreResult
         $r.Timestamp | Should -BeOfType [datetime]
         ($r.Timestamp - (Get-Date)).TotalSeconds | Should -BeLessThan 120
     }
 
     It "TotalRecommendations est un entier ≥ 0" {
-        $r = Invoke-HealthScore -ComputerName $env:COMPUTERNAME -PassThru
+        if (-not $script:LocalScoreResult) { $script:LocalScoreResult = Invoke-HealthScore -ComputerName $env:COMPUTERNAME -PassThru }
+        $r = $script:LocalScoreResult
         { [int]$r.TotalRecommendations } | Should -Not -Throw
         $r.TotalRecommendations | Should -BeGreaterOrEqual 0
     }
 
     It "Génère un fichier HTML de rapport" {
-        $r = Invoke-HealthScore -ComputerName $env:COMPUTERNAME -PassThru
+        if (-not $script:LocalScoreResult) { $script:LocalScoreResult = Invoke-HealthScore -ComputerName $env:COMPUTERNAME -PassThru }
+        $r = $script:LocalScoreResult
         Test-Path $r.ReportPath             | Should -Be $true
         (Get-Item $r.ReportPath).Length     | Should -BeGreaterThan 2000
         $content = Get-Content $r.ReportPath -Raw
@@ -659,7 +671,8 @@ Describe "ESN-HealthScore — Invoke-HealthScore (intégration)" -Tag "Integrati
     }
 
     It "Le rapport HTML contient les scores des 5 domaines" {
-        $r       = Invoke-HealthScore -ComputerName $env:COMPUTERNAME -PassThru
+        if (-not $script:LocalScoreResult) { $script:LocalScoreResult = Invoke-HealthScore -ComputerName $env:COMPUTERNAME -PassThru }
+        $r       = $script:LocalScoreResult
         $content = Get-Content $r.ReportPath -Raw
         $content | Should -Match "$($r.Network.Score)"
         $content | Should -Match "$($r.Security.Score)"

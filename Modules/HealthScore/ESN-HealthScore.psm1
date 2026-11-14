@@ -961,10 +961,11 @@ function Invoke-HealthScore {
     Write-Host ""
 
     # Recommandations critiques en console
+    $domainKeys = @('Network','System','Security','Storage','Services')
     $critRecs = @()
-    foreach ($dom in $scores.Keys) {
-        if ($scores[$dom].Recommendations) {
-            $scores[$dom].Recommendations | Where-Object { $_ -like "CRITIQUE*" } |
+    foreach ($dom in $domainKeys) {
+        if ($scores[$dom].ContainsKey('Recommendations') -and @($scores[$dom].Recommendations).Count -gt 0) {
+            @($scores[$dom].Recommendations) | Where-Object { $_ -like "CRITIQUE*" } |
                 ForEach-Object { $critRecs += $_ }
         }
     }
@@ -989,6 +990,7 @@ function Invoke-HealthScore {
     if ($OpenReport) { Start-Process $reportPath }
 
     # Retour objet structuré
+    $totalRecs = ($domainKeys | ForEach-Object { @($scores[$_].Recommendations).Count } | Measure-Object -Sum).Sum
     $result = [PSCustomObject]@{
         ComputerName     = $ComputerName
         Timestamp        = Get-Date
@@ -999,7 +1001,7 @@ function Invoke-HealthScore {
         Storage          = [PSCustomObject]@{ Score=$scores.Storage.Score;  Label=$scores.Storage.Label;  Recommendations=$scores.Storage.Recommendations  }
         Services         = [PSCustomObject]@{ Score=$scores.Services.Score; Label=$scores.Services.Label; Recommendations=$scores.Services.Recommendations }
         ReportPath       = $reportPath
-        TotalRecommendations = ($scores.Values | ForEach-Object { $_.Recommendations.Count } | Measure-Object -Sum).Sum
+        TotalRecommendations = $totalRecs
     }
 
     if ($PassThru) { return $result }

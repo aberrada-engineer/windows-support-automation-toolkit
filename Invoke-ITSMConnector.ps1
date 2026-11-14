@@ -35,7 +35,7 @@ param(
     [string]$GlpiUserToken,
     [string]$ServiceNowInstance,
     [string]$ServiceNowUser,
-    [string]$ServiceNowPassword,
+    [securestring]$ServiceNowPassword,
     [System.Management.Automation.PSCredential]$ServiceNowCredential
 )
 
@@ -145,7 +145,11 @@ elseif ($Target -eq "Slack") {
 # 4. Création d'incident ServiceNow (Table API)
 elseif ($Target -eq "ServiceNow") {
     $snUser = if ($ServiceNowCredential) { $ServiceNowCredential.UserName } else { $ServiceNowUser }
-    $snPass = if ($ServiceNowCredential) { $ServiceNowCredential.GetNetworkCredential().Password } else { $ServiceNowPassword }
+    $snPass = if ($ServiceNowCredential) {
+        $ServiceNowCredential.GetNetworkCredential().Password
+    } elseif ($ServiceNowPassword) {
+        ([PSCredential]::new("u", $ServiceNowPassword)).GetNetworkCredential().Password
+    } else { $null }
     if ($ServiceNowInstance -and $snUser -and $snPass) {
         $baseUrl = if ($ServiceNowInstance -match '^https?://') { $ServiceNowInstance.TrimEnd('/') } else { "https://$($ServiceNowInstance.TrimEnd('/'))" }
         $pair = "$snUser`:$snPass"
