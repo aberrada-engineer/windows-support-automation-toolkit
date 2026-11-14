@@ -120,7 +120,11 @@ function _Collect-MachineData {
         $pings = @(Test-Connection '8.8.8.8' -Count 5 -ErrorAction SilentlyContinue)
         $data.Net.InternetOK  = $pings.Count -gt 0
         $data.Net.LatencyAvg  = if ($pings.Count -gt 0) {
-            [math]::Round(($pings | Measure-Object ResponseTime -Average).Average, 0)
+            $latVals = @($pings | ForEach-Object {
+                if ($_.PSObject.Properties['ResponseTime']) { $_.ResponseTime }
+                elseif ($_.PSObject.Properties['Latency']) { $_.Latency }
+            } | Where-Object { $null -ne $_ })
+            if ($latVals.Count -gt 0) { [math]::Round(($latVals | Measure-Object -Average).Average, 0) } else { 0 }
         } else { 9999 }
         $data.Net.PacketLoss  = if ($pings.Count -gt 0) {
             [math]::Round((1 - $pings.Count / 5) * 100, 0)
@@ -162,7 +166,7 @@ function _Collect-MachineData {
         # ── SÉCURITÉ ────────────────────────────────────────
         $data.Sec = @{}
 
-        $def = Get-MpComputerStatus -ErrorAction SilentlyContinue
+        $def = try { Get-MpComputerStatus -ErrorAction SilentlyContinue } catch { $null }
         $data.Sec.DefenderEnabled   = [bool]($def -and $def.AntivirusEnabled -eq $true)
         $data.Sec.DefenderUpdated   = if ($def -and $def.AntivirusSignatureLastUpdated) {
             ((Get-Date) - $def.AntivirusSignatureLastUpdated).TotalDays -lt 3
@@ -172,7 +176,7 @@ function _Collect-MachineData {
             [math]::Round(((Get-Date) - $def.QuickScanStartTime).TotalDays, 0)
         } else { 999 }
 
-        $fw = @(Get-NetFirewallProfile -ErrorAction SilentlyContinue)
+        $fw = try { @(Get-NetFirewallProfile -ErrorAction SilentlyContinue) } catch { @() }
         $fwDom = $fw | Where-Object Name -eq 'Domain'  | Select-Object -First 1
         $fwPri = $fw | Where-Object Name -eq 'Private' | Select-Object -First 1
         $fwPub = $fw | Where-Object Name -eq 'Public'  | Select-Object -First 1
@@ -180,15 +184,17 @@ function _Collect-MachineData {
         $data.Sec.FW_Private = [bool]($fwPri -and $fwPri.Enabled -eq $true)
         $data.Sec.FW_Public  = [bool]($fwPub -and $fwPub.Enabled -eq $true)
 
-        $bl = Get-BitLockerVolume -ErrorAction SilentlyContinue |
-              Where-Object VolumeType -eq 'OperatingSystem' | Select-Object -First 1
+        $bl = try {
+            Get-BitLockerVolume -ErrorAction SilentlyContinue |
+                Where-Object VolumeType -eq 'OperatingSystem' | Select-Object -First 1
+        } catch { $null }
         $data.Sec.BitLocker  = [bool]($bl -and $bl.ProtectionStatus -eq 'On')
 
         $wdigest = Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\WDigest' -ErrorAction SilentlyContinue
         $wdVal = if ($wdigest -and $wdigest.PSObject.Properties['UseLogonCredential']) { $wdigest.UseLogonCredential } else { 0 }
         $data.Sec.WDigest    = $wdVal -eq 1   # true = DANGEREUX
 
-        $smb1Obj = Get-SmbServerConfiguration -ErrorAction SilentlyContinue
+        $smb1Obj = try { Get-SmbServerConfiguration -ErrorAction SilentlyContinue } catch { $null }
         $data.Sec.SMBv1      = [bool]($smb1Obj -and $smb1Obj.EnableSMB1Protocol -eq $true)  # true = DANGEREUX
 
         $rdpObj = Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -ErrorAction SilentlyContinue
@@ -199,8 +205,13 @@ function _Collect-MachineData {
         $uac = if ($uacObj -and $uacObj.PSObject.Properties['EnableLUA']) { $uacObj.EnableLUA } else { 0 }
         $data.Sec.UAC        = $uac -eq 1
 
-        $adminLocal = @(Get-LocalUser -ErrorAction SilentlyContinue |
-            Where-Object { $_.Name -in @('Administrateur','Administrator') -and $_.Enabled })
+        $adminLocal = try {
+            @(Get-LocalUser -ErrorAction SilentlyContinue |
+                Where-Object { $_.Name -in @('Administrateur','Administrator') -and $_.Enabled })
+        } catch {
+            @(Get-CimInstance Win32_UserAccount -Filter "LocalAccount = TRUE" -ErrorAction SilentlyContinue |
+                Where-Object { $_.Name -in @('Administrateur','Administrator') -and -not $_.Disabled })
+        }
         $data.Sec.AdminLocalActive = $adminLocal.Count -gt 0
 
         # Certificats expirant dans 30j

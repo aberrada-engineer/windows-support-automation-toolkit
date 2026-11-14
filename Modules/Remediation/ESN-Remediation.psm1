@@ -787,8 +787,8 @@ function Invoke-Remediation {
     # ── Résumé détection ──────────────────────────────────
     Write-Host ""
     RLog "=== RÉSUMÉ DÉTECTION ===" "SECTION"
-    RLog "Problèmes détectés : $($detected.Count) / $($toEvaluate.Count)" `
-        (if ($detected.Count -gt 0) { "WARN" } else { "OK" })
+    $summaryLvl = if ($detected.Count -gt 0) { "WARN" } else { "OK" }
+    RLog "Problèmes détectés : $($detected.Count) / $($toEvaluate.Count)" $summaryLvl
 
     if ($detected.Count -eq 0) {
         RLog "✅ Aucun problème détecté. Aucune remédiation nécessaire." "OK"

@@ -120,7 +120,7 @@ Describe "ESN-Remediation — Détection" -Tag "Detection" {
         $results             | Should -Not -BeNullOrEmpty
         $results.Count       | Should -BeGreaterThan 0
         # Sans -AutoFix, aucun résultat ne doit être Applied
-        $applied = $results | Where-Object Applied
+        $applied = @($results | Where-Object Applied)
         $applied.Count | Should -Be 0
     }
 

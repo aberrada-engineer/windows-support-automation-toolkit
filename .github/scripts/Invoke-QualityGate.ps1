@@ -73,6 +73,20 @@ try {
         Ensure-GalleryModule -Name 'Pester' -MinVersion '5.0.0'
         Import-Module Pester -MinimumVersion 5.0.0 -Force
         $res = Invoke-Pester -Path './Tests' -Output Detailed -PassThru
+        if ($env:GITHUB_STEP_SUMMARY) {
+            $sum = @("### Pester ($($PSVersionTable.PSVersion))", "- Passed: $($res.PassedCount) | Failed: $($res.FailedCount) | Skipped: $($res.SkippedCount)")
+            if ($res.FailedCount -gt 0) {
+                $sum += ""
+                $sum += "| Test | Error | Location |"
+                $sum += "|---|---|---|"
+                foreach ($t in ($res.Failed | Select-Object -First 25)) {
+                    $msg = (($t.ErrorRecord.Exception.Message) -replace '[\r\n\|]+', ' ').Trim()
+                    $loc = (($t.ErrorRecord.InvocationInfo.PositionMessage) -replace '[\r\n\|]+', ' ').Trim()
+                    $sum += "| ``$($t.ExpandedPath)`` | $msg | $loc |"
+                }
+            }
+            $sum | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+        }
         if ($res.FailedCount -gt 0) {
             foreach ($t in ($res.Failed | Select-Object -First 15)) {
                 $errDetail = ($t.ErrorRecord | Out-String)
