@@ -7,13 +7,17 @@
 $ErrorActionPreference = 'Stop'
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot '../..')
 
-function Emit-GhaError([string]$Message) {
+function Emit-GhaError {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseApprovedVerbs', '')]
+    param([string]$Message)
     $clean = ($Message -replace '\r?\n', ' | ').Trim()
     if ($clean.Length -gt 800) { $clean = $clean.Substring(0, 800) + '...' }
     Write-Host "::error::$clean"
 }
 
-function Ensure-GalleryModule([string]$Name, [string]$MinVersion = '') {
+function Ensure-GalleryModule {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseApprovedVerbs', '')]
+    param([string]$Name, [string]$MinVersion = '')
     $mods = Get-Module -ListAvailable -Name $Name
     $ok = if ($MinVersion) { $mods | Where-Object { $_.Version -ge [version]$MinVersion } } else { $mods }
     if ($ok) { return }

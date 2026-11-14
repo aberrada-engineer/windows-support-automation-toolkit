@@ -203,7 +203,7 @@ function Build-ESNReport {
     $impactItems = @($results | Where-Object { (Get-ESNProp $_ @("Status","severity")) -in "WARN","WARNING","ERROR","CRITICAL" })
     $impactRows  = ($impactItems | ForEach-Object {
         $iSt  = Get-ESNProp $_ @("Status","severity")
-        $rawImp = Get-ESNProp $_ @("ScoreImpact","scoreImpact") ""
+        $rawImp = Get-ESNProp $_ @("ScoreImpact","score_impact","scoreImpact") ""
         $imp  = if ($rawImp -ne "") { "−$rawImp pts" } elseif ($iSt -in "ERROR","CRITICAL") { "−10 pts" } elseif ($iSt -in "WARN","WARNING") { "−5 pts" } else { "0 pt" }
         $col  = if ($iSt -in "ERROR","CRITICAL") { "#dc3545" } else { "#856404" }
         $iCat = [System.Net.WebUtility]::HtmlEncode([string](Get-ESNProp $_ @("Category","domain")))

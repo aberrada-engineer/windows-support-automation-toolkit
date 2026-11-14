@@ -185,7 +185,7 @@ function _Collect-MachineData {
             [math]::Round(((Get-Date) - $def.QuickScanStartTime).TotalDays, 0)
         } else { 999 }
 
-        $fw = @(try { Get-NetFirewallProfile -ErrorAction SilentlyContinue } catch { $_ = $null })
+        $fw = @(try { Get-NetFirewallProfile -ErrorAction SilentlyContinue } catch { Write-Verbose $_.Exception.Message })
         $fwDom = $fw | Where-Object Name -eq 'Domain'  | Select-Object -First 1
         $fwPri = $fw | Where-Object Name -eq 'Private' | Select-Object -First 1
         $fwPub = $fw | Where-Object Name -eq 'Public'  | Select-Object -First 1

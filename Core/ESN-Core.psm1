@@ -514,7 +514,7 @@ function Measure-ESNPingLatency {
             }
         }
     } catch {
-        $_ = $null
+        Write-Verbose $_.Exception.Message
     } finally {
         if ($ping) { $ping.Dispose() }
     }

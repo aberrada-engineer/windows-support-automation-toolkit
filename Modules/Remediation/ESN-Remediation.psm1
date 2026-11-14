@@ -316,9 +316,7 @@ $script:Catalog = [ordered]@{
             $outlookReg = "HKCU:\Software\Microsoft\Office\16.0\Outlook"
 
             # Fermer Outlook si ouvert
-            $outlookRunning = $false
             if (Get-Process OUTLOOK -EA SilentlyContinue) {
-                $outlookRunning = $true
                 if (-not $sim) { Stop-Process -Name OUTLOOK -Force -EA SilentlyContinue }
                 Start-Sleep -Seconds 2
                 $actions += "Outlook fermé"
@@ -601,7 +599,7 @@ $script:Catalog = [ordered]@{
             $registered = 0
             foreach ($dll in $dlls) {
                 if (-not $sim) {
-                    $r = regsvr32 /s $dll 2>&1
+                    [void](regsvr32 /s $dll 2>&1)
                     $registered++
                 }
             }
@@ -653,7 +651,7 @@ $script:Catalog = [ordered]@{
             return @{
                 Success = $true
                 Before  = "$before travaux en file d'attente"
-                After   = if ($sim) { "[SIMULATION]" } else { "0 travail (Spooler relance)" }
+                After   = if ($sim) { "[SIMULATION]" } else { "$after travail(aux) (Spooler relance)" }
                 Detail  = "Stop-Service Spooler + Purge PRINTERS + Start-Service Spooler"
             }
         }
