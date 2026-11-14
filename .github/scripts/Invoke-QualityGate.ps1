@@ -72,25 +72,44 @@ try {
     if ($Stage -in @('All', 'Pester')) {
         Ensure-GalleryModule -Name 'Pester' -MinVersion '5.0.0'
         Import-Module Pester -MinimumVersion 5.0.0 -Force
-        $res = Invoke-Pester -Path './Tests' -Output Detailed -PassThru
+        # Suppress Pester's built-in ::error annotations so detailed Emit-GhaError diagnostics fit within GitHub's 10-annotation limit
+        $savedGha = $env:GITHUB_ACTIONS
+        try {
+            $env:GITHUB_ACTIONS = $null
+            $res = Invoke-Pester -Path './Tests' -Output Detailed -PassThru
+        }
+        finally {
+            $env:GITHUB_ACTIONS = $savedGha
+        }
         if ($env:GITHUB_STEP_SUMMARY) {
-            $sum = @("### Pester ($($PSVersionTable.PSVersion))", "- Passed: $($res.PassedCount) | Failed: $($res.FailedCount) | Skipped: $($res.SkippedCount)")
-            if ($res.FailedCount -gt 0) {
-                $sum += ""
-                $sum += "| Test | Error | Location |"
-                $sum += "|---|---|---|"
-                foreach ($t in ($res.Failed | Select-Object -First 25)) {
-                    $msg = (($t.ErrorRecord.Exception.Message) -replace '[\r\n\|]+', ' ').Trim()
-                    $loc = (($t.ErrorRecord.InvocationInfo.PositionMessage) -replace '[\r\n\|]+', ' ').Trim()
-                    $sum += "| ``$($t.ExpandedPath)`` | $msg | $loc |"
+            try {
+                $sum = @("### Pester ($($PSVersionTable.PSVersion))", "- Passed: $($res.PassedCount) | Failed: $($res.FailedCount) | Skipped: $($res.SkippedCount)")
+                if ($res.FailedCount -gt 0) {
+                    $sum += ""
+                    $sum += "| Test | Error | Location |"
+                    $sum += "|---|---|---|"
+                    foreach ($t in ($res.Failed | Select-Object -First 25)) {
+                        $errObj = @($t.ErrorRecord) | Select-Object -First 1
+                        $rawMsg = if ($errObj -and $errObj.Exception) { $errObj.Exception.Message } else { ($t.ErrorRecord | Out-String) }
+                        $rawLoc = if ($errObj -and $errObj.InvocationInfo) { $errObj.InvocationInfo.PositionMessage } else { "" }
+                        $msg = (([string]$rawMsg) -replace '[\r\n\|]+', ' ').Trim()
+                        $loc = (([string]$rawLoc) -replace '[\r\n\|]+', ' ').Trim()
+                        $sum += "| ``$($t.ExpandedPath)`` | $msg | $loc |"
+                    }
                 }
+                $sum | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
             }
-            $sum | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+            catch {
+                Write-Host "::warning::GITHUB_STEP_SUMMARY error: $($_.Exception.Message)"
+            }
         }
         if ($res.FailedCount -gt 0) {
-            foreach ($t in ($res.Failed | Select-Object -First 15)) {
-                $errDetail = ($t.ErrorRecord | Out-String)
-                Emit-GhaError "Pester FAIL [$($t.ExpandedPath)] $errDetail"
+            Emit-GhaError "Pester summary ($($PSVersionTable.PSVersion)): Passed=$($res.PassedCount) Failed=$($res.FailedCount) Skipped=$($res.SkippedCount)"
+            foreach ($t in ($res.Failed | Select-Object -First 9)) {
+                $errObj = @($t.ErrorRecord) | Select-Object -First 1
+                $msg = if ($errObj -and $errObj.Exception) { $errObj.Exception.Message } else { ($t.ErrorRecord | Out-String) }
+                $line = if ($errObj -and $errObj.InvocationInfo) { "$($errObj.InvocationInfo.ScriptName):$($errObj.InvocationInfo.ScriptLineNumber) $($errObj.InvocationInfo.Line)" } else { "" }
+                Emit-GhaError "Pester FAIL [$($t.ExpandedPath)] $msg | $line"
             }
             throw "Echec Pester : $($res.FailedCount) test(s) en erreur."
         }

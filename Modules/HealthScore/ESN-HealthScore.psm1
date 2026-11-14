@@ -117,12 +117,19 @@ function _Collect-MachineData {
             $true
         } catch { $false }
 
-        $pings = @(Test-Connection '8.8.8.8' -Count 5 -ErrorAction SilentlyContinue)
+        $rawPings = @(Test-Connection '8.8.8.8' -Count 5 -ErrorAction SilentlyContinue | ForEach-Object {
+            if ($_.PSObject.Properties['Replies']) { $_.Replies } else { $_ }
+        })
+        $pings = @($rawPings | Where-Object {
+            ($_.PSObject.Properties['StatusCode'] -and $_.StatusCode -eq 0) -or
+            ($_.PSObject.Properties['Status'] -and "$($_.Status)" -eq 'Success')
+        })
         $data.Net.InternetOK  = $pings.Count -gt 0
         $data.Net.LatencyAvg  = if ($pings.Count -gt 0) {
             $latVals = @($pings | ForEach-Object {
-                if ($_.PSObject.Properties['ResponseTime']) { $_.ResponseTime }
-                elseif ($_.PSObject.Properties['Latency']) { $_.Latency }
+                if ($_.PSObject.Properties['ResponseTime']) { [double]$_.ResponseTime }
+                elseif ($_.PSObject.Properties['Latency']) { [double]$_.Latency }
+                elseif ($_.PSObject.Properties['RoundtripTime']) { [double]$_.RoundtripTime }
             } | Where-Object { $null -ne $_ })
             if ($latVals.Count -gt 0) { [math]::Round(($latVals | Measure-Object -Average).Average, 0) } else { 0 }
         } else { 9999 }
@@ -926,7 +933,10 @@ function Invoke-HealthScore {
     try {
         $data = _Collect-MachineData -ComputerName $ComputerName -HoursBack $HoursBack
     } catch {
-        Write-Host "[ERREUR] Collecte impossible : $($_.Exception.Message)" -ForegroundColor Red
+        $errAt = if ($_.InvocationInfo) { "L$($_.InvocationInfo.ScriptLineNumber)" } else { "?" }
+        $errMsg = $_.Exception.Message
+        Write-Host "[ERREUR] Collecte impossible ($errAt) : $errMsg" -ForegroundColor Red
+        if ($env:GITHUB_RUN_ID) { Write-Host "::warning::HealthScore Collecte ($errAt): $errMsg" }
         return $null
     }
     Write-Host "[+] Données collectées" -ForegroundColor Green
