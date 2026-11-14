@@ -450,10 +450,12 @@ function Invoke-UserStateCapture {
     )
     foreach ($rp in $regPaths) {
         $installedApps += Get-ItemProperty $rp -ErrorAction SilentlyContinue |
-            Where-Object { $_.DisplayName -and $_.DisplayName -notmatch "^(KB[0-9]+|Update for)" } |
-            Select-Object @{N="Nom";E={$_.DisplayName}}, @{N="Version";E={$_.DisplayVersion}}, @{N="Editeur";E={$_.Publisher}}
+            Where-Object { $_.PSObject.Properties['DisplayName'] -and $_.DisplayName -and $_.DisplayName -notmatch "^(KB[0-9]+|Update for)" } |
+            Select-Object @{N="Nom";E={$_.DisplayName}},
+                @{N="Version";E={ if ($_.PSObject.Properties['DisplayVersion']) { $_.DisplayVersion } else { '' } }},
+                @{N="Editeur";E={ if ($_.PSObject.Properties['Publisher']) { $_.Publisher } else { '' } }}
     }
-    $installedApps = $installedApps | Sort-Object Nom -Unique
+    $installedApps = @($installedApps | Sort-Object Nom -Unique)
     if ($installedApps) {
         $installedApps | Export-Csv (Join-Path $appsDst "Applications_Installees.csv") -NoTypeInformation -Encoding UTF8
         L "$(@($installedApps).Count) application(s) inventoriee(s)" "OK"
