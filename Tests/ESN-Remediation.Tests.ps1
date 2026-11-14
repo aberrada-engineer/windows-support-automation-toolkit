@@ -35,10 +35,10 @@ Describe "ESN-Remediation — Catalogue" -Tag "Catalog" {
         Get-Command Test-RemediationNeeded | Should -Not -BeNullOrEmpty
     }
 
-    It "Le catalogue contient exactement 8 remédiations" {
-        # DNS, Winsock, Services, Teams, Outlook, OneDrive, TempFiles, WindowsUpdate
+    It "Le catalogue contient exactement 10 remédiations" {
+        # DNS, Winsock, Services, Teams, Outlook, OneDrive, TempFiles, WindowsUpdate, PrintSpooler, OfficeAuth
         $catalog = & (Get-Module ESN-Remediation) { $script:Catalog }
-        $catalog.Count | Should -Be 8
+        $catalog.Count | Should -Be 10
     }
 
     It "Chaque remédiation du catalogue a les champs obligatoires" {
@@ -56,7 +56,7 @@ Describe "ESN-Remediation — Catalogue" -Tag "Catalog" {
 
     It "Les IDs du catalogue correspondent aux noms attendus" {
         $catalog = & (Get-Module ESN-Remediation) { $script:Catalog }
-        $expectedIds = @("DNS","Winsock","Services","Teams","Outlook","OneDrive","TempFiles","WindowsUpdate")
+        $expectedIds = @("DNS","Winsock","Services","Teams","Outlook","OneDrive","TempFiles","WindowsUpdate","PrintSpooler","OfficeAuth")
         foreach ($id in $expectedIds) {
             $catalog.Contains($id) | Should -Be $true -Because "Le catalogue doit contenir $id"
         }

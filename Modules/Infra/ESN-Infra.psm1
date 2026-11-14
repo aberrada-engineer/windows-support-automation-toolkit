@@ -90,10 +90,11 @@ function Test-ESNVeeamStatus {
         }
     }
 
-    Write-Host "  [OK] Services Veeam détectés : $($veeamServices.Count) service(s)" -ForegroundColor Green
-    $stoppedServices = $veeamServices | Where-Object { $_.Status -ne 'Running' }
+    $veeamArr = @($veeamServices)
+    Write-Host "  [OK] Services Veeam détectés : $($veeamArr.Count) service(s)" -ForegroundColor Green
+    $stoppedServices = @($veeamArr | Where-Object { $_.Status -ne 'Running' })
 
-    if ($stoppedServices) {
+    if ($stoppedServices.Count -gt 0) {
         Write-Host "  [!] Service(s) Veeam arrêté(s) : $($stoppedServices.Name -join ', ')" -ForegroundColor Yellow
     } else {
         Write-Host "  [OK] Tous les services Veeam sont en cours d'exécution." -ForegroundColor Green
@@ -106,13 +107,14 @@ function Test-ESNVeeamStatus {
         Level     = 2 # Error
     } -ErrorAction SilentlyContinue
 
-    $statusStr = if ($veeamErrors) { "Warning - $($veeamErrors.Count) erreur(s) recente(s)" } else { "OK - 0 erreur 24h" }
-    Write-Host "  [$statusStr]" -ForegroundColor $(if ($veeamErrors) { "Yellow" } else { "Green" })
+    $errCount  = @($veeamErrors | Where-Object { $_ }).Count
+    $statusStr = if ($errCount -gt 0) { "Warning - $errCount erreur(s) recente(s)" } else { "OK - 0 erreur 24h" }
+    Write-Host "  [$statusStr]" -ForegroundColor $(if ($errCount -gt 0) { "Yellow" } else { "Green" })
 
     return [PSCustomObject]@{
         VeeamInstalled   = $true
         ServicesRunning  = ($stoppedServices.Count -eq 0)
-        RecentErrors24h  = ($veeamErrors | Measure-Object).Count
+        RecentErrors24h  = $errCount
         Status           = $statusStr
     }
 }

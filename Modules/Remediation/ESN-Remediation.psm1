@@ -125,7 +125,7 @@ $script:Catalog = [ordered]@{
                 ($p | Measure-Object ResponseTime -Average).Average
             } catch { 9999 }
 
-            return ($winsockErrors.Count -gt 0) -or ($latency -gt 300)
+            return (@($winsockErrors).Count -gt 0) -or ($latency -gt 300)
         }
         Remediate     = {
             param([bool]$sim)
@@ -164,7 +164,7 @@ $script:Catalog = [ordered]@{
         Detect        = {
             $stopped = Get-Service -ErrorAction SilentlyContinue |
                 Where-Object { $_.StartType -eq 'Automatic' -and $_.Status -eq 'Stopped' }
-            return $stopped.Count -gt 0
+            return @($stopped).Count -gt 0
         }
         Remediate     = {
             param([bool]$sim, [string[]]$serviceList)
@@ -188,8 +188,8 @@ $script:Catalog = [ordered]@{
             # Ajouter les services personnalisés
             if ($serviceList) { $priority += $serviceList }
 
-            $stopped = Get-Service -ErrorAction SilentlyContinue |
-                Where-Object { $_.StartType -eq 'Automatic' -and $_.Status -eq 'Stopped' -and $_.Name -in $priority }
+            $stopped = @(Get-Service -ErrorAction SilentlyContinue |
+                Where-Object { $_.StartType -eq 'Automatic' -and $_.Status -eq 'Stopped' -and $_.Name -in $priority })
 
             $results = @()
             foreach ($svc in $stopped) {
@@ -204,7 +204,7 @@ $script:Catalog = [ordered]@{
 
             return @{
                 Success = $true
-                Before  = "$($stopped.Count) service(s) arrêté(s) : $(($stopped.Name) -join ', ')"
+                Before  = "$($stopped.Count) service(s) arrêté(s) : $(($stopped | ForEach-Object { $_.Name }) -join ', ')"
                 After   = if ($results.Count -eq 0) { "Aucun service prioritaire arrêté" } else { $results -join " | " }
                 Detail  = "Services prioritaires redémarrés"
             }
@@ -332,10 +332,10 @@ $script:Catalog = [ordered]@{
             # 2. Désactiver add-ins crashés
             $resPath = "HKCU:\Software\Microsoft\Office\16.0\Outlook\Resiliency\CrashedExtensibility"
             if (Test-Path $resPath) {
-                $crashed = Get-ItemProperty $resPath -EA SilentlyContinue |
+                $crashed = @(Get-ItemProperty $resPath -EA SilentlyContinue |
                     Get-Member -MemberType NoteProperty |
-                    Where-Object { $_.Name -notmatch '^PS' }
-                if ($crashed) {
+                    Where-Object { $_.Name -notmatch '^PS' })
+                if ($crashed.Count -gt 0) {
                     if (-not $sim) { Remove-Item $resPath -Recurse -Force -EA SilentlyContinue }
                     $actions += "Add-ins crashés réinitialisés ($($crashed.Count))"
                 }
@@ -428,9 +428,9 @@ $script:Catalog = [ordered]@{
             }
 
             # 2. Supprimer les fichiers .lock de sync
-            $lockFiles = Get-ChildItem (Join-Path $env:USERPROFILE "OneDrive") `
-                -Filter "*.lock" -Recurse -EA SilentlyContinue
-            if ($lockFiles) {
+            $lockFiles = @(Get-ChildItem (Join-Path $env:USERPROFILE "OneDrive") `
+                -Filter "*.lock" -Recurse -EA SilentlyContinue)
+            if ($lockFiles.Count -gt 0) {
                 if (-not $sim) { $lockFiles | Remove-Item -Force -EA SilentlyContinue }
                 $actions += "$($lockFiles.Count) fichier(s) .lock supprimé(s)"
             }
@@ -496,13 +496,13 @@ $script:Catalog = [ordered]@{
             foreach ($t in $targets) {
                 if (-not (Test-Path $t.Path)) { continue }
 
-                $files = Get-ChildItem $t.Path -Recurse -Force -EA SilentlyContinue |
+                $files = @(Get-ChildItem $t.Path -Recurse -Force -EA SilentlyContinue |
                     Where-Object {
                         -not $_.PSIsContainer -and
                         $_.LastWriteTime -lt (Get-Date).AddDays(-$t.MinAgeDays)
-                    }
+                    })
 
-                $sizeBefore = ($files | Measure-Object Length -Sum).Sum
+                $sizeBefore = if ($files.Count -gt 0) { ($files | Measure-Object Length -Sum).Sum } else { 0 }
                 $count      = $files.Count
 
                 if (-not $sim -and $count -gt 0) {
@@ -534,15 +534,15 @@ $script:Catalog = [ordered]@{
         RequiresAdmin = $true
         Detect        = {
             # Détection : services WU arrêtés ou erreurs WU dans events
-            $wuau   = (Get-Service wuauserv -EA SilentlyContinue).Status
-            $bits   = (Get-Service BITS    -EA SilentlyContinue).Status
+            $wuauSvc = Get-Service wuauserv -EA SilentlyContinue
+            $wuau    = if ($wuauSvc) { $wuauSvc.Status } else { $null }
             $wuErrors = Get-WinEvent -FilterHashtable @{
                 LogName='System'; StartTime=(Get-Date).AddDays(-7)
             } -EA SilentlyContinue |
             Where-Object { $_.ProviderName -match "WindowsUpdateClient|wuauclt" -and $_.Level -le 2 } |
             Select-Object -First 3
 
-            return ($wuau -eq "Stopped") -or ($wuErrors.Count -gt 0)
+            return ($wuau -eq "Stopped") -or (@($wuErrors).Count -gt 0)
         }
         Remediate     = {
             param([bool]$sim)
@@ -620,6 +620,8 @@ $script:Catalog = [ordered]@{
                 Detail         = $steps -join " | "
                 RebootRequired = $false
             }
+        }
+    }
 
     # ─────────────────────────────────────────────
     PrintSpooler = @{
@@ -630,6 +632,7 @@ $script:Catalog = [ordered]@{
         RequiresAdmin = $true
         Detect        = {
             $svc = Get-Service -Name Spooler -ErrorAction SilentlyContinue
+            if (-not $svc) { return $false }
             $files = Get-ChildItem "$env:SystemRoot\System32\spool\PRINTERS\*" -ErrorAction SilentlyContinue | Measure-Object
             return ($svc.Status -ne "Running") -or ($files.Count -gt 0)
         }
@@ -674,9 +677,6 @@ $script:Catalog = [ordered]@{
                 After   = if ($sim) { "[SIMULATION]" } else { "Caches d'authentification purges" }
                 Detail  = "Purge IdentityCache + OneAuth (Reconnecte proprement le compte M365)"
             }
-        }
-    }
-
         }
     }
 }
@@ -740,10 +740,10 @@ function Invoke-Remediation {
     }
 
     # ── Sélection des remédiations à évaluer ─────────────
-    $toEvaluate = if ($Fix.Count -gt 0) {
-        $Fix | ForEach-Object { $script:Catalog[$_] } | Where-Object { $_ }
+    $toEvaluate = if (@($Fix).Count -gt 0) {
+        @($Fix | ForEach-Object { $script:Catalog[$_] } | Where-Object { $_ })
     } else {
-        $script:Catalog.Values
+        @($script:Catalog.Values)
     }
 
     RLog "=== PHASE 1 — DÉTECTION DES PROBLÈMES ===" "SECTION"
@@ -792,6 +792,9 @@ function Invoke-Remediation {
 
     if ($detected.Count -eq 0) {
         RLog "✅ Aucun problème détecté. Aucune remédiation nécessaire." "OK"
+        if ($ReportPath) {
+            _Export-RemediationReport -Results $results -OutputPath $ReportPath -Computer $ComputerName -Sim $Simulation.IsPresent
+        }
         return $results
     }
 
@@ -813,13 +816,16 @@ function Invoke-Remediation {
     }
 
     # ── Décision d'application ────────────────────────────
-    if (-not $AutoFix -and $Fix.Count -eq 0) {
+    if (-not $AutoFix -and @($Fix).Count -eq 0) {
         Write-Host ""
         Write-Host "  💡 Pour appliquer toutes les corrections : " -NoNewline -ForegroundColor Cyan
         Write-Host "Invoke-Remediation -AutoFix" -ForegroundColor Yellow
         Write-Host "  💡 Pour corriger un problème précis : " -NoNewline -ForegroundColor Cyan
         Write-Host "Invoke-Remediation -Fix DNS,Teams" -ForegroundColor Yellow
         Write-Host ""
+        if ($ReportPath) {
+            _Export-RemediationReport -Results $results -OutputPath $ReportPath -Computer $ComputerName -Sim $Simulation.IsPresent
+        }
         return $results
     }
 
@@ -874,7 +880,7 @@ function Invoke-Remediation {
             $idx.Before         = $remResult.Before
             $idx.After          = $remResult.After
             $idx.Detail         = $remResult.Detail
-            $idx.RebootRequired = $remResult.RebootRequired -eq $true
+            $idx.RebootRequired = $remResult.ContainsKey('RebootRequired') -and ($remResult.RebootRequired -eq $true)
 
             if ($idx.RebootRequired) { $rebootNeeded = $true }
 
@@ -918,9 +924,9 @@ function Invoke-Remediation {
     _Export-RemediationReport -Results $results -OutputPath $ReportPath -Computer $ComputerName -Sim $Simulation.IsPresent
 
     # ── Résumé final ──────────────────────────────────────
-    $applied  = ($results | Where-Object Applied).Count
-    $ok       = ($results | Where-Object { $_.Applied -and $_.Success }).Count
-    $failed   = ($results | Where-Object { $_.Applied -and -not $_.Success }).Count
+    $applied  = @($results | Where-Object Applied).Count
+    $ok       = @($results | Where-Object { $_.Applied -and $_.Success }).Count
+    $failed   = @($results | Where-Object { $_.Applied -and -not $_.Success }).Count
 
     Write-Host "╔══════════════════════════════════════════════════╗" -ForegroundColor Cyan
     Write-Host "║  RÉSUMÉ REMÉDIATION" -ForegroundColor Cyan
@@ -949,7 +955,12 @@ function _Export-RemediationReport {
         [bool]  $Sim
     )
 
-    $rows = ($Results | ForEach-Object {
+    $pDir = Split-Path $OutputPath -Parent
+    if ($pDir -and -not (Test-Path $pDir)) {
+        New-Item -Path $pDir -ItemType Directory -Force | Out-Null
+    }
+
+    $rows = @($Results | ForEach-Object {
         $bg = if (-not $_.Detected) { "#d4edda" }
               elseif ($_.Applied -and $_.Success) { "#cce5ff" }
               elseif ($_.Applied -and -not $_.Success) { "#f8d7da" }
@@ -980,8 +991,8 @@ function _Export-RemediationReport {
         </tr>"
     }) -join "`n"
 
-    $detected = ($Results | Where-Object Detected).Count
-    $fixed    = ($Results | Where-Object { $_.Applied -and $_.Success }).Count
+    $detected = @($Results | Where-Object Detected).Count
+    $fixed    = @($Results | Where-Object { $_.Applied -and $_.Success }).Count
     $simBadge = if ($Sim) { "<span style='background:#ffc107;color:#333;padding:3px 10px;border-radius:12px;font-size:.85em;font-weight:600'>SIMULATION</span>" } else { "" }
 
     @"
@@ -1020,12 +1031,12 @@ function _Export-RemediationReport {
 </div>
 <div class="container">
   <div class="cards">
-    <div class="card"><div class="val">$($Results.Count)</div><div class="lbl">Checks</div></div>
+    <div class="card"><div class="val">$(@($Results).Count)</div><div class="lbl">Checks</div></div>
     <div class="card"><div class="val" style="color:#ffc107">$detected</div><div class="lbl">Détectés</div></div>
     <div class="card"><div class="val" style="color:#0078d4">$fixed</div><div class="lbl">Corrigés</div></div>
-    <div class="card"><div class="val" style="color:#dc3545">$(($Results | Where-Object { $_.Applied -and -not $_.Success }).Count)</div><div class="lbl">Échecs</div></div>
-    <div class="card"><div class="val" style="color:#28a745">$(($Results | Where-Object { -not $_.Detected }).Count)</div><div class="lbl">OK dès départ</div></div>
-    <div class="card"><div class="val" style="color:#e67e22">$(($Results | Where-Object RebootRequired).Count)</div><div class="lbl">Redémarrage requis</div></div>
+    <div class="card"><div class="val" style="color:#dc3545">$(@($Results | Where-Object { $_.Applied -and -not $_.Success }).Count)</div><div class="lbl">Échecs</div></div>
+    <div class="card"><div class="val" style="color:#28a745">$(@($Results | Where-Object { -not $_.Detected }).Count)</div><div class="lbl">OK dès départ</div></div>
+    <div class="card"><div class="val" style="color:#e67e22">$(@($Results | Where-Object RebootRequired).Count)</div><div class="lbl">Redémarrage requis</div></div>
   </div>
 
   <div class="section">

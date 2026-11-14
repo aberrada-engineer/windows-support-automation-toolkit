@@ -96,7 +96,7 @@ function Invoke-WindowsDiag {
         }
 
         # ── Temp & crash ────────────────────────────────
-        $out.CrashDumps = (Get-ChildItem 'C:\Windows\Minidump' -Filter '*.dmp' -EA SilentlyContinue).Count
+        $out.CrashDumps = @(Get-ChildItem 'C:\Windows\Minidump' -Filter '*.dmp' -EA SilentlyContinue).Count
         $out.TempSizeMB = try {
             [math]::Round((Get-ChildItem $env:TEMP -Recurse -EA SilentlyContinue |
                 Measure-Object Length -Sum).Sum / 1MB, 0)
@@ -104,12 +104,12 @@ function Invoke-WindowsDiag {
 
         # ── BitLocker ───────────────────────────────────
         $bl = Get-BitLockerVolume -EA SilentlyContinue | Where-Object VolumeType -eq 'OperatingSystem' | Select-Object -First 1
-        $out.BitLocker = $bl.ProtectionStatus
+        $out.BitLocker = if ($bl) { $bl.ProtectionStatus } else { "Indisponible" }
 
         # ── Defender ────────────────────────────────────
         $def = Get-MpComputerStatus -EA SilentlyContinue
-        $out.DefenderON  = $def.AntivirusEnabled
-        $out.DefUpdated  = if ($def.AntivirusSignatureLastUpdated) {
+        $out.DefenderON  = if ($def) { [bool]$def.AntivirusEnabled } else { $false }
+        $out.DefUpdated  = if ($def -and $def.AntivirusSignatureLastUpdated) {
             ((Get-Date) - $def.AntivirusSignatureLastUpdated).TotalDays -lt 3
         } else { $false }
 
@@ -156,9 +156,10 @@ function Invoke-WindowsDiag {
     }
 
     # Services
-    if ($d.StoppedSvc -and $d.StoppedSvc.Count -gt 0) {
-        $names = ($d.StoppedSvc | Select-Object -ExpandProperty Name) -join ', '
-        Add-ESNResult "Windows" "Services auto arrêtés" "WARN" "$($d.StoppedSvc.Count) service(s)" $names 5
+    $stoppedArr = @($d.StoppedSvc | Where-Object { $_ })
+    if ($stoppedArr.Count -gt 0) {
+        $names = ($stoppedArr | Select-Object -ExpandProperty Name) -join ', '
+        Add-ESNResult "Windows" "Services auto arrêtés" "WARN" "$($stoppedArr.Count) service(s)" $names 5
     } else {
         Add-ESNResult "Windows" "Services auto" "OK" "Tous démarrés" ""
     }
@@ -170,8 +171,9 @@ function Invoke-WindowsDiag {
         -ScoreImpact $(if($evSt -eq "ERROR"){10}elseif($evSt -eq "WARN"){5}else{0})
 
     # Drivers
-    $drSt = if ($d.BadDrivers -and $d.BadDrivers.Count -ge 3) { "ERROR" } elseif ($d.BadDrivers -and $d.BadDrivers.Count -gt 0) { "WARN" } else { "OK" }
-    Add-ESNResult "Windows" "Drivers en erreur" $drSt "$($d.BadDrivers.Count) driver(s)" "" `
+    $badDrvArr = @($d.BadDrivers | Where-Object { $_ })
+    $drSt = if ($badDrvArr.Count -ge 3) { "ERROR" } elseif ($badDrvArr.Count -gt 0) { "WARN" } else { "OK" }
+    Add-ESNResult "Windows" "Drivers en erreur" $drSt "$($badDrvArr.Count) driver(s)" "" `
         -ScoreImpact $(if($drSt -eq "ERROR"){10}elseif($drSt -eq "WARN"){5}else{0})
 
     # Windows Update

@@ -46,8 +46,8 @@ function Invoke-NetworkDiag {
         # ── Passerelle ──────────────────────────────────
         $gw = Get-NetRoute -DestinationPrefix '0.0.0.0/0' -ErrorAction SilentlyContinue |
               Sort-Object RouteMetric | Select-Object -First 1
-        $out.Gateway     = $gw.NextHop
-        $out.GatewayPing = if ($gw.NextHop) {
+        $out.Gateway     = if ($gw) { $gw.NextHop } else { $null }
+        $out.GatewayPing = if ($gw -and $gw.NextHop) {
             Test-Connection $gw.NextHop -Count 2 -Quiet -ErrorAction SilentlyContinue
         } else { $false }
 
@@ -74,8 +74,8 @@ function Invoke-NetworkDiag {
 
         # ── Proxy ────────────────────────────────────────
         $prx = Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings' -EA SilentlyContinue
-        $out.ProxyEnabled = $prx.ProxyEnable -eq 1
-        $out.ProxyServer  = $prx.ProxyServer
+        $out.ProxyEnabled = if ($prx -and $prx.PSObject.Properties['ProxyEnable']) { $prx.ProxyEnable -eq 1 } else { $false }
+        $out.ProxyServer  = if ($prx -and $prx.PSObject.Properties['ProxyServer']) { $prx.ProxyServer } else { $null }
 
         # ── Lecteurs réseau ──────────────────────────────
         $out.NetworkDrives = Get-PSDrive -PSProvider FileSystem |
@@ -112,8 +112,9 @@ function Invoke-NetworkDiag {
     # ── Évaluation ────────────────────────────────────────
     # Adaptateurs
     if ($data.Adapters) {
-        $names = ($data.Adapters | Select-Object -ExpandProperty Name) -join ', '
-        Add-ESNResult "Réseau" "Adaptateurs actifs" "OK" "$($data.Adapters.Count) actif(s)" $names
+        $adapArr = @($data.Adapters)
+        $names = ($adapArr | Select-Object -ExpandProperty Name) -join ', '
+        Add-ESNResult "Réseau" "Adaptateurs actifs" "OK" "$($adapArr.Count) actif(s)" $names
     } else {
         Add-ESNResult "Réseau" "Adaptateurs actifs" "ERROR" "Aucun" "Aucun adaptateur Up" 20
     }
@@ -164,8 +165,9 @@ function Invoke-NetworkDiag {
 
     # Lecteurs réseau
     if ($data.NetworkDrives) {
-        $drives = ($data.NetworkDrives | ForEach-Object { "$($_.Name): → $($_.Root)" }) -join ' | '
-        Add-ESNResult "Réseau" "Lecteurs réseau" "INFO" "$($data.NetworkDrives.Count) mappage(s)" $drives
+        $ndArr = @($data.NetworkDrives)
+        $drives = ($ndArr | ForEach-Object { "$($_.Name): → $($_.Root)" }) -join ' | '
+        Add-ESNResult "Réseau" "Lecteurs réseau" "INFO" "$($ndArr.Count) mappage(s)" $drives
     } else {
         Add-ESNResult "Réseau" "Lecteurs réseau" "INFO" "Aucun lecteur réseau mappé" ""
     }

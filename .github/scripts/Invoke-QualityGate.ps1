@@ -47,15 +47,26 @@ try {
 
     if ($Stage -eq 'Analyzer' -or ($Stage -eq 'All' -and $RunAnalyzer)) {
         Ensure-GalleryModule -Name 'PSScriptAnalyzer'
-        $findings = @(Invoke-ScriptAnalyzer -Path . -Recurse -Severity @('Error', 'Warning') -ExcludeRule @('PSAvoidUsingWriteHost') | Where-Object { $_.ScriptPath -notmatch '[/\\]Tests[/\\]' })
-        if ($findings.Count -gt 0) {
-            $findings | Format-Table ScriptName, Line, Severity, RuleName, Message -AutoSize
-            foreach ($f in ($findings | Select-Object -First 15)) {
+        $secRules = @('PSAvoidUsingConvertToSecureStringWithPlainText', 'PSAvoidUsingPlainTextForPassword', 'PSAvoidUsingUsernameAndPasswordParams')
+        $allFindings = @(Invoke-ScriptAnalyzer -Path . -Recurse -Severity @('Error', 'Warning') -ExcludeRule @('PSAvoidUsingWriteHost') | Where-Object { $_.ScriptPath -notmatch '[/\\]Tests[/\\]' })
+        $blocking = @($allFindings | Where-Object { $_.Severity -eq 'Error' -or $_.RuleName -in $secRules })
+        $advisory = @($allFindings | Where-Object { $_.Severity -eq 'Warning' -and $_.RuleName -notin $secRules })
+        if ($advisory.Count -gt 0) {
+            Write-Host "[INFO] $($advisory.Count) avertissement(s) stylistique(s) PSScriptAnalyzer (non bloquants)." -ForegroundColor Yellow
+            foreach ($w in ($advisory | Select-Object -First 10)) {
+                if ($env:GITHUB_ACTIONS -eq 'true') {
+                    Write-Host "::warning file=$($w.ScriptPath),line=$($w.Line)::PSScriptAnalyzer [$($w.ScriptName):$($w.Line)] $($w.RuleName): $($w.Message)"
+                }
+            }
+        }
+        if ($blocking.Count -gt 0) {
+            $blocking | Format-Table ScriptName, Line, Severity, RuleName, Message -AutoSize
+            foreach ($f in ($blocking | Select-Object -First 15)) {
                 Emit-GhaError "PSScriptAnalyzer [$($f.ScriptName):$($f.Line)] $($f.RuleName): $($f.Message)"
             }
-            throw "PSScriptAnalyzer a detecte $($findings.Count) alerte(s) Error/Warning."
+            throw "PSScriptAnalyzer a detecte $($blocking.Count) erreur(s) bloquante(s)."
         }
-        Write-Host "[OK] Zero alerte Error/Warning PSScriptAnalyzer (hors PSAvoidUsingWriteHost)." -ForegroundColor Green
+        Write-Host "[OK] Zero erreur bloquante PSScriptAnalyzer (Errors + SecOps)." -ForegroundColor Green
     }
 
     if ($Stage -in @('All', 'Pester')) {

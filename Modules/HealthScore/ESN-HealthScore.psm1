@@ -99,16 +99,16 @@ function _Collect-MachineData {
         # ── RÉSEAU ──────────────────────────────────────────
         $data.Net = @{}
 
-        $ips = Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
-               Where-Object { $_.InterfaceAlias -notmatch 'Loopback|vEthernet' }
-        $data.Net.APIPA       = ($ips | Where-Object { $_.IPAddress -like '169.254.*' }).Count -gt 0
-        $data.Net.HasValidIP  = ($ips | Where-Object { $_.IPAddress -notlike '169.254.*' }).Count -gt 0
+        $ips = @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
+                 Where-Object { $_.InterfaceAlias -notmatch 'Loopback|vEthernet' })
+        $data.Net.APIPA       = @($ips | Where-Object { $_.IPAddress -like '169.254.*' }).Count -gt 0
+        $data.Net.HasValidIP  = @($ips | Where-Object { $_.IPAddress -notlike '169.254.*' }).Count -gt 0
         $data.Net.IPList      = ($ips | Select-Object -ExpandProperty IPAddress) -join ', '
 
         $gw = Get-NetRoute -DestinationPrefix '0.0.0.0/0' -ErrorAction SilentlyContinue |
               Sort-Object RouteMetric | Select-Object -First 1
-        $data.Net.Gateway     = $gw.NextHop
-        $data.Net.GatewayPing = if ($gw.NextHop) {
+        $data.Net.Gateway     = if ($gw) { $gw.NextHop } else { $null }
+        $data.Net.GatewayPing = if ($gw -and $gw.NextHop) {
             Test-Connection $gw.NextHop -Count 2 -Quiet -ErrorAction SilentlyContinue
         } else { $false }
 
@@ -117,12 +117,12 @@ function _Collect-MachineData {
             $true
         } catch { $false }
 
-        $pings = Test-Connection '8.8.8.8' -Count 5 -ErrorAction SilentlyContinue
-        $data.Net.InternetOK  = ($pings | Measure-Object).Count -gt 0
-        $data.Net.LatencyAvg  = if ($pings) {
+        $pings = @(Test-Connection '8.8.8.8' -Count 5 -ErrorAction SilentlyContinue)
+        $data.Net.InternetOK  = $pings.Count -gt 0
+        $data.Net.LatencyAvg  = if ($pings.Count -gt 0) {
             [math]::Round(($pings | Measure-Object ResponseTime -Average).Average, 0)
         } else { 9999 }
-        $data.Net.PacketLoss  = if ($pings) {
+        $data.Net.PacketLoss  = if ($pings.Count -gt 0) {
             [math]::Round((1 - $pings.Count / 5) * 100, 0)
         } else { 100 }
 
@@ -143,15 +143,15 @@ function _Collect-MachineData {
         $data.Sys.RAM_Total  = [math]::Round($cs.TotalPhysicalMemory / 1GB, 1)
         $data.Sys.RAM_Free   = [math]::Round($os.FreePhysicalMemory / 1MB, 0)
         $data.Sys.RAM_Pct    = [math]::Round(100 - ($os.FreePhysicalMemory / $os.TotalVisibleMemorySize * 100), 1)
-        $data.Sys.CPU_Load   = $cpu.LoadPercentage
-        $data.Sys.CPU_Name   = $cpu.Name.Trim()
-        $data.Sys.CrashDumps = (Get-ChildItem 'C:\Windows\Minidump' -Filter '*.dmp' -ErrorAction SilentlyContinue).Count
+        $data.Sys.CPU_Load   = if ($cpu -and $null -ne $cpu.LoadPercentage) { [int]$cpu.LoadPercentage } else { 0 }
+        $data.Sys.CPU_Name   = if ($cpu -and $cpu.Name) { $cpu.Name.Trim() } else { "Unknown CPU" }
+        $data.Sys.CrashDumps = @(Get-ChildItem 'C:\Windows\Minidump' -Filter '*.dmp' -ErrorAction SilentlyContinue).Count
 
         $since = (Get-Date).AddHours(-$hrs)
-        $evts  = Get-WinEvent -FilterHashtable @{
+        $evts  = @(Get-WinEvent -FilterHashtable @{
             LogName = 'System','Application'; Level = 1,2; StartTime = $since
-        } -MaxEvents 500 -ErrorAction SilentlyContinue
-        $data.Sys.CritEvents = if ($evts) { $evts.Count } else { 0 }
+        } -MaxEvents 500 -ErrorAction SilentlyContinue)
+        $data.Sys.CritEvents = $evts.Count
 
         # Page file usage
         $pf = Get-CimInstance Win32_PageFileUsage -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -163,51 +163,54 @@ function _Collect-MachineData {
         $data.Sec = @{}
 
         $def = Get-MpComputerStatus -ErrorAction SilentlyContinue
-        $data.Sec.DefenderEnabled   = $def.AntivirusEnabled -eq $true
-        $data.Sec.DefenderUpdated   = if ($def.AntivirusSignatureLastUpdated) {
+        $data.Sec.DefenderEnabled   = [bool]($def -and $def.AntivirusEnabled -eq $true)
+        $data.Sec.DefenderUpdated   = if ($def -and $def.AntivirusSignatureLastUpdated) {
             ((Get-Date) - $def.AntivirusSignatureLastUpdated).TotalDays -lt 3
         } else { $false }
-        $data.Sec.TamperProtection  = $def.IsTamperProtected -eq $true
-        $data.Sec.DefenderScanDays  = if ($def.QuickScanStartTime) {
+        $data.Sec.TamperProtection  = [bool]($def -and $def.IsTamperProtected -eq $true)
+        $data.Sec.DefenderScanDays  = if ($def -and $def.QuickScanStartTime) {
             [math]::Round(((Get-Date) - $def.QuickScanStartTime).TotalDays, 0)
         } else { 999 }
 
-        $fw = Get-NetFirewallProfile -ErrorAction SilentlyContinue
-        $data.Sec.FW_Domain  = ($fw | Where-Object Name -eq 'Domain'  | Select-Object -First 1).Enabled -eq $true
-        $data.Sec.FW_Private = ($fw | Where-Object Name -eq 'Private' | Select-Object -First 1).Enabled -eq $true
-        $data.Sec.FW_Public  = ($fw | Where-Object Name -eq 'Public'  | Select-Object -First 1).Enabled -eq $true
+        $fw = @(Get-NetFirewallProfile -ErrorAction SilentlyContinue)
+        $fwDom = $fw | Where-Object Name -eq 'Domain'  | Select-Object -First 1
+        $fwPri = $fw | Where-Object Name -eq 'Private' | Select-Object -First 1
+        $fwPub = $fw | Where-Object Name -eq 'Public'  | Select-Object -First 1
+        $data.Sec.FW_Domain  = [bool]($fwDom -and $fwDom.Enabled -eq $true)
+        $data.Sec.FW_Private = [bool]($fwPri -and $fwPri.Enabled -eq $true)
+        $data.Sec.FW_Public  = [bool]($fwPub -and $fwPub.Enabled -eq $true)
 
         $bl = Get-BitLockerVolume -ErrorAction SilentlyContinue |
               Where-Object VolumeType -eq 'OperatingSystem' | Select-Object -First 1
-        $data.Sec.BitLocker  = $bl.ProtectionStatus -eq 'On'
+        $data.Sec.BitLocker  = [bool]($bl -and $bl.ProtectionStatus -eq 'On')
 
-        $wdigest = (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\WDigest' `
-            -ErrorAction SilentlyContinue).UseLogonCredential
-        $data.Sec.WDigest    = $wdigest -eq 1   # true = DANGEREUX
+        $wdigest = Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\WDigest' -ErrorAction SilentlyContinue
+        $wdVal = if ($wdigest -and $wdigest.PSObject.Properties['UseLogonCredential']) { $wdigest.UseLogonCredential } else { 0 }
+        $data.Sec.WDigest    = $wdVal -eq 1   # true = DANGEREUX
 
-        $smb1 = (Get-SmbServerConfiguration -ErrorAction SilentlyContinue).EnableSMB1Protocol
-        $data.Sec.SMBv1      = $smb1 -eq $true  # true = DANGEREUX
+        $smb1Obj = Get-SmbServerConfiguration -ErrorAction SilentlyContinue
+        $data.Sec.SMBv1      = [bool]($smb1Obj -and $smb1Obj.EnableSMB1Protocol -eq $true)  # true = DANGEREUX
 
-        $rdpNLA = (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' `
-            -ErrorAction SilentlyContinue).UserAuthentication
+        $rdpObj = Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -ErrorAction SilentlyContinue
+        $rdpNLA = if ($rdpObj -and $rdpObj.PSObject.Properties['UserAuthentication']) { $rdpObj.UserAuthentication } else { 0 }
         $data.Sec.RDP_NLA    = $rdpNLA -eq 1
 
-        $uac = (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' `
-            -ErrorAction SilentlyContinue).EnableLUA
+        $uacObj = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -ErrorAction SilentlyContinue
+        $uac = if ($uacObj -and $uacObj.PSObject.Properties['EnableLUA']) { $uacObj.EnableLUA } else { 0 }
         $data.Sec.UAC        = $uac -eq 1
 
-        $adminLocal = Get-LocalUser -ErrorAction SilentlyContinue |
-            Where-Object { $_.Name -in @('Administrateur','Administrator') -and $_.Enabled }
+        $adminLocal = @(Get-LocalUser -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -in @('Administrateur','Administrator') -and $_.Enabled })
         $data.Sec.AdminLocalActive = $adminLocal.Count -gt 0
 
         # Certificats expirant dans 30j
-        $data.Sec.CertsExpiring = (Get-ChildItem Cert:\LocalMachine\My -ErrorAction SilentlyContinue |
+        $data.Sec.CertsExpiring = @(Get-ChildItem Cert:\LocalMachine\My -ErrorAction SilentlyContinue |
             Where-Object { $_.NotAfter -lt (Get-Date).AddDays(30) }).Count
 
         # ── STOCKAGE ────────────────────────────────────────
         $data.Storage = @{}
-        $data.Storage.Drives = Get-PSDrive -PSProvider FileSystem -ErrorAction SilentlyContinue |
-            Where-Object { $_.Used + $_.Free -gt 0 } |
+        $data.Storage.Drives = @(Get-PSDrive -PSProvider FileSystem -ErrorAction SilentlyContinue |
+            Where-Object { ($_.Used + $_.Free) -gt 0 } |
             ForEach-Object {
                 $pct = [math]::Round($_.Used / ($_.Used + $_.Free) * 100, 1)
                 @{
@@ -216,18 +219,20 @@ function _Collect-MachineData {
                     FreeGB  = [math]::Round($_.Free / 1GB, 1)
                     UsedPct = $pct
                 }
-            }
+            })
 
         # SMART via CIM (PS 5.1 & 7+ compatible)
-        $smart = Get-CimInstance -Namespace root\wmi -ClassName MSStorageDriver_FailurePredictStatus `
-            -ErrorAction SilentlyContinue
-        $data.Storage.SMART_Failures = ($smart | Where-Object PredictFailure -eq $true).Count
-        $data.Storage.SMART_Total    = ($smart | Measure-Object).Count
+        $smart = @(Get-CimInstance -Namespace root\wmi -ClassName MSStorageDriver_FailurePredictStatus `
+            -ErrorAction SilentlyContinue)
+        $data.Storage.SMART_Failures = @($smart | Where-Object PredictFailure -eq $true).Count
+        $data.Storage.SMART_Total    = $smart.Count
 
         # Temp size
         $tmpSize = try {
-            (Get-ChildItem $env:TEMP -Recurse -ErrorAction SilentlyContinue |
-                Measure-Object Length -Sum).Sum / 1MB
+            $tmpFiles = @(Get-ChildItem $env:TEMP -File -Recurse -ErrorAction SilentlyContinue)
+            if ($tmpFiles.Count -gt 0) {
+                ($tmpFiles | Measure-Object Length -Sum).Sum / 1MB
+            } else { 0 }
         } catch { 0 }
         $data.Storage.TempMB = [math]::Round($tmpSize, 0)
 
@@ -241,18 +246,18 @@ function _Collect-MachineData {
             'RpcSs','SamSs','lsass'
         )
 
-        $allAuto = Get-Service -ErrorAction SilentlyContinue |
-                   Where-Object { $_.StartType -eq 'Automatic' }
+        $allAuto = @(Get-Service -ErrorAction SilentlyContinue |
+                     Where-Object { $_.StartType -eq 'Automatic' })
 
         $data.Svc.TotalAuto    = $allAuto.Count
-        $data.Svc.StoppedAuto  = ($allAuto | Where-Object Status -ne 'Running').Count
+        $data.Svc.StoppedAuto  = @($allAuto | Where-Object Status -ne 'Running').Count
         $data.Svc.StoppedNames = ($allAuto | Where-Object Status -ne 'Running' |
             Select-Object -ExpandProperty Name) -join ', '
 
-        $critStopped = $criticalServices | Where-Object {
+        $critStopped = @($criticalServices | Where-Object {
             $svc = Get-Service $_ -ErrorAction SilentlyContinue
             $svc -and $svc.Status -ne 'Running'
-        }
+        })
         $data.Svc.CritStopped      = $critStopped.Count
         $data.Svc.CritStoppedNames = $critStopped -join ', '
 
@@ -540,10 +545,12 @@ function _Score-Storage {
     $details = @()
     $recs    = @()
 
-    # Score par disque (pondéré : disque C: plus important)
-    foreach ($disk in $storage.Drives) {
+    # Score par disque (pondéré : disque C: plus important ; 100 pts si volume unique)
+    $driveList  = @($storage.Drives)
+    $driveCount = $driveList.Count
+    foreach ($disk in $driveList) {
         $isSystem = $disk.Name -eq 'C'
-        $weight   = if ($isSystem) { 50 } else { [math]::Round(50 / [Math]::Max(1, $storage.Drives.Count - 1), 0) }
+        $weight   = if ($isSystem -and $driveCount -eq 1) { 100 } elseif ($isSystem) { 50 } else { [math]::Round(50 / [Math]::Max(1, $driveCount - 1), 0) }
 
         $pts = if ($disk.UsedPct -le 70)  { $weight }
                elseif ($disk.UsedPct -le 80) { [math]::Round($weight * 0.7, 0) }
@@ -562,6 +569,7 @@ function _Score-Storage {
         }
 
         if ($disk.UsedPct -gt 90) {
+            if ($isSystem) { $points = [Math]::Min($points, 30) }
             $recs += "CRITIQUE : Disque $($disk.Name): à $($disk.UsedPct)% — libérer de l'espace ($($disk.FreeGB) Go restants)"
         } elseif ($disk.UsedPct -gt 80) {
             $recs += "Disque $($disk.Name): à $($disk.UsedPct)% — surveiller et planifier un nettoyage"
@@ -701,9 +709,9 @@ function _Export-ScoreReport {
             "<tr style='background:$bg'><td>$icon</td><td>$($_.Check)</td><td>$($_.Val)</td><td>$bar</td></tr>"
         }) -join "`n"
 
-        $recRows = if ($DomainScore.Recommendations.Count -gt 0) {
+        $recRows = if (@($DomainScore.Recommendations).Count -gt 0) {
             "<div class='recs'><strong>💡 Recommandations :</strong><ul>" +
-            ($DomainScore.Recommendations | ForEach-Object { "<li>$_</li>" }) -join "" +
+            (($DomainScore.Recommendations | ForEach-Object { "<li>$_</li>" }) -join "") +
             "</ul></div>"
         } else { "<div class='recs ok-recs'>✅ Aucune recommandation — domaine sain</div>" }
 
@@ -728,7 +736,7 @@ function _Export-ScoreReport {
             $allRecs += @{ Priority=$pri; Domain=$dom; Rec=$_ }
         }
     }
-    $allRecs = $allRecs | Sort-Object Priority
+    $allRecs = @($allRecs | Sort-Object Priority)
 
     $recTableRows = ($allRecs | ForEach-Object {
         $bg   = switch ($_.Priority) { 1{"#f8d7da"} 2{"#fff3cd"} default{"#e2f3fd"} }

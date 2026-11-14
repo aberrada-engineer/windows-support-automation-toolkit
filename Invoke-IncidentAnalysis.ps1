@@ -228,8 +228,9 @@ if (-not $SkipHealthScore) {
                     $recs   = $healthResult.$key.Recommendations
                     $st     = if ($score -ge 80) { "OK" } elseif ($score -ge 60) { "WARN" } else { "ERROR" }
                     $impact = if ($st -eq "ERROR") { 15 } elseif ($st -eq "WARN") { 7 } else { 0 }
-                    $detail = if ($recs -and $recs.Count -gt 0) {
-                        "$($recs.Count) recommandation(s) : $($recs[0])"
+                    $recsArr = @($recs | Where-Object { $_ })
+                    $detail = if ($recsArr.Count -gt 0) {
+                        "$($recsArr.Count) recommandation(s) : $($recsArr[0])"
                     } else { "Aucune recommandation" }
                     Add-ESNResult "Score $label" "Score pondéré $label" $st `
                         "$score/100 — $lbl" $detail -ScoreImpact $impact
@@ -520,6 +521,7 @@ return [PSCustomObject]@{
     ScoreServices           = if ($healthResult) { $healthResult.Services.Score } else { $null }
 
     # Diagnostic
+    Score                   = $session.Score
     DiagScore               = $session.Score
     DiagErrors              = $session.Errors.Count
     DiagWarnings            = $session.Warnings.Count
