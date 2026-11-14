@@ -16,10 +16,14 @@
 
 [CmdletBinding()]
 param(
-    [string]$DefaultBackupPath = "C:\ESN-Toolkit\Migrations"
+    [string]$DefaultBackupPath = ""
 )
 
 $ScriptDir = Split-Path $MyInvocation.PSCommandPath -Parent
+Import-Module "$ScriptDir\Core\ESN-Core.psm1" -ErrorAction SilentlyContinue
+if ([string]::IsNullOrWhiteSpace($DefaultBackupPath)) {
+    $DefaultBackupPath = if (Get-Command Get-ESNToolkitRoot -ErrorAction SilentlyContinue) { Get-ESNToolkitRoot -SubFolder "Migrations" -Ensure } else { Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/Migrations" }
+}
 Import-Module "$ScriptDir\Modules\Migration\ESN-Migration.psm1" -Force
 
 function Show-Header {

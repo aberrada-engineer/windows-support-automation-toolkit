@@ -84,8 +84,9 @@ if ($wuSvc -and $wuSvc.Status -eq "Running") {
 }
 
 # 5. RAPPORT HTML
-$reportPath = "C:\ESN-Toolkit\Reports\Core-Services-Report.html"
-$reportDir  = Split-Path $reportPath -Parent
+Import-Module "$PSScriptRoot\Core\ESN-Core.psm1" -ErrorAction SilentlyContinue
+$reportDir  = if (Get-Command Get-ESNToolkitRoot -ErrorAction SilentlyContinue) { Get-ESNToolkitRoot -SubFolder "Reports" -Ensure } else { Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/Reports" }
+$reportPath = Join-Path $reportDir "Core-Services-Report.html"
 if (-not (Test-Path $reportDir)) { New-Item $reportDir -ItemType Directory -Force | Out-Null }
 
 $rows = $coreResults | ForEach-Object {

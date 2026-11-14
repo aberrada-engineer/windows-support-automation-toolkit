@@ -65,8 +65,12 @@ if ($Simulation) {
 
 # 4. PV OFFICIEL DE BASCULE DATACENTER
 Write-Host "`n[4/4] Génération du Procès-Verbal de bascule Datacenter..." -ForegroundColor Yellow
-$reportPath = "C:\ESN-Toolkit\Reports\PV-Bascule-Datacenter-$PlanName.html"
-$reportDir  = Split-Path $reportPath -Parent
+$repoCore = Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) "Core\ESN-Core.psm1"
+if (-not (Get-Command Get-ESNToolkitRoot -ErrorAction SilentlyContinue) -and (Test-Path $repoCore)) {
+    Import-Module $repoCore -ErrorAction SilentlyContinue
+}
+$reportDir  = if (Get-Command Get-ESNToolkitRoot -ErrorAction SilentlyContinue) { Get-ESNToolkitRoot -SubFolder "Reports" } elseif ($env:ESN_TOOLKIT_ROOT) { Join-Path $env:ESN_TOOLKIT_ROOT "Reports" } elseif ($env:SystemDrive) { "$($env:SystemDrive)\ESN-Toolkit\Reports" } else { Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/Reports" }
+$reportPath = Join-Path $reportDir "PV-Bascule-Datacenter-$PlanName.html"
 if (-not (Test-Path $reportDir)) { New-Item $reportDir -ItemType Directory -Force | Out-Null }
 
 $html = @"

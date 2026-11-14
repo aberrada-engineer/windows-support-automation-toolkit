@@ -25,7 +25,7 @@ Ce repository **n'est pas une simple collection de scripts** : c'est la concrét
 
 ---
 
-## 🏗️ 2. Soutenance des 6 Projets Majeurs Réalisés
+## 🏗️ 2. Soutenance des 7 Projets Majeurs Réalisés
 
 ```
 ┌───────────────────────────────────────────────────────────────────────────┐
@@ -91,6 +91,14 @@ Ce repository **n'est pas une simple collection de scripts** : c'est la concrét
   - Organisation des pilotes selon la méthode **Total Control** par constructeur et modèle (Dell Latitude/OptiPlex, HP, Lenovo).
   - Configuration `CustomSettings.ini` Zero-Touch : renommage automatique `CLI-%SERIAL%`, jonction de domaine AD, désactivation télémétrie et chiffrement BitLocker automatique.
 - **Preuve dans le Repo :** `Projects/MDT-Deployment/Invoke-MDTIndustrialization.ps1`
+
+### Projet 7 : Refonte WAN Multi-Sites (MPLS / SD-WAN) & PRA Intersites (En Équipe)
+- **Défi :** Basculer la connectivité WAN multi-sites avec opérateur et ingénieur réseau tout en maintenant les flux de réplication PRA inter-datacenters sans perte de paquets ni fragmentation critique.
+- **Solution Technique Implémentée :**
+  - Audit **Path MTU Discovery** (`DF-bit`) entre passerelles primaires MPLS et secours IPsec afin de prévenir le *black-holing* ICMP.
+  - Contrôle SLA latence, gigue et perte de paquets vers les sondes distantes et vérification de la connectivité port `6162` (Veeam WAN Accelerator).
+  - Rédaction automatisée de la fiche de recette opérateur et du Procès-Verbal de bascule WAN HTML.
+- **Preuve dans le Repo :** `Projects/WAN-MPLS-Refonte/Invoke-WANMigrationPlan.ps1`
 
 ---
 

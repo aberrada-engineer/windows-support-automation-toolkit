@@ -1,4 +1,4 @@
-# Pester Tests - WSAT Enterprise Elite Modules, Chaos Engineering & SIEM Telemetry
+﻿# Pester Tests - WSAT Enterprise Elite Modules, Chaos Engineering & SIEM Telemetry
 # Compatible Pester v5 / v6
 
 BeforeAll {
@@ -157,5 +157,75 @@ Describe "PS 5.1 Compatibility, Security Hardening & Live Guards" {
     It "Invoke-LinuxHeterogeneousAudit.ps1 & Invoke-ITSMConnector.ps1 run cleanly in simulation" {
         { & (Join-Path $script:RootDir "Invoke-LinuxHeterogeneousAudit.ps1") -TargetHost "ci-linux-node" -SimulationMode } | Should -Not -Throw
         { & (Join-Path $script:RootDir "Invoke-ITSMConnector.ps1") -Target "Simulation" } | Should -Not -Throw
+    }
+
+    It "New-ArubaSwitchConfig.ps1 defaults to SNMPv3 authPriv without plaintext default community" {
+        $arubaOut = Join-Path $script:TmpOut "Aruba"
+        & (Join-Path $script:RootDir "Projects/Network-Aruba/New-ArubaSwitchConfig.ps1") -Hostname "SW-CI-01" -OutputDir $arubaOut
+        $cfgPath = Join-Path $arubaOut "SW-CI-01.cfg"
+        Test-Path $cfgPath | Should -BeTrue
+        $cfgRaw = Get-Content $cfgPath -Raw
+        $cfgRaw | Should -Match 'snmpv3 user "prtg-monitor" auth sha'
+        $cfgRaw | Should -Not -Match 'PRTG_Monitoring'
+    }
+
+    It "Invoke-NutanixPrismHealthAI.ps1 live path parses mocked Prism v2 JSON telemetry" {
+        Mock Invoke-RestMethod {
+            if ($Uri -match '/cluster/') {
+                return [PSCustomObject]@{
+                    name                        = "NTNX-MOCK-01"
+                    version                     = "6.5.5"
+                    hypervisor_types            = @("AHV")
+                    num_nodes                   = 3
+                    fault_tolerance_domain_type = 2
+                    usage_stats                 = [PSCustomObject]@{
+                        'storage.usage_bytes'    = [double](10TB)
+                        'storage.capacity_bytes' = [double](20TB)
+                    }
+                    stats                       = [PSCustomObject]@{
+                        'controller_avg_io_latency_usecs' = 3500
+                        'controller_num_iops'             = 18500
+                    }
+                }
+            }
+            if ($Uri -match '/hosts/') {
+                return [PSCustomObject]@{
+                    entities = @(
+                        [PSCustomObject]@{
+                            name                  = "node-mock-01"
+                            service_vmexternal_ip = "10.0.0.11"
+                            state                 = "NORMAL"
+                            stats                 = [PSCustomObject]@{
+                                hypervisor_cpu_usage_ppm        = 420000
+                                hypervisor_memory_usage_ppm     = 610000
+                                controller_avg_io_latency_usecs = 2100
+                            }
+                        }
+                    )
+                }
+            }
+            return [PSCustomObject]@{ entities = @() }
+        }
+        $dummyCred = [System.Management.Automation.PSCredential]::new("ci-monitor", [System.Security.SecureString]::new())
+        $res = & (Join-Path $script:RootDir "Invoke-NutanixPrismHealthAI.ps1") -PrismEndpoint "prism.mock.local:9440" -Credential $dummyCred -OutputPath $script:TmpOut
+        $res.ClusterName | Should -Be "NTNX-MOCK-01"
+        $res.NodesCount | Should -Be 3
+        $res.PeakClusterIOPS | Should -Be 18500
+        Test-Path (Join-Path $script:TmpOut "NutanixHealth_NTNX-MOCK-01.json") | Should -BeTrue
+    }
+
+    It "Invoke-ActiveDirectoryThreatHunter.ps1 detects Kerberoasting RC4 0x17 sweep via mocked Get-WinEvent" {
+        Mock Get-WinEvent {
+            1..5 | ForEach-Object {
+                $evt = [PSCustomObject]@{ Id = 4769 }
+                $evt | Add-Member -MemberType ScriptMethod -Name ToXml -Value {
+                    '<Event><EventData><Data Name="TicketEncryptionType">0x17</Data><Data Name="ServiceName">svc_sql_prod</Data><Data Name="IpAddress">10.99.99.50</Data></EventData></Event>'
+                } -Force
+                $evt
+            }
+        }
+        $res = & (Join-Path $script:RootDir "Invoke-ActiveDirectoryThreatHunter.ps1") -DomainController "127.0.0.1" -OutputPath $script:TmpOut
+        $res.CriticalCount | Should -BeGreaterOrEqual 1
+        ($res.Findings | Where-Object { $_.MITRETechnique -eq 'T1558.003' }).SourceWorkstation | Should -Contain '10.99.99.50'
     }
 }

@@ -21,9 +21,14 @@
 param(
     [ValidateSet("All", "Veeam", "Hypervisor", "DHCP", "SSLCert")]
     [string]$TargetSensor = "All",
-    [string]$OutputDirectory = "C:\ESN-Toolkit\PRTG-Sensors",
+    [string]$OutputDirectory = "",
     [switch]$DeployLocally
 )
+
+Import-Module "$PSScriptRoot\Core\ESN-Core.psm1" -ErrorAction SilentlyContinue
+if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
+    $OutputDirectory = if (Get-Command Get-ESNToolkitRoot -ErrorAction SilentlyContinue) { Get-ESNToolkitRoot -SubFolder "PRTG-Sensors" -Ensure } else { Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/PRTG-Sensors" }
+}
 
 $ErrorActionPreference = "Continue"
 

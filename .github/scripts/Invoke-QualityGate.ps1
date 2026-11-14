@@ -47,21 +47,21 @@ try {
 
     if ($Stage -eq 'Analyzer' -or ($Stage -eq 'All' -and $RunAnalyzer)) {
         Ensure-GalleryModule -Name 'PSScriptAnalyzer'
-        $findings = @(Invoke-ScriptAnalyzer -Path . -Recurse -Severity Error | Where-Object { $_.ScriptPath -notmatch '[/\\]Tests[/\\]' })
+        $findings = @(Invoke-ScriptAnalyzer -Path . -Recurse -Severity @('Error', 'Warning') -ExcludeRule @('PSAvoidUsingWriteHost') | Where-Object { $_.ScriptPath -notmatch '[/\\]Tests[/\\]' })
         if ($findings.Count -gt 0) {
-            $findings | Format-Table ScriptName, Line, RuleName, Message -AutoSize
+            $findings | Format-Table ScriptName, Line, Severity, RuleName, Message -AutoSize
             foreach ($f in ($findings | Select-Object -First 15)) {
                 Emit-GhaError "PSScriptAnalyzer [$($f.ScriptName):$($f.Line)] $($f.RuleName): $($f.Message)"
             }
-            throw "PSScriptAnalyzer a detecte $($findings.Count) erreur(s) critique(s)."
+            throw "PSScriptAnalyzer a detecte $($findings.Count) alerte(s) Error/Warning."
         }
-        Write-Host "[OK] Zero erreur critique PSScriptAnalyzer." -ForegroundColor Green
+        Write-Host "[OK] Zero alerte Error/Warning PSScriptAnalyzer (hors PSAvoidUsingWriteHost)." -ForegroundColor Green
     }
 
     if ($Stage -in @('All', 'Pester')) {
         Ensure-GalleryModule -Name 'Pester' -MinVersion '5.0.0'
         Import-Module Pester -MinimumVersion 5.0.0 -Force
-        $res = Invoke-Pester -Path @('./Tests/ESN-EnterpriseModules.Tests.ps1', './Tests/WSAT-Enterprise.Tests.ps1') -Output Detailed -PassThru
+        $res = Invoke-Pester -Path './Tests' -Output Detailed -PassThru
         if ($res.FailedCount -gt 0) {
             foreach ($t in ($res.Failed | Select-Object -First 15)) {
                 $errDetail = ($t.ErrorRecord | Out-String)

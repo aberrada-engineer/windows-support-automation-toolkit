@@ -157,7 +157,7 @@ $HtmlContent = @"
                     <td><strong>Directeur de Crise</strong></td>
                     <td>Directeur des Systèmes d'Information (DSI)</td>
                     <td>Directeur Technique</td>
-                    <td>Ligne Rouge Dédiée (+33 7 75 69 17 86)</td>
+                    <td>Canal Astreinte N3 24/7 / berradapro@outlook.com</td>
                 </tr>
                 <tr>
                     <td><strong>Référent Technique N3</strong></td>

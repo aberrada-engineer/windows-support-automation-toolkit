@@ -62,8 +62,9 @@ $pwdNeverExpires = Get-ADUser -Filter { PasswordNeverExpires -eq $true -and Enab
 Write-Host "  -> $(@($pwdNeverExpires).Count) compte(s) avec mot de passe infini." -ForegroundColor $(if ($pwdNeverExpires) { "Yellow" } else { "Green" })
 
 # RAPPORT HTML
-$reportPath = "C:\ESN-Toolkit\Reports\AD-Hygiene-Audit.html"
-$reportDir  = Split-Path $reportPath -Parent
+Import-Module "$PSScriptRoot\Core\ESN-Core.psm1" -ErrorAction SilentlyContinue
+$reportDir  = if (Get-Command Get-ESNToolkitRoot -ErrorAction SilentlyContinue) { Get-ESNToolkitRoot -SubFolder "Reports" -Ensure } else { Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/Reports" }
+$reportPath = Join-Path $reportDir "AD-Hygiene-Audit.html"
 if (-not (Test-Path $reportDir)) { New-Item $reportDir -ItemType Directory -Force | Out-Null }
 
 $html = @"

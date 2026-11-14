@@ -49,8 +49,10 @@ if ($confirm.ToUpper() -ne "O") {
     return
 }
 
+Import-Module "$PSScriptRoot\Core\ESN-Core.psm1" -ErrorAction SilentlyContinue
+
 # 1. SAUVEGARDE DES GROUPES (ROLLBACK JSON)
-$backupDir = "C:\ESN-Toolkit\Offboarding_Archives"
+$backupDir = if (Get-Command Get-ESNToolkitRoot -ErrorAction SilentlyContinue) { Get-ESNToolkitRoot -SubFolder "Offboarding_Archives" -Ensure } else { Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/Offboarding_Archives" }
 if (-not (Test-Path $backupDir)) { New-Item $backupDir -ItemType Directory -Force | Out-Null }
 $backupFile = Join-Path $backupDir "$Username-Groups-Backup.json"
 
@@ -79,7 +81,8 @@ Set-ADUser -Identity $Username -AccountExpirationDate (Get-Date)
 Write-Host " [OK] Mot de passe réinitialisé aléatoirement et compte expiré." -ForegroundColor Green
 
 # 5. GENERATION DU PROCES-VERBAL OFFICIEL (HTML)
-$pvPath = "C:\ESN-Toolkit\Reports\PV-Restitution-$Username.html"
+$repDir = if (Get-Command Get-ESNToolkitRoot -ErrorAction SilentlyContinue) { Get-ESNToolkitRoot -SubFolder "Reports" -Ensure } else { Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/Reports" }
+$pvPath = Join-Path $repDir "PV-Restitution-$Username.html"
 $pvHtml = @"
 <!DOCTYPE html>
 <html>

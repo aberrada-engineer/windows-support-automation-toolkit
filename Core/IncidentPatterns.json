@@ -274,7 +274,7 @@
         "Communiquer le MDP temporaire de manière sécurisée (téléphone, gestionnaire de secrets)",
         "Vérifier la politique de MDP du domaine : Get-ADDefaultDomainPasswordPolicy"
       ],
-      "powershell_fix": "Set-ADAccountPassword -Identity '<SamAccountName>' -Reset -NewPassword (ConvertTo-SecureString 'TempMdp@123' -AsPlainText -Force); Set-ADUser -Identity '<SamAccountName>' -ChangePasswordAtLogon $true"
+      "powershell_fix": "$secPwd = Read-Host 'Nouveau mot de passe temporaire' -AsSecureString; Set-ADAccountPassword -Identity '<SamAccountName>' -Reset -NewPassword $secPwd; Set-ADUser -Identity '<SamAccountName>' -ChangePasswordAtLogon $true"
     },
 
     {

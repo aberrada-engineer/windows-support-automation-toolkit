@@ -91,13 +91,15 @@ if ($mtuTest -match "100% loss|fragmented|fragmentation") {
 
 # 4. GESTION DES FICHIERS DE CONFIGURATION
 Write-Host "`n [*] Gestion des sauvegardes de configuration équipements ($ApplianceType)..." -ForegroundColor Yellow
-$backupDir = "C:\ESN-Toolkit\Network_Backups"
+Import-Module "$PSScriptRoot\Core\ESN-Core.psm1" -ErrorAction SilentlyContinue
+$backupDir = if (Get-Command Get-ESNToolkitRoot -ErrorAction SilentlyContinue) { Get-ESNToolkitRoot -SubFolder "Network_Backups" -Ensure } else { Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/Network_Backups" }
 if (-not (Test-Path $backupDir)) { New-Item $backupDir -ItemType Directory -Force | Out-Null }
 
 Add-NetCheck -Element "Archivage Configuration $ApplianceType" -Value "Dépôt Prêt" -Status "OK" -Detail "Répertoire de sauvegarde centralisé initialisé : $backupDir"
 
 # 5. GENERATION DU RAPPORT HTML
-$reportPath = "C:\ESN-Toolkit\Reports\Network-Appliance-Report.html"
+$reportDir  = if (Get-Command Get-ESNToolkitRoot -ErrorAction SilentlyContinue) { Get-ESNToolkitRoot -SubFolder "Reports" -Ensure } else { Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/Reports" }
+$reportPath = Join-Path $reportDir "Network-Appliance-Report.html"
 $rows = $netResults | ForEach-Object {
     $badge = if ($_.Statut -eq "OK") { "#107c41" } elseif ($_.Statut -eq "WARN") { "#d83b01" } else { "#a80000" }
     "<tr><td><b>$($_.Composant)</b></td><td>$($_.Mesure)</td><td><span style='background:$badge;color:white;padding:3px 8px;border-radius:4px;font-weight:bold;'>$($_.Statut)</span></td><td>$($_.Observation)</td></tr>"

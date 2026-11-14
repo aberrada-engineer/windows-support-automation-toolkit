@@ -114,7 +114,8 @@ $tab1.Controls.Add((Create-ModernButton -Text "🔍 Mode Simulation (Zéro modif
 }))
 
 $tab1.Controls.Add((Create-ModernButton -Text "📂 Ouvrir Dernier Rapport HTML" -X 20 -Y 85 -Width 270 -Height 45 -BgColor ([System.Drawing.Color]::FromArgb(43, 87, 154)) -Action {
-    $latest = Get-ChildItem "C:\ESN-Toolkit\Reports\*.html", "$env:SystemDrive\ESN-Reports\*\*.html" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    $repDir = if ($env:ESN_TOOLKIT_ROOT) { Join-Path $env:ESN_TOOLKIT_ROOT "Reports" } elseif ($env:SystemDrive) { "$($env:SystemDrive)\ESN-Toolkit\Reports" } else { Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/Reports" }
+    $latest = Get-ChildItem (Join-Path $repDir "*.html"), "$env:SystemDrive\ESN-Reports\*\*.html" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
     if ($latest) { Start-Process $latest.FullName; Append-Log "Rapport ouvert : $($latest.FullName)" "Green" }
     else { Append-Log "Aucun rapport trouvé." "Yellow" }
 }))
@@ -245,14 +246,15 @@ $tab4.Controls.Add((Create-ModernButton -Text "📥 Restaurer sur Nouveau Poste 
 }))
 
 $tab4.Controls.Add((Create-ModernButton -Text "📂 Ouvrir Dossier Migrations" -X 600 -Y 20 -Width 270 -Height 50 -BgColor ([System.Drawing.Color]::FromArgb(85, 85, 85)) -Action {
-    $migDir = "C:\ESN-Toolkit\Migrations"
+    $migDir = if ($env:ESN_TOOLKIT_ROOT) { Join-Path $env:ESN_TOOLKIT_ROOT "Migrations" } elseif ($env:SystemDrive) { "$($env:SystemDrive)\ESN-Toolkit\Migrations" } else { Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/Migrations" }
     if (-not (Test-Path $migDir)) { New-Item $migDir -ItemType Directory -Force | Out-Null }
     Start-Process "explorer.exe" $migDir
     Append-Log "Dossier ouvert : $migDir" "Green"
 }))
 
 $tab4.Controls.Add((Create-ModernButton -Text "📄 Consulter Dernier Rapport Migration" -X 20 -Y 85 -Width 270 -Height 45 -BgColor ([System.Drawing.Color]::FromArgb(43, 87, 154)) -Action {
-    $latestReport = Get-ChildItem "C:\ESN-Toolkit\Migrations\*\Migration-Report.html" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    $migRoot = if ($env:ESN_TOOLKIT_ROOT) { Join-Path $env:ESN_TOOLKIT_ROOT "Migrations" } elseif ($env:SystemDrive) { "$($env:SystemDrive)\ESN-Toolkit\Migrations" } else { Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/Migrations" }
+    $latestReport = Get-ChildItem (Join-Path $migRoot "*\Migration-Report.html") -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
     if ($latestReport) {
         Start-Process $latestReport.FullName
         Append-Log "Rapport ouvert : $($latestReport.FullName)" "Green"

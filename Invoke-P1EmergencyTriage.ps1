@@ -104,7 +104,7 @@ try {
     }
 
     # 5. GÉNÉRATION DU BILAN FLASH P1 (HTML + SIEM JSON)
-    $reportDir = if (-not [string]::IsNullOrWhiteSpace($OutputPath)) { $OutputPath } elseif (Get-Command Get-ESNReportRoot -ErrorAction SilentlyContinue) { Get-ESNReportRoot } else { "C:\ESN-Toolkit\Reports" }
+    $reportDir = if (-not [string]::IsNullOrWhiteSpace($OutputPath)) { $OutputPath } elseif (Get-Command Get-ESNReportRoot -ErrorAction SilentlyContinue) { Get-ESNReportRoot } else { Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/Reports" }
     if (-not (Test-Path $reportDir)) { New-Item $reportDir -ItemType Directory -Force | Out-Null }
     $reportPath = Join-Path $reportDir "Flash-Incident-P1-$hostLabel.html"
 

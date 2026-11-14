@@ -5,6 +5,15 @@ Format : [Version] — Date — Description
 
 ---
 
+## [3.9.0] — 2026-11-14 — Portabilité Enterprise, Hygiène SecOps & CI Étendue
+
+### Correctifs & Durcissement
+- **Portabilité des chemins (`Core/ESN-Core.psm1`, `Core/ESN-OutputSchema.ps1`)** : Introduction de `Get-ESNToolkitRoot` (variable d'environnement `ESN_TOOLKIT_ROOT`, sinon `%SystemDrive%\ESN-Toolkit`, sinon dossier temporaire) et suppression des chemins `C:\ESN-Toolkit` codés en dur dans les modules, orchestrateurs, console TUI, GUI et playbooks `Projects/`.
+- **Sécurité & Réseau (`Projects/Network-Aruba/New-ArubaSwitchConfig.ps1`, `Projects/EDR-Deployment/Invoke-EDRMassRollout.ps1`, `Core/IncidentPatterns.json`)** : Passage à **SNMPv3 (`authPriv` SHA/AES)** par défaut (zéro secret/communauté en clair), lecture du Site Token EDR via `ESN_EDR_SITE_TOKEN`, et suppression des exemples `-AsPlainText` dans la base `IncidentPatterns.json`.
+- **Fiabilité Console TUI (`ESN-Console.ps1`)** : Correction des paramètres d'appel du sous-menu `[26]` (`-Simulation`, `-AuditOnly`, etc.) selon les signatures réelles de chaque playbook.
+- **Tests Pester & CI (`.github/scripts/Invoke-QualityGate.ps1`, `Tests/`)** : Activation de l'ensemble des 5 suites Pester + règle `PSScriptAnalyzer` étendue (`Error` & `Warning`), ajout de tests unitaires avec `Mock` sur les branches live (`Invoke-NutanixPrismHealthAI.ps1`, `Invoke-ActiveDirectoryThreatHunter.ps1`) et validation SNMPv3.
+- **Cohérence Documentaire** : Alignement `v3.9` et `7 Projets Majeurs` (ajout explicite du Projet 7 WAN MPLS / PRA dans `Docs/DOSSIER-TECHNIQUE-ENTRETIEN.md`, `index.html`, `Presentation/index.html`, `WebDashboard/index.html`, `README.md`, `ROADMAP.md`) et masquage du numéro de téléphone personnel dans les supports publics.
+
 ## [3.8.0] — 2026-11-12 — Dossier d'Ingénierie, Pitch Deck Interactif, Compendium REX & Live Demo
 
 ### Nouveautés & Livrables Recruteurs

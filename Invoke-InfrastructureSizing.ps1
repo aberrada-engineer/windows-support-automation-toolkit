@@ -74,7 +74,9 @@ Write-Host "  -> Rétention 30 jours (Incr.)   : $backup30DaysRetentionGB Go" -F
 Write-Host "  -> Capacité préconisée (Dépôt)  : $backupWithImmutabilityGB Go (incluant immutabilité WORM)" -ForegroundColor Green
 
 # 5. GENERATION DU DOSSIER DE DIMENSIONNEMENT COPIL (HTML)
-$reportPath = "C:\ESN-Toolkit\Reports\Dossier-Dimensionnement-Architecture.html"
+Import-Module "$PSScriptRoot\Core\ESN-Core.psm1" -ErrorAction SilentlyContinue
+$repDir = if (Get-Command Get-ESNToolkitRoot -ErrorAction SilentlyContinue) { Get-ESNToolkitRoot -SubFolder "Reports" -Ensure } else { Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/Reports" }
+$reportPath = Join-Path $repDir "Dossier-Dimensionnement-Architecture.html"
 $html = @"
 <!DOCTYPE html>
 <html>

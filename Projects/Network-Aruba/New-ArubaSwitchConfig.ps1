@@ -22,11 +22,32 @@ param(
     [string]$VlanVoIP = "20",
     [string]$VlanWiFi = "30",
     [string]$VlanMgmt = "99",
-    [string]$SNMPCommunity = "PRTG_Monitoring",
-    [string]$OutputDir = "C:\ESN-Toolkit\Aruba_Deployments"
+    [ValidateSet("v3", "v2c")]
+    [string]$SNMPVersion = "v3",
+    [string]$SNMPv3User = "prtg-monitor",
+    [string]$SNMPCommunity = "",
+    [string]$OutputDir = ""
 )
 
-Clear-Host
+$repoCore = Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) "Core\ESN-Core.psm1"
+if (-not (Get-Command Get-ESNToolkitRoot -ErrorAction SilentlyContinue) -and (Test-Path $repoCore)) {
+    Import-Module $repoCore -ErrorAction SilentlyContinue
+}
+if ([string]::IsNullOrWhiteSpace($OutputDir)) {
+    $OutputDir = if (Get-Command Get-ESNToolkitRoot -ErrorAction SilentlyContinue) {
+        Get-ESNToolkitRoot -SubFolder "Aruba_Deployments"
+    } elseif ($env:ESN_TOOLKIT_ROOT) {
+        Join-Path $env:ESN_TOOLKIT_ROOT "Aruba_Deployments"
+    } elseif ($env:SystemDrive) {
+        "$($env:SystemDrive)\ESN-Toolkit\Aruba_Deployments"
+    } else {
+        Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/Aruba_Deployments"
+    }
+}
+
+if ([Environment]::UserInteractive) {
+    try { Clear-Host } catch { Write-Verbose "Clear-Host ignored: $($_.Exception.Message)" }
+}
 Write-Host "================================================================================" -ForegroundColor Cyan
 Write-Host "   🌐  GENERATEUR DE CONFIGURATION SWITCHES ARUBA (~20 SWITCHES)" -ForegroundColor White
 Write-Host "       Projet d'Ingénierie Réseau Réalisé en Autonomie — Amine BERRADA" -ForegroundColor Gray
@@ -38,6 +59,25 @@ if (-not (Test-Path $OutputDir)) {
 }
 
 $configFile = Join-Path $OutputDir "$Hostname.cfg"
+
+$snmpBlock = if ($SNMPVersion -eq "v3") {
+@"
+; 6. GESTION ADMINISTRATIVE & SUPERVISION PRTG (SNMPv3 authPriv SHA/AES)
+snmpv3 enable
+snmpv3 user "$SNMPv3User" auth sha "<REPLACE_WITH_AUTH_KEY>" priv aes "<REPLACE_WITH_PRIV_KEY>"
+snmpv3 group managerpriv user "$SNMPv3User" sec-model ver3
+snmp-server host $DefaultGateway version 3 authpriv "$SNMPv3User"
+snmp-server enable traps
+"@
+} else {
+    $communityVal = if (-not [string]::IsNullOrWhiteSpace($SNMPCommunity)) { $SNMPCommunity } else { "<REPLACE_WITH_SNMP_COMMUNITY>" }
+@"
+; 6. GESTION ADMINISTRATIVE & SUPERVISION PRTG (SNMPv2c)
+snmp-server community "$communityVal" operator
+snmp-server host $DefaultGateway community "$communityVal"
+snmp-server enable traps
+"@
+}
 
 $arubaConfig = @"
 ; ============================================================================
@@ -90,10 +130,7 @@ spanning-tree 1-24 bpdu-protection
 ; 5. SECURITE DES PORTS (PORT-SECURITY)
 port-security 1-20 learn-mode limited-continuous address-limit 2 action send-alarm
 
-; 6. GESTION ADMINISTRATIVE & SUPERVISION PRTG (SNMP)
-snmp-server community "$SNMPCommunity" operator
-snmp-server host $DefaultGateway community "$SNMPCommunity"
-snmp-server enable traps
+$snmpBlock
 
 ; 7. ACCES DISTANT SECURISE SSH
 crypto key generate ssh rsa 2048
@@ -147,7 +184,7 @@ $html = @"
                 <tr><td><b>VLANs Étanches</b></td><td>Data (10), VoIP (20), Wi-Fi (30), Mgmt (99)</td><td>Cloisonnement des flux et sécurité réseau.</td></tr>
                 <tr><td><b>Uplinks LACP</b></td><td>Agrégation de 2 ports 10G/1G (Trunk trk1)</td><td>Haute disponibilité et doublement de la bande passante.</td></tr>
                 <tr><td><b>RSTP & BPDU Guard</b></td><td>Spanning-Tree rapide + protection BPDU</td><td>Prévention des boucles réseaux accidentelles par les utilisateurs.</td></tr>
-                <tr><td><b>Supervision PRTG</b></td><td>SNMP v2c/v3 + Sondes de trafic par port</td><td>Surveillance 24/7 du MCO et alertes en cas de coupure de port.</td></tr>
+                <tr><td><b>Supervision PRTG</b></td><td>SNMPv3 authPriv (SHA/AES) + Sondes de trafic par port</td><td>Surveillance 24/7 chiffrée du MCO et alertes en cas de coupure de port.</td></tr>
             </tbody>
         </table>
     </div>

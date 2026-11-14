@@ -10,11 +10,31 @@ Set-StrictMode -Version Latest
 # ─────────────────────────────────────────────
 # CONFIG GLOBALE
 # ─────────────────────────────────────────────
+function Get-ESNToolkitRoot {
+    [CmdletBinding()]
+    param(
+        [string]$SubFolder = "",
+        [switch]$Ensure
+    )
+    $base = if (-not [string]::IsNullOrWhiteSpace($env:ESN_TOOLKIT_ROOT)) {
+        $env:ESN_TOOLKIT_ROOT
+    } elseif ($env:OS -match 'Windows' -and $env:SystemDrive) {
+        "$($env:SystemDrive)\ESN-Toolkit"
+    } else {
+        Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit"
+    }
+    $target = if ([string]::IsNullOrWhiteSpace($SubFolder)) { $base } else { Join-Path $base $SubFolder }
+    if ($Ensure -and -not (Test-Path -Path $target)) {
+        New-Item -Path $target -ItemType Directory -Force | Out-Null
+    }
+    return $target
+}
+
 $script:ESNConfig = @{
-    Version      = "1.0.0"
-    LogRoot      = "C:\ESN-Toolkit\Logs"
-    ReportRoot   = "C:\ESN-Toolkit\Reports"
-    ZipRoot      = "C:\ESN-Toolkit\ZipIncidents"
+    Version      = "3.9.0"
+    LogRoot      = Get-ESNToolkitRoot -SubFolder "Logs"
+    ReportRoot   = Get-ESNToolkitRoot -SubFolder "Reports"
+    ZipRoot      = Get-ESNToolkitRoot -SubFolder "ZipIncidents"
     MaxLogDays   = 30
     TeamsWebhook = ""          # optionnel
     SmtpServer   = ""          # optionnel
@@ -451,5 +471,5 @@ Export-ModuleMember -Function @(
     'Initialize-ESNSession', 'Write-ESNLog',    'Add-ESNResult',
     'Export-ESNReport',      'Export-ESNZip',   'Show-ESNSummary',
     'Test-ESNPort',          'Test-ESNAdmin',
-    'Get-ESNConfig',         'Get-ESNSession'
+    'Get-ESNConfig',         'Get-ESNSession',  'Get-ESNToolkitRoot'
 ) -Alias 'Log','Result'

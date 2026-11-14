@@ -98,12 +98,14 @@ Ingénieur N3     : Amine BERRADA
 ================================================================================
 "@
 
-$rcaPath = "C:\ESN-Toolkit\Reports\Fiche-Incident-RCA.txt"
+Import-Module "$PSScriptRoot\Core\ESN-Core.psm1" -ErrorAction SilentlyContinue
+$repDir = if (Get-Command Get-ESNToolkitRoot -ErrorAction SilentlyContinue) { Get-ESNToolkitRoot -SubFolder "Reports" -Ensure } else { Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/Reports" }
+$rcaPath = Join-Path $repDir "Fiche-Incident-RCA.txt"
 $ticketRCA | Out-File -FilePath $rcaPath -Encoding UTF8
 Write-Host "`n [OK] Fiche d'incident RCA (GLPI / Jira) générée : $rcaPath" -ForegroundColor Green
 
 # 4. RAPPORT HTML
-$reportPath = "C:\ESN-Toolkit\Reports\Predictive-Health-Report.html"
+$reportPath = Join-Path $repDir "Predictive-Health-Report.html"
 $rows = $predictions | ForEach-Object {
     $badge = if ($_.Statut -eq "OPTIMAL") { "#107c41" } elseif ($_.Statut -eq "AVERTISSEMENT") { "#d83b01" } else { "#a80000" }
     "<tr><td><b>$($_.Domaine)</b></td><td>$($_.Diagnostic)</td><td>$($_.Prediction)</td><td><span style='background:$badge;color:white;padding:3px 8px;border-radius:4px;font-weight:bold;'>$($_.Statut)</span></td><td>$($_.Preconisation)</td></tr>"

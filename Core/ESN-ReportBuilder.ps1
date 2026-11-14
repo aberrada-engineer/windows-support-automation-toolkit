@@ -65,7 +65,15 @@ function Build-ESNReport {
 
     # ── Résolution des chemins ────────────────────────────────
     if ([string]::IsNullOrWhiteSpace($OutputPath)) {
-        $repRoot = if (Get-Command Get-ESNReportRoot -ErrorAction SilentlyContinue) { Get-ESNReportRoot } else { "C:\ESN-Toolkit\Reports" }
+        $repRoot = if (Get-Command Get-ESNReportRoot -ErrorAction SilentlyContinue) {
+            Get-ESNReportRoot
+        } elseif (-not [string]::IsNullOrWhiteSpace($env:ESN_TOOLKIT_ROOT)) {
+            Join-Path $env:ESN_TOOLKIT_ROOT "Reports"
+        } elseif ($env:SystemDrive) {
+            "$($env:SystemDrive)\ESN-Toolkit\Reports"
+        } else {
+            Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/Reports"
+        }
         $OutputPath = Join-Path $repRoot "report_$(Get-Date -Format 'yyyyMMdd_HHmm').html"
     }
     if (-not $IncidentPatternsPath) {

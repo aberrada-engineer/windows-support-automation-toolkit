@@ -1,5 +1,5 @@
-# Pester Tests - Enterprise Modules & Scripts Integrity Validation
-# Compatible with Pester v3/v4 and Pester v5/v6
+﻿# Pester Tests - Enterprise Modules & Scripts Integrity Validation
+# Requires Pester v5+ (BeforeDiscovery / -ForEach)
 
 BeforeDiscovery {
     $script:RootFolder = Split-Path $PSScriptRoot -Parent

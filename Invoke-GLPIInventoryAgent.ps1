@@ -15,9 +15,14 @@
 param(
     [string]$GLPIApiUrl = "",
     [string]$GLPIUserToken = "",
-    [string]$OutputDir = "C:\ESN-Toolkit\GLPI_Inventory",
+    [string]$OutputDir = "",
     [switch]$OpenReport = $true
 )
+
+Import-Module "$PSScriptRoot\Core\ESN-Core.psm1" -ErrorAction SilentlyContinue
+if ([string]::IsNullOrWhiteSpace($OutputDir)) {
+    $OutputDir = if (Get-Command Get-ESNToolkitRoot -ErrorAction SilentlyContinue) { Get-ESNToolkitRoot -SubFolder "GLPI_Inventory" -Ensure } else { Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/GLPI_Inventory" }
+}
 
 Clear-Host
 Write-Host "================================================================================" -ForegroundColor Cyan

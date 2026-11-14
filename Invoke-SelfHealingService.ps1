@@ -29,7 +29,7 @@ $ErrorActionPreference = "Stop"
 $schemaScript = Join-Path $PSScriptRoot "Core/ESN-OutputSchema.ps1"
 if (Test-Path $schemaScript) { . $schemaScript }
 
-$logBase = if (-not [string]::IsNullOrWhiteSpace($OutputPath)) { $OutputPath } elseif (Get-Command Get-ESNReportRoot -ErrorAction SilentlyContinue) { Get-ESNReportRoot -SubFolder "SelfHealing" } else { "C:\ESN-Toolkit\Logs" }
+$logBase = if (-not [string]::IsNullOrWhiteSpace($OutputPath)) { $OutputPath } elseif (Get-Command Get-ESNReportRoot -ErrorAction SilentlyContinue) { Get-ESNReportRoot -SubFolder "SelfHealing" } else { Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/Logs" }
 if (-not (Test-Path $logBase)) { New-Item $logBase -ItemType Directory -Force | Out-Null }
 $LogPath = Join-Path $logBase "SelfHealing.log"
 $SiemLog = Join-Path $logBase "SelfHealing-SIEM.jsonl"

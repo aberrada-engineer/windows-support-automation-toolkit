@@ -63,8 +63,12 @@ Write-Host "  -> Statut de conformité LAPS : $status (Longueur mot de passe: $p
 
 # 3. FICHE PROJET POST-AUDIT
 Write-Host "`n[3/3] Génération du dossier technique post-audit..." -ForegroundColor Yellow
-$reportPath = "C:\ESN-Toolkit\Reports\Dossier-Projet-Securisation-LAPS.html"
-$reportDir  = Split-Path $reportPath -Parent
+$repoCore = Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) "Core\ESN-Core.psm1"
+if (-not (Get-Command Get-ESNToolkitRoot -ErrorAction SilentlyContinue) -and (Test-Path $repoCore)) {
+    Import-Module $repoCore -ErrorAction SilentlyContinue
+}
+$reportDir  = if (Get-Command Get-ESNToolkitRoot -ErrorAction SilentlyContinue) { Get-ESNToolkitRoot -SubFolder "Reports" } elseif ($env:ESN_TOOLKIT_ROOT) { Join-Path $env:ESN_TOOLKIT_ROOT "Reports" } elseif ($env:SystemDrive) { "$($env:SystemDrive)\ESN-Toolkit\Reports" } else { Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/Reports" }
+$reportPath = Join-Path $reportDir "Dossier-Projet-Securisation-LAPS.html"
 if (-not (Test-Path $reportDir)) { New-Item $reportDir -ItemType Directory -Force | Out-Null }
 
 $html = @"

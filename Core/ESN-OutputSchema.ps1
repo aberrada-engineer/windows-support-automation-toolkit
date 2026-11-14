@@ -194,19 +194,28 @@ function Get-ESNSeverityTextColor([string]$Severity) {
     return "#333"
 }
 
-function Get-ESNReportRoot {
+function Get-ESNToolkitRoot {
     [CmdletBinding()]
     param([string]$SubFolder = "")
-    $base = if ($env:OS -match 'Windows' -and $env:SystemDrive) {
-        Join-Path "$($env:SystemDrive)\ESN-Toolkit" "Reports"
+    $base = if (-not [string]::IsNullOrWhiteSpace($env:ESN_TOOLKIT_ROOT)) {
+        $env:ESN_TOOLKIT_ROOT
+    } elseif ($env:OS -match 'Windows' -and $env:SystemDrive) {
+        Join-Path "$($env:SystemDrive)\" "ESN-Toolkit"
     } else {
-        Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/Reports"
+        Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit"
     }
     $target = if ([string]::IsNullOrWhiteSpace($SubFolder)) { $base } else { Join-Path $base $SubFolder }
     if (-not (Test-Path -Path $target)) {
         New-Item -Path $target -ItemType Directory -Force | Out-Null
     }
     return $target
+}
+
+function Get-ESNReportRoot {
+    [CmdletBinding()]
+    param([string]$SubFolder = "")
+    $sub = if ([string]::IsNullOrWhiteSpace($SubFolder)) { "Reports" } else { Join-Path "Reports" $SubFolder }
+    return Get-ESNToolkitRoot -SubFolder $sub
 }
 
 function Write-ESNSiemAlert {

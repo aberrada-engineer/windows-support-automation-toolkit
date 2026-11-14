@@ -352,7 +352,7 @@ if ($hasOutputSchema) {
     Write-ESNLog "Export JSON standardisé" "SECTION"
     try {
         $session    = Get-ESNSession
-        $jsonDir    = "C:\ESN-Toolkit\Reports\$(Get-Date -Format 'yyyy-MM-dd')"
+        $jsonDir    = Join-Path (Get-ESNConfig).ReportRoot (Get-Date -Format 'yyyy-MM-dd')
         $jsonPath   = Join-Path $jsonDir "$IncidentId.json"
         New-Item $jsonDir -ItemType Directory -Force | Out-Null
 
@@ -419,7 +419,7 @@ if ($hasOutputSchema) {
 # ─────────────────────────────────────────────────────────────
 Write-ESNLog "Génération rapport HTML" "SECTION"
 
-$reportDir  = "C:\ESN-Toolkit\Reports\$(Get-Date -Format 'yyyy-MM-dd')"
+$reportDir  = Join-Path (Get-ESNConfig).ReportRoot (Get-Date -Format 'yyyy-MM-dd')
 $reportPath = Join-Path $reportDir "$IncidentId`_rapport.html"
 New-Item $reportDir -ItemType Directory -Force | Out-Null
 

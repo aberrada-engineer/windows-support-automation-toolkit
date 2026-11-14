@@ -39,7 +39,7 @@ param(
     # Capture
     [string]$SourceComputer  = "",
     [string]$Username        = $env:USERNAME,
-    [string]$BackupRoot      = "C:\ESN-Toolkit\Migrations",
+    [string]$BackupRoot      = "",
     [switch]$IncludeOutlook,
     [switch]$IncludeBrowsers,
     [switch]$IncludePrinters,
@@ -69,6 +69,10 @@ foreach ($mp in @($CorePath, $MigModulePath)) {
         exit 1
     }
     Import-Module $mp -Force -ErrorAction Stop
+}
+
+if ([string]::IsNullOrWhiteSpace($BackupRoot)) {
+    $BackupRoot = Get-ESNToolkitRoot -SubFolder "Migrations" -Ensure
 }
 
 # Session

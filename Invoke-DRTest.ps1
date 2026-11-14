@@ -73,7 +73,8 @@ if ($estimatedRTOHours -le $TargetRTOHours) {
 
 # 3. VERIFICATION DE L'IMMUABILITE DU STOCKAGE (ANTI-RANSOMWARE)
 Write-Host "`n [*] Audit de l'immuabilité et de l'intégrité des dépôts de sauvegarde..." -ForegroundColor Yellow
-$repoPath = "C:\ESN-Toolkit\Backups"
+Import-Module "$PSScriptRoot\Core\ESN-Core.psm1" -ErrorAction SilentlyContinue
+$repoPath = if (Get-Command Get-ESNToolkitRoot -ErrorAction SilentlyContinue) { Get-ESNToolkitRoot -SubFolder "Backups" } else { Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/Backups" }
 $immutableStatus = "Non configuré"
 Add-DRCheck -Element "Immuabilité Dépôt (WORM)" -Target "Verrouillé WORM" -Actual "Conforme" -Status "CONFORME" -Detail "Dépôt immuable Linux durci ou stockage objet S3 avec Object Lock vérifié."
 
@@ -90,7 +91,8 @@ if ($SecondarySiteIP) {
 }
 
 # 5. GENERATION DU CERTIFICAT OFFICIEL DE TEST PRA/PCA (HTML)
-$reportPath = "C:\ESN-Toolkit\Reports\Certificat-Test-PRA-$($env:COMPUTERNAME).html"
+$reportDir  = if (Get-Command Get-ESNToolkitRoot -ErrorAction SilentlyContinue) { Get-ESNToolkitRoot -SubFolder "Reports" -Ensure } else { Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/Reports" }
+$reportPath = Join-Path $reportDir "Certificat-Test-PRA-$($env:COMPUTERNAME).html"
 $rows = $drResults | ForEach-Object {
     $badge = if ($_.Statut -eq "CONFORME") { "#107c41" } elseif ($_.Statut -eq "DEGRADE") { "#d83b01" } else { "#a80000" }
     "<tr><td><b>$($_.Composant)</b></td><td>$($_.CibleSLA)</td><td>$($_.Mesure)</td><td><span style='background:$badge;color:white;padding:3px 8px;border-radius:4px;font-weight:bold;'>$($_.Statut)</span></td><td>$($_.Observation)</td></tr>"

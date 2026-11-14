@@ -69,8 +69,9 @@ Write-Host "`n[4/4] Contrôle de la redondance et tolérance de panne..." -Foreg
 Add-VirtCheck -Element "Haute Disponibilité (HA / RF2)" -Value "Active (Tolérance 1 nœud)" -Status "OPTIMAL" -Detail "Cluster capable d'absorber la perte d'un nœud physique sans coupure de service."
 
 # 5. RAPPORT HTML
-$reportPath = "C:\ESN-Toolkit\Reports\Hypervisor-Health-Report.html"
-$reportDir  = Split-Path $reportPath -Parent
+Import-Module "$PSScriptRoot\Core\ESN-Core.psm1" -ErrorAction SilentlyContinue
+$reportDir  = if (Get-Command Get-ESNToolkitRoot -ErrorAction SilentlyContinue) { Get-ESNToolkitRoot -SubFolder "Reports" -Ensure } else { Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/Reports" }
+$reportPath = Join-Path $reportDir "Hypervisor-Health-Report.html"
 if (-not (Test-Path $reportDir)) { New-Item $reportDir -ItemType Directory -Force | Out-Null }
 
 $rows = $virtResults | ForEach-Object {

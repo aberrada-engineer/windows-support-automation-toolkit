@@ -37,7 +37,7 @@ try {
     Write-Host "================================================================================" -ForegroundColor Red
     Write-Host ""
 
-    $reportBase = if (-not [string]::IsNullOrWhiteSpace($OutputPath)) { $OutputPath } elseif (Get-Command Get-ESNReportRoot -ErrorAction SilentlyContinue) { Get-ESNReportRoot -SubFolder "Forensics" } else { "C:\ESN-Toolkit\Forensics" }
+    $reportBase = if (-not [string]::IsNullOrWhiteSpace($OutputPath)) { $OutputPath } elseif (Get-Command Get-ESNReportRoot -ErrorAction SilentlyContinue) { Get-ESNReportRoot -SubFolder "Forensics" } else { Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/Forensics" }
     $siemLog = Join-Path $reportBase "RansomwareShield-SIEM.jsonl"
 
     if ($RestoreNetwork) {

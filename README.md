@@ -24,7 +24,7 @@ virtualisation (VMware / Nutanix), SecOps Zero-Trust, Chaos Engineering et 7 pro
 [À propos](#-à-propos) •
 [Dossier Entretien & Pitch Deck](#-dossier-technique-dentretien--pitch-deck-interactif) •
 [Architecture Modulaire](#-architecture-modulaire) •
-[6 Projets Majeurs Déployés](#-6-projets-majeurs-déployés-en-production) •
+[7 Projets Majeurs Déployés](#-7-projets-majeurs-déployés-en-production) •
 [Livre Noir des Incidents (REX)](#-le-livre-noir-des-incidents-rex-de-production) •
 [AIOps & Astreinte 24/7](#-aiops-astreinte-247--résilience) •
 [Interfaces GUI & Console](#-interfaces-graphique--console-interactive) •
@@ -36,7 +36,7 @@ virtualisation (VMware / Nutanix), SecOps Zero-Trust, Chaos Engineering et 7 pro
 
 ## 🎯 À propos
 
-**ESN-Toolkit v3.8** est une plateforme d'ingénierie et d'automatisation des opérations informatiques (**AIOps**) conçue pour couvrir l'intégralité du spectre opérationnel d'une DSI ou d'une ESN :
+**ESN-Toolkit v3.9** est une plateforme d'ingénierie et d'automatisation des opérations informatiques (**AIOps**) conçue pour couvrir l'intégralité du spectre opérationnel d'une DSI ou d'une ESN :
 du **support poste de travail (N1/N2)**, à **l'administration système et maintien en conditions opérationnelles (N2/N3)**, jusqu'au **pilotage de projets d'infrastructure critiques (N3 / Architecte)**.
 
 Conçue sur le retour d'expérience de plus de **200 infrastructures multi-clients infogérées** et d'environnements critiques (notamment grands comptes horlogers et luxe genevois tels que *Porsche, TAG Heuer, Hublot*), cette boîte à outils garantit une autonomie opérationnelle maximale.
@@ -82,7 +82,7 @@ ESN-Toolkit/
 │   ├── Install-ESNToolkit.ps1             # Déploiement silencieux vers C:\ESN-Toolkit, config execution policy & raccourcis
 │   ├── Install-EnterpriseSilent.bat       # Script de déploiement de masse pour GPO / Intune Win32 App / SCCM
 │   ├── ESN-GUI.ps1 & ESN-Launcher.bat     # Interface Graphique Windows Forms (6 onglets métiers, RichTextBox logs)
-│   ├── ESN-Console.ps1 & ESN-Console.bat  # Console Interactive TUI avec 35 options d'administration directe
+│   ├── ESN-Console.ps1 & ESN-Console.bat  # Console Interactive TUI avec 43 options d'administration directe
 │   └── WebDashboard/ & Invoke-CentralDashboard.ps1 # Dashboard Web offline Datadog-style avec jauges SVG
 │
 ├── 🤖 AIOPS, AUTO-GUÉRISON & ASTREINTE 24/7
@@ -132,7 +132,7 @@ ESN-Toolkit/
 
 ---
 
-## 💼 6 Projets Majeurs Déployés en Production
+## 💼 7 Projets Majeurs Déployés en Production
 
 Ces scripts reproduisent fidèlement les architectures et projets d'envergure menés par **Amine BERRADA** :
 
@@ -257,7 +257,7 @@ Accessible via le lanceur `ESN-Launcher.bat` ou l'exécutable déployé sur le b
 - **Onglet 3 : Infra, AD & Serveurs** (Active Directory, VMware/Nutanix, Exchange, DHCP/DNS/PKI, Entra ID, Veeam).
 - **Onglet 4 : Migration Poste A à Z** (Sauvegarde complète de profil, restauration en 1-clic, rapports).
 - **Onglet 5 : AIOps & SecOps** (Gardien Self-Healing, Zero-Touch Provisioning, durcissement ANSSI, Triage P1, KillSwitch).
-- **Onglet 6 : Projets Référents & COPIL** (Boutons d'exécution directe pour les 6 projets majeurs et le rapport exécutif SLA 99.9%).
+- **Onglet 6 : Projets Référents & COPIL** (Boutons d'exécution directe pour les 7 projets majeurs et le rapport exécutif SLA 99.9%).
 
 ### 2. Console Interactive (TUI) — `ESN-Console.ps1`
 Idéale en session PowerShell distante, PowerShell Direct ou RDP à faible débit :

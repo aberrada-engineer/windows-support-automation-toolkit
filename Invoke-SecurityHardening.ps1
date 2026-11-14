@@ -152,7 +152,9 @@ Write-Host "  (Points : $earnedPoints / $totalPoints)" -ForegroundColor White
 Write-Host "================================================================================" -ForegroundColor Cyan
 
 # RAPPORT HTML
-$reportPath = "C:\ESN-Toolkit\Reports\Security-Hardening-$env:COMPUTERNAME.html"
+Import-Module "$PSScriptRoot\Core\ESN-Core.psm1" -ErrorAction SilentlyContinue
+$reportDir  = if (Get-Command Get-ESNToolkitRoot -ErrorAction SilentlyContinue) { Get-ESNToolkitRoot -SubFolder "Reports" -Ensure } else { Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/Reports" }
+$reportPath = Join-Path $reportDir "Security-Hardening-$env:COMPUTERNAME.html"
 $rows = $auditResults | ForEach-Object {
     $badgeCol = if ($_.Statut -eq "CONFORME") { "#107c41" } elseif ($_.Statut -eq "CORRIGE") { "#ff8c00" } else { "#d83b01" }
     "<tr><td><b>$($_.Regle)</b></td><td><span style='background:$badgeCol;color:white;padding:3px 8px;border-radius:10px;font-weight:bold;'>$($_.Statut)</span></td><td>$($_.Poids) pts</td><td>$($_.Description)</td><td>$($_.Action)</td></tr>"

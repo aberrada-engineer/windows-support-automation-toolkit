@@ -134,7 +134,8 @@ Add-StepResult "Configuration Système" "OK" "Fuseau horaire Europe/Paris config
 
 # 6. GÉNÉRATION DU RAPPORT DE MISE EN SERVICE
 Write-Host "`n[6/6] Finalisation et génération du rapport de mise en service..." -ForegroundColor Yellow
-$reportDir = "C:\ESN-Toolkit\Reports"
+Import-Module "$PSScriptRoot\Core\ESN-Core.psm1" -ErrorAction SilentlyContinue
+$reportDir = if (Get-Command Get-ESNToolkitRoot -ErrorAction SilentlyContinue) { Get-ESNToolkitRoot -SubFolder "Reports" -Ensure } else { Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/Reports" }
 if (-not (Test-Path $reportDir)) { New-Item $reportDir -ItemType Directory -Force | Out-Null }
 $reportPath = Join-Path $reportDir "Provisioning-Report-$newName.html"
 

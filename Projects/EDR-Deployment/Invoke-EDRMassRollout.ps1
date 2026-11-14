@@ -18,9 +18,13 @@ param(
     [ValidateSet("SentinelOne", "MicrosoftDefender", "Sophos", "Custom")]
     [string]$TargetEDR = "SentinelOne",
     [string]$InstallerPath = "",
-    [string]$SiteToken = "EXAMPLE-TOKEN-ABC123XYZ",
+    [string]$SiteToken = $env:ESN_EDR_SITE_TOKEN,
     [switch]$Simulation = $false
 )
+
+if ([string]::IsNullOrWhiteSpace($SiteToken)) {
+    $SiteToken = if ($Simulation) { "<SIMULATED_SITE_TOKEN>" } else { "<SITE_TOKEN_REQUIRED>" }
+}
 
 Clear-Host
 Write-Host "================================================================================" -ForegroundColor Red
@@ -88,8 +92,12 @@ if ($TargetEDR -eq "SentinelOne") {
 
 # 4. RAPPORT DE DEPLOIEMENT MASSIF (+200 HOTES)
 Write-Host "`n[4/4] Génération de la fiche méthodologique de déploiement..." -ForegroundColor Yellow
-$reportPath = "C:\ESN-Toolkit\Reports\Fiche-Projet-Deploiement-EDR.html"
-$reportDir  = Split-Path $reportPath -Parent
+$repoCore = Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) "Core\ESN-Core.psm1"
+if (-not (Get-Command Get-ESNToolkitRoot -ErrorAction SilentlyContinue) -and (Test-Path $repoCore)) {
+    Import-Module $repoCore -ErrorAction SilentlyContinue
+}
+$reportDir  = if (Get-Command Get-ESNToolkitRoot -ErrorAction SilentlyContinue) { Get-ESNToolkitRoot -SubFolder "Reports" } elseif ($env:ESN_TOOLKIT_ROOT) { Join-Path $env:ESN_TOOLKIT_ROOT "Reports" } elseif ($env:SystemDrive) { "$($env:SystemDrive)\ESN-Toolkit\Reports" } else { Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/Reports" }
+$reportPath = Join-Path $reportDir "Fiche-Projet-Deploiement-EDR.html"
 if (-not (Test-Path $reportDir)) { New-Item $reportDir -ItemType Directory -Force | Out-Null }
 
 $html = @"

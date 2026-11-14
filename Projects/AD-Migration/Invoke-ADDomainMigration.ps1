@@ -18,10 +18,18 @@ param(
     [string]$SourceDomain = "source.local",
     [string]$TargetDomain = "target.local",
     [string]$SharePathToMigrate = "", # Ex: D:\Partages\Comptabilite
-    [string]$OutputDirectory = "C:\ESN-Toolkit\AD_Migration_Project",
+    [string]$OutputDirectory = "",
     [switch]$PreserveSIDHistory = $true,
     [switch]$ExportAclOnly = $false
 )
+
+$repoCore = Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) "Core\ESN-Core.psm1"
+if (-not (Get-Command Get-ESNToolkitRoot -ErrorAction SilentlyContinue) -and (Test-Path $repoCore)) {
+    Import-Module $repoCore -ErrorAction SilentlyContinue
+}
+if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
+    $OutputDirectory = if (Get-Command Get-ESNToolkitRoot -ErrorAction SilentlyContinue) { Get-ESNToolkitRoot -SubFolder "AD_Migration_Project" } elseif ($env:ESN_TOOLKIT_ROOT) { Join-Path $env:ESN_TOOLKIT_ROOT "AD_Migration_Project" } elseif ($env:SystemDrive) { "$($env:SystemDrive)\ESN-Toolkit\AD_Migration_Project" } else { Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/AD_Migration_Project" }
+}
 
 Clear-Host
 Write-Host "================================================================================" -ForegroundColor Cyan

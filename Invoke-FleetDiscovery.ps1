@@ -115,7 +115,7 @@ $sortedHosts | Format-Table IP, Nom, Type, Ports -AutoSize
 # RAPPORT HTML
 $schemaScript = Join-Path $PSScriptRoot "Core/ESN-OutputSchema.ps1"
 if (Test-Path $schemaScript) { . $schemaScript }
-$reportDir = if (Get-Command Get-ESNReportRoot -ErrorAction SilentlyContinue) { Get-ESNReportRoot } else { "C:\ESN-Toolkit\Reports" }
+$reportDir = if (Get-Command Get-ESNReportRoot -ErrorAction SilentlyContinue) { Get-ESNReportRoot } else { Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/Reports" }
 if (-not (Test-Path $reportDir)) { New-Item -Path $reportDir -ItemType Directory -Force | Out-Null }
 $reportPath = Join-Path $reportDir "Fleet-Discovery-$Subnet.html"
 $rows = ($sortedHosts | ForEach-Object {

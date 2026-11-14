@@ -1,7 +1,7 @@
 ﻿#Requires -RunAsAdministrator
 <#
 .SYNOPSIS
-    ESN-Console v3.8 - Console d'Administration, AIOps & Ingénierie d'Infrastructure.
+    ESN-Console v3.9 - Console d'Administration, AIOps & Ingénierie d'Infrastructure.
     Développé pour Amine BERRADA — Administrateur Systèmes & Réseaux / Référent Technique N3.
 #>
 
@@ -10,7 +10,7 @@ $ScriptDir = Split-Path $MyInvocation.PSCommandPath -Parent
 function Show-Header {
     Clear-Host
     Write-Host "================================================================================" -ForegroundColor Cyan
-    Write-Host "   🖥️  ESN-TOOLKIT v3.8 — CONSOLE D'EXPLOITATION & AIOPS TOTALE" -ForegroundColor White
+    Write-Host "   🖥️  ESN-TOOLKIT v3.9 — CONSOLE D'EXPLOITATION & AIOPS TOTALE" -ForegroundColor White
     Write-Host "       Astreinte 24/7, SecOps, PRA/PCA, Virtualisation & Gouvernance — Amine BERRADA" -ForegroundColor Gray
     Write-Host "================================================================================" -ForegroundColor Cyan
     Write-Host "  Hôte : $env:COMPUTERNAME  |  Utilisateur : $env:USERNAME  |  Date : $(Get-Date -Format 'dd/MM/yyyy HH:mm')" -ForegroundColor DarkCyan
@@ -49,7 +49,7 @@ do {
     Write-Host " [23] 📊 Dimensionnement & Chiffrage Infrastructure (Cluster N+1, Stockage COPIL)" -ForegroundColor Cyan
     Write-Host " [24] 📑 Générateur de Rapport Mensuel Exécutif COPIL / COTECH (SLA 99.9%)" -ForegroundColor Green
     Write-Host " [25] 🔒 Offboarding Collaborateur Sécurisé & Procès-Verbal de Restitution" -ForegroundColor Yellow
-    Write-Host " [26] 🛠️  Menu des 6 Projets Majeurs Réalisés (MDT, EDR, AD, Aruba, LAPS, Veeam)" -ForegroundColor Blue
+    Write-Host " [26] 🛠️  Menu des 7 Projets Majeurs Réalisés (MDT, EDR, AD, Aruba, LAPS, Veeam, WAN)" -ForegroundColor Blue
     Write-Host " [27] 🐧 Audit Serveur Linux Distant (Ubuntu / Debian via SSH natif)" -ForegroundColor Green
     Write-Host " [28] 📡 Générateur & Déployeur de Sondes PRTG Network Monitor (XML/JSON)" -ForegroundColor Yellow
     Write-Host " [29] 🔄 Audit de Conformité WSUS & Forçage de Détection de Patchs" -ForegroundColor Cyan
@@ -133,11 +133,11 @@ do {
             Write-Host "--------------------------------------------------------------------------------" -ForegroundColor DarkGray
             $pChoice = Read-Host "Sélectionnez un projet à auditer ou simuler (A-G ou R)"
             switch ($pChoice.ToUpper()) {
-                "A" { & "$ScriptDir\Projects\AD-Migration\Invoke-ADDomainMigration.ps1" -ReportOnly }
-                "B" { & "$ScriptDir\Projects\EDR-Deployment\Invoke-EDRMassRollout.ps1" -ReportOnly }
+                "A" { & "$ScriptDir\Projects\AD-Migration\Invoke-ADDomainMigration.ps1" -ExportAclOnly }
+                "B" { & "$ScriptDir\Projects\EDR-Deployment\Invoke-EDRMassRollout.ps1" -Simulation }
                 "C" { & "$ScriptDir\Projects\Network-Aruba\New-ArubaSwitchConfig.ps1" }
-                "D" { & "$ScriptDir\Projects\Windows-LAPS\Deploy-WindowsLAPS.ps1" -ReportOnly }
-                "E" { & "$ScriptDir\Projects\Datacenter-Migration\Invoke-VeeamFailoverPlan.ps1" -DryRun }
+                "D" { & "$ScriptDir\Projects\Windows-LAPS\Deploy-WindowsLAPS.ps1" -AuditOnly }
+                "E" { & "$ScriptDir\Projects\Datacenter-Migration\Invoke-VeeamFailoverPlan.ps1" -Simulation }
                 "F" { & "$ScriptDir\Projects\MDT-Deployment\Invoke-MDTIndustrialization.ps1" -ReportOnly }
                 "G" { & "$ScriptDir\Projects\WAN-MPLS-Refonte\Invoke-WANMigrationPlan.ps1" -ReportOnly }
             }
@@ -162,7 +162,8 @@ do {
         }
         "35" { & "$ScriptDir\Invoke-CentralDashboard.ps1"; Start-Sleep -Seconds 2 }
         "36" {
-            $latestReport = Get-ChildItem "C:\ESN-Toolkit\Reports\*.html", "$env:SystemDrive\ESN-Reports\*\*.html" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+            $repDir = if ($env:ESN_TOOLKIT_ROOT) { Join-Path $env:ESN_TOOLKIT_ROOT "Reports" } elseif ($env:SystemDrive) { "$($env:SystemDrive)\ESN-Toolkit\Reports" } else { Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/Reports" }
+            $latestReport = Get-ChildItem (Join-Path $repDir "*.html"), "$env:SystemDrive\ESN-Reports\*\*.html" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
             if ($latestReport) {
                 Start-Process $latestReport.FullName
                 Write-Host "[OK] Rapport ouvert : $($latestReport.FullName)" -ForegroundColor Green

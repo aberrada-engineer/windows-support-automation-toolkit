@@ -909,7 +909,8 @@ function Invoke-Remediation {
 
     # ── Rapport HTML ──────────────────────────────────────
     if (-not $ReportPath) {
-        $rDir      = "C:\ESN-Toolkit\Reports\$(Get-Date -Format 'yyyy-MM-dd')"
+        $rBase     = if (Get-Command Get-ESNToolkitRoot -ErrorAction SilentlyContinue) { Get-ESNToolkitRoot -SubFolder "Reports" } elseif ($env:ESN_TOOLKIT_ROOT) { Join-Path $env:ESN_TOOLKIT_ROOT "Reports" } elseif ($env:SystemDrive) { "$($env:SystemDrive)\ESN-Toolkit\Reports" } else { Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/Reports" }
+        $rDir      = Join-Path $rBase (Get-Date -Format 'yyyy-MM-dd')
         New-Item -Path $rDir -ItemType Directory -Force | Out-Null
         $ReportPath = Join-Path $rDir "Remediation_$(Get-Date -Format 'HHmm').html"
     }

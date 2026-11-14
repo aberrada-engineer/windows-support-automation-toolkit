@@ -100,8 +100,9 @@ if ($smtpTest) {
 }
 
 # 4. RAPPORT HTML
-$reportPath = "C:\ESN-Toolkit\Reports\Exchange-Health-Report.html"
-$reportDir  = Split-Path $reportPath -Parent
+Import-Module "$PSScriptRoot\Core\ESN-Core.psm1" -ErrorAction SilentlyContinue
+$reportDir  = if (Get-Command Get-ESNToolkitRoot -ErrorAction SilentlyContinue) { Get-ESNToolkitRoot -SubFolder "Reports" -Ensure } else { Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/Reports" }
+$reportPath = Join-Path $reportDir "Exchange-Health-Report.html"
 if (-not (Test-Path $reportDir)) { New-Item $reportDir -ItemType Directory -Force | Out-Null }
 
 $rows = $mailResults | ForEach-Object {

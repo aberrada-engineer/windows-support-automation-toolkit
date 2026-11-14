@@ -170,7 +170,7 @@ function Invoke-UserStateCapture {
     param(
         [Parameter(Mandatory)][string]$SourceComputer,
         [Parameter(Mandatory)][string]$Username,
-        [string]$BackupRoot        = "C:\ESN-Toolkit\Migrations",
+        [string]$BackupRoot        = "",
         [switch]$IncludeOutlook,
         [switch]$IncludeBrowsers,
         [switch]$IncludePrinters,
@@ -184,6 +184,10 @@ function Invoke-UserStateCapture {
         $IncludeBrowsers  = $true
         $IncludePrinters  = $true
         $IncludeNetDrives = $true
+    }
+
+    if ([string]::IsNullOrWhiteSpace($BackupRoot)) {
+        $BackupRoot = if (Get-Command Get-ESNToolkitRoot -ErrorAction SilentlyContinue) { Get-ESNToolkitRoot -SubFolder "Migrations" } elseif ($env:ESN_TOOLKIT_ROOT) { Join-Path $env:ESN_TOOLKIT_ROOT "Migrations" } elseif ($env:SystemDrive) { "$($env:SystemDrive)\ESN-Toolkit\Migrations" } else { Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/Migrations" }
     }
 
     $stamp     = Get-Date -Format "yyyy-MM-dd_HHmm"
