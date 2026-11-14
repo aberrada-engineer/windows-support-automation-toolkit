@@ -88,11 +88,11 @@ function Invoke-M365Audit {
         Add-ESNResult "M365" "Utilisateurs total"        "INFO" $total   ""
         Add-ESNResult "M365" "Utilisateurs actifs"       "INFO" $enabled ""
         Add-ESNResult "M365" "Utilisateurs désactivés"   "INFO" $disabled ""
-        Add-ESNResult "M365" "Comptes invités (Guest)"   (if($guests -gt 10){"WARN"}else{"INFO"}) $guests "" `
+        Add-ESNResult "M365" "Comptes invités (Guest)"   $(if($guests -gt 10){"WARN"}else{"INFO"}) $guests "" `
             -ScoreImpact $(if($guests -gt 50){5}else{0})
-        Add-ESNResult "M365" "Actifs sans licence"       (if($noLic -gt 0){"WARN"}else{"OK"}) $noLic "" `
+        Add-ESNResult "M365" "Actifs sans licence"       $(if($noLic -gt 0){"WARN"}else{"OK"}) $noLic "" `
             -ScoreImpact $(if($noLic -gt 5){5}else{0})
-        Add-ESNResult "M365" "Inactifs +$InactiveDays j" (if($inactive -gt 20){"WARN"}else{"OK"}) $inactive "" `
+        Add-ESNResult "M365" "Inactifs +$InactiveDays j" $(if($inactive -gt 20){"WARN"}else{"OK"}) $inactive "" `
             -ScoreImpact $(if($inactive -gt 50){5}else{0})
 
         # ── Licences (SKUs) ───────────────────────────
@@ -198,7 +198,7 @@ function Set-M365UserLicense {
             }
         }
         Add-ESNResult "M365" "Licence $Action $UserUPN" "OK" `
-            (if($Simulation){"[SIM] $SkuPartNumber"}else{$SkuPartNumber}) ""
+            $(if($Simulation){"[SIM] $SkuPartNumber"}else{$SkuPartNumber}) ""
     } catch {
         Add-ESNResult "M365" "Licence $Action $UserUPN" "ERROR" $_.Exception.Message "" 5
     }

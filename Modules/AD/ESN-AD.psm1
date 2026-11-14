@@ -50,7 +50,7 @@ function Invoke-ADAudit {
     foreach ($dc in $dcs) {
         $ping = Test-Connection $dc.Name -Count 1 -Quiet -EA SilentlyContinue
         $st   = if ($ping) { "OK" } else { "ERROR" }
-        Add-ESNResult "AD" "DC $($dc.Name)" $st (if($ping){"Joignable"}else{"INJOIGNABLE"}) $dc.Site `
+        Add-ESNResult "AD" "DC $($dc.Name)" $st $(if($ping){"Joignable"}else{"INJOIGNABLE"}) $dc.Site `
             -ScoreImpact $(if(-not $ping){20}else{0})
     }
 
@@ -85,13 +85,13 @@ function Invoke-ADAudit {
     Add-ESNResult "AD" "Utilisateurs total"     "INFO" $total       ""
     Add-ESNResult "AD" "Utilisateurs actifs"    "INFO" $enabled     ""
     Add-ESNResult "AD" "Utilisateurs désactivés""INFO" $disabled    ""
-    Add-ESNResult "AD" "Comptes verrouillés"    (if($locked -gt 0){"WARN"}else{"OK"}) $locked "" `
+    Add-ESNResult "AD" "Comptes verrouillés"    $(if($locked -gt 0){"WARN"}else{"OK"}) $locked "" `
         -ScoreImpact $(if($locked -gt 5){5}else{0})
-    Add-ESNResult "AD" "MDP expirés (actifs)"   (if($pwdExpired -gt 0){"WARN"}else{"OK"}) $pwdExpired "" `
+    Add-ESNResult "AD" "MDP expirés (actifs)"   $(if($pwdExpired -gt 0){"WARN"}else{"OK"}) $pwdExpired "" `
         -ScoreImpact $(if($pwdExpired -gt 10){5}else{0})
-    Add-ESNResult "AD" "MDP sans expiration"    (if($pwdNever -gt 5){"WARN"}else{"OK"}) $pwdNever "" `
+    Add-ESNResult "AD" "MDP sans expiration"    $(if($pwdNever -gt 5){"WARN"}else{"OK"}) $pwdNever "" `
         -ScoreImpact $(if($pwdNever -gt 20){5}else{0})
-    Add-ESNResult "AD" "Inactifs +$InactiveDays j" (if($inactive -gt 20){"WARN"}else{"OK"}) $inactive "" `
+    Add-ESNResult "AD" "Inactifs +$InactiveDays j" $(if($inactive -gt 20){"WARN"}else{"OK"}) $inactive "" `
         -ScoreImpact $(if($inactive -gt 50){5}else{0})
 
     # ── Domain Admins ────────────────────────────────
@@ -170,7 +170,7 @@ function Invoke-ADUserReset {
     # Déverrouillage
     if ($user.LockedOut) {
         if (-not $Simulation) { Unlock-ADAccount -Identity $Username }
-        Add-ESNResult "AD" "Déverrouillage $Username" "OK" (if($Simulation){"[SIM]"}else{"Déverrouillé"}) ""
+        Add-ESNResult "AD" "Déverrouillage $Username" "OK" $(if($Simulation){"[SIM]"}else{"Déverrouillé"}) ""
     } else {
         Add-ESNResult "AD" "Verrouillage $Username" "OK" "Non verrouillé" "BadLogonCount: $($user.BadLogonCount)"
     }
@@ -196,7 +196,7 @@ function Invoke-ADUserReset {
 
     $pwdSummary = if ($generatedPwd) { $generatedPwd } else { "(SecureString fourni)" }
     Add-ESNResult "AD" "Reset MDP $Username" "OK" `
-        (if($Simulation){"[SIM] MDP: $pwdSummary"}else{"MDP réinitialisé — À communiquer : $pwdSummary"}) `
+        $(if($Simulation){"[SIM] MDP: $pwdSummary"}else{"MDP réinitialisé — À communiquer : $pwdSummary"}) `
         "Changement requis à la prochaine connexion"
 
     Write-ESNLog "━━━ INFORMATIONS À TRANSMETTRE À L'UTILISATEUR ━━━" "SECTION"

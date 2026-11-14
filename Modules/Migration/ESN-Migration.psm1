@@ -27,13 +27,17 @@ function _MIG-FolderStats {
     param([string]$Path)
     if (-not (Test-Path $Path)) { return @{ Exists=$false; Files=0; SizeMB=0; SizeBytes=0 } }
     $items = Get-ChildItem $Path -Recurse -ErrorAction SilentlyContinue
-    $files = $items | Where-Object { -not $_.PSIsContainer }
-    $sum   = ($files | Measure-Object Length -Sum).Sum
+    $files = @($items | Where-Object { $null -ne $_ -and -not $_.PSIsContainer })
+    $sum   = [int64]0
+    if ($files.Count -gt 0) {
+        $m = $files | Measure-Object Length -Sum
+        if ($m -and $m.PSObject.Properties['Sum'] -and $null -ne $m.Sum) { $sum = [int64]$m.Sum }
+    }
     return @{
         Exists    = $true
-        Files     = @($files).Count
+        Files     = $files.Count
         SizeMB    = [math]::Round($sum / 1MB, 1)
-        SizeBytes = [int64]$sum
+        SizeBytes = $sum
     }
 }
 
@@ -470,9 +474,11 @@ function Invoke-UserStateCapture {
 
     # ── TAILLE TOTALE ─────────────────────────────────────────
     $totalMB = if (-not $Simulation) {
-        [math]::Round((Get-ChildItem $backupDir -Recurse -EA SilentlyContinue |
-            Where-Object { -not $_.PSIsContainer } |
-            Measure-Object Length -Sum).Sum / 1MB, 0)
+        $capFiles = @(Get-ChildItem $backupDir -Recurse -EA SilentlyContinue | Where-Object { $null -ne $_ -and -not $_.PSIsContainer })
+        if ($capFiles.Count -gt 0) {
+            $tm = $capFiles | Measure-Object Length -Sum
+            if ($tm -and $tm.PSObject.Properties['Sum'] -and $null -ne $tm.Sum) { [math]::Round($tm.Sum / 1MB, 0) } else { 0 }
+        } else { 0 }
     } else { 0 }
 
     # ── ACTIONS POST-MIGRATION ───────────────────────────────
@@ -560,12 +566,18 @@ function Invoke-UserStateRestore {
 
     if (-not (Test-Path $BackupDir)) {
         Write-Host "[ERREUR] BackupDir introuvable : $BackupDir" -ForegroundColor Red
+        if (Get-Command Add-ESNResult -ErrorAction SilentlyContinue) {
+            Add-ESNResult "Migration" "Dossier backup" "ERROR" "Introuvable" $BackupDir 20
+        }
         return $null
     }
 
     $manifestPath = Join-Path $BackupDir "manifest.json"
     if (-not (Test-Path $manifestPath)) {
         Write-Host "[ERREUR] manifest.json introuvable dans $BackupDir" -ForegroundColor Red
+        if (Get-Command Add-ESNResult -ErrorAction SilentlyContinue) {
+            Add-ESNResult "Migration" "Manifest backup" "ERROR" "Introuvable" $manifestPath 20
+        }
         return $null
     }
 

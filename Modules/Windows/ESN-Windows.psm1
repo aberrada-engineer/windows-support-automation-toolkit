@@ -77,7 +77,10 @@ function Invoke-WindowsDiag {
             Select-Object -First 8 |
             Select-Object Name, Count
 
-        $out.CritEventsTotal = ($out.CritEvents | Measure-Object Count -Sum).Sum
+        $critMeasure = $out.CritEvents | Measure-Object Count -Sum
+        $out.CritEventsTotal = if ($critMeasure -and $critMeasure.PSObject.Properties['Sum'] -and $null -ne $critMeasure.Sum) {
+            [int]$critMeasure.Sum
+        } else { 0 }
 
         # ── Drivers en erreur ────────────────────────────
         $out.BadDrivers = Get-CimInstance -ClassName Win32_PnPEntity -ErrorAction SilentlyContinue |
@@ -197,12 +200,12 @@ function Invoke-WindowsDiag {
     Add-ESNResult "Windows" "BitLocker" $blSt $d.BitLocker "Chiffrement disque OS"
 
     # Defender
-    Add-ESNResult "Windows" "Windows Defender" (if($d.DefenderON){"OK"}else{"ERROR"}) `
-        (if($d.DefenderON){"Actif"}else{"DÉSACTIVÉ"}) "" `
+    Add-ESNResult "Windows" "Windows Defender" $(if($d.DefenderON){"OK"}else{"ERROR"}) `
+        $(if($d.DefenderON){"Actif"}else{"DÉSACTIVÉ"}) "" `
         -ScoreImpact $(if(-not $d.DefenderON){20}else{0})
 
-    Add-ESNResult "Windows" "Signatures Defender" (if($d.DefUpdated){"OK"}else{"WARN"}) `
-        (if($d.DefUpdated){"À jour"}else{"Obsolètes (>3j)"}) "" `
+    Add-ESNResult "Windows" "Signatures Defender" $(if($d.DefUpdated){"OK"}else{"WARN"}) `
+        $(if($d.DefUpdated){"À jour"}else{"Obsolètes (>3j)"}) "" `
         -ScoreImpact $(if(-not $d.DefUpdated){5}else{0})
 }
 

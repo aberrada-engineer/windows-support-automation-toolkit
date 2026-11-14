@@ -936,7 +936,6 @@ function Invoke-HealthScore {
         $errAt = if ($_.InvocationInfo) { "L$($_.InvocationInfo.ScriptLineNumber)" } else { "?" }
         $errMsg = $_.Exception.Message
         Write-Host "[ERREUR] Collecte impossible ($errAt) : $errMsg" -ForegroundColor Red
-        if ($env:GITHUB_RUN_ID) { Write-Host "::warning::HealthScore Collecte ($errAt): $errMsg" }
         return $null
     }
     Write-Host "[+] Données collectées" -ForegroundColor Green

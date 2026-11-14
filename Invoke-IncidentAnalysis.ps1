@@ -172,13 +172,13 @@ $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIden
     [Security.Principal.WindowsBuiltInRole]::Administrator)
 
 Add-ESNResult "Prérequis" "Droits administrateur" `
-    (if ($isAdmin) { "OK" } else { "WARN" }) `
-    (if ($isAdmin) { "Admin" } else { "Non-admin — checks limités" }) "" `
+    $(if ($isAdmin) { "OK" } else { "WARN" }) `
+    $(if ($isAdmin) { "Admin" } else { "Non-admin — checks limités" }) "" `
     -ScoreImpact $(if (-not $isAdmin) { 5 } else { 0 })
 
 Add-ESNResult "Prérequis" "PowerShell" "OK" "v$($PSVersionTable.PSVersion)" ""
 Add-ESNResult "Prérequis" "Patches industrialisation" `
-    (if ($hasOutputSchema -and $hasReportBuilder) { "OK" } else { "WARN" }) `
+    $(if ($hasOutputSchema -and $hasReportBuilder) { "OK" } else { "WARN" }) `
     "OutputSchema:$(if($hasOutputSchema){'✓'}else{'✗'}) ReportBuilder:$(if($hasReportBuilder){'✓'}else{'✗'})" ""
 
 if ($Simulation) {
