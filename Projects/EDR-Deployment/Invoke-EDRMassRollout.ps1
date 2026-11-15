@@ -21,6 +21,7 @@ param(
     [string]$SiteToken = $env:ESN_EDR_SITE_TOKEN,
     [switch]$Simulation
 )
+Set-StrictMode -Version Latest
 
 if ([string]::IsNullOrWhiteSpace($SiteToken)) {
     $SiteToken = if ($Simulation) { "<SIMULATED_SITE_TOKEN>" } else { "<SITE_TOKEN_REQUIRED>" }
@@ -67,7 +68,7 @@ Write-Host "`n[2/4] Préparation de la désinstallation de l'ancien antivirus...
 $legacyAVs = @("Symantec", "McAfee", "Trend Micro", "Kaspersky", "Avast")
 $legacyFound = $false
 $uninstallApps = @(
-    Get-ItemProperty "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" -ErrorAction SilentlyContinue |
+    Get-ItemProperty "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*" -ErrorAction SilentlyContinue |
         Where-Object { $_.PSObject.Properties['DisplayName'] -and $_.DisplayName }
 )
 
@@ -127,6 +128,15 @@ $reportDir  = if (Get-Command Get-ESNToolkitRoot -ErrorAction SilentlyContinue) 
 $reportPath = Join-Path $reportDir "Fiche-Projet-Deploiement-EDR.html"
 if (-not (Test-Path $reportDir)) { New-Item $reportDir -ItemType Directory -Force | Out-Null }
 
+$stepRowsHtml = ($rolloutSteps | ForEach-Object {
+    $st = [System.Net.WebUtility]::HtmlEncode([string]$_.Statut)
+    $et = [System.Net.WebUtility]::HtmlEncode([string]$_.Etape)
+    $dt = [System.Net.WebUtility]::HtmlEncode([string]$_.Detail)
+    "<tr><td><b>$et</b></td><td>$st</td><td>$dt</td></tr>"
+}) -join "`n"
+$edrHtml = [System.Net.WebUtility]::HtmlEncode([string]$TargetEDR)
+$modeBadge = if ($Simulation) { "MODE SIMULATION — $edrHtml" } else { "EXÉCUTION RÉELLE — $edrHtml" }
+
 $html = @"
 <!DOCTYPE html>
 <html>
@@ -141,25 +151,26 @@ $html = @"
         .stats { display: flex; gap: 20px; margin: 25px 0; }
         .box { background: #0f172a; padding: 15px 25px; border-radius: 6px; border: 1px solid #334155; }
         .num { font-size: 26px; font-weight: bold; color: #38bdf8; }
+        table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+        th, td { border: 1px solid #334155; padding: 10px 12px; text-align: left; }
+        th { background: #0f172a; color: #38bdf8; }
     </style>
 </head>
 <body>
     <div class='card'>
         <h1>🛡️ Dossier Projet : Déploiement EDR Industrialisé (+200 Hôtes)</h1>
         <p><b>Ingénieur Référent :</b> Amine BERRADA | <b>Contexte :</b> Remplacement d'Antivirus & SecOps</p>
-        <span class='badge'>Déploiement GPO / Scripts PowerShell</span>
+        <span class='badge'>$modeBadge</span>
         <div class='stats'>
-            <div class='box'><div class='num'>+200</div><div>Postes & Serveurs Migrés</div></div>
-            <div class='box'><div class='num'>99.5 %</div><div>Taux de Couverture Final</div></div>
-            <div class='box'><div class='num'>0</div><div>Interruption Utilisateur</div></div>
+            <div class='box'><div class='num'>$($rolloutSteps.Count)</div><div>Étapes Auditées</div></div>
+            <div class='box'><div class='num'>$edrHtml</div><div>Agent Cible</div></div>
+            <div class='box'><div class='num'>$(if($Simulation){'Simulation'}else{'Réel'})</div><div>Mode</div></div>
         </div>
-        <h3>Étapes Méthodologiques de Déploiement :</h3>
-        <ol>
-            <li><b>Phase Pilote :</b> Déploiement sur un groupe témoin de 15 postes (Informatique, RH, Compta) avec surveillance des faux positifs.</li>
-            <li><b>Désinstallation Automatisée :</b> Scripts de nettoyage des résidus de l'ancienne solution via GPO de démarrage.</li>
-            <li><b>Injection du Token & Déploiement de Masse :</b> Installation silencieuse de l'agent EDR avec token de site chiffré.</li>
-            <li><b>Calibrage des Politiques :</b> Configuration des règles d'exclusion pour les applications métiers critiques et activation du mode détection/recherche proactive de menaces.</li>
-        </ol>
+        <h3>Journal des Actions Exécutées :</h3>
+        <table>
+            <thead><tr><th>Étape</th><th>Statut</th><th>Détail</th></tr></thead>
+            <tbody>$stepRowsHtml</tbody>
+        </table>
     </div>
 </body>
 </html>

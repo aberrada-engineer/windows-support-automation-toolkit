@@ -23,6 +23,7 @@ param(
     [switch]$SimulateFailover,
     [switch]$ReportOnly
 )
+Set-StrictMode -Version Latest
 
 $ErrorActionPreference = "Continue"
 
@@ -103,17 +104,17 @@ foreach ($site in $RemoteSiteIPs) {
                     $pings += [double]$reply.RoundtripTime
                 } else {
                     $lost++
-                    if ($i -eq 1) { $lost = 4; break }
                 }
             } catch {
-                $lost = 4; break
+                $lost++
             }
         }
     } finally {
         $pinger.Dispose()
     }
 
-    $avgLatency = if ($pings.Count -gt 0) { [math]::Round(($pings | Measure-Object -Average).Average, 1) } else { 999 }
+    $pingM = if ($pings.Count -gt 0) { $pings | Measure-Object -Average } else { $null }
+    $avgLatency = if ($pingM -and $pingM.PSObject.Properties['Average'] -and $null -ne $pingM.Average) { [math]::Round($pingM.Average, 1) } else { 999 }
     $lossRate = [math]::Round(($lost / 4) * 100, 1)
     
     $slaStatus = if ($avgLatency -lt 30 -and $lossRate -eq 0) { "CONFORME SLA" } elseif ($avgLatency -lt 80) { "ACCEPTABLE" } else { "DEGRADE" }
@@ -152,12 +153,17 @@ $BackupRoute = $RoutingTable | Where-Object { $_.NextHop -eq $BackupGateway }
 
 if ($PrimaryRoute -and $BackupRoute) {
     if ($PrimaryRoute.RouteMetric -lt $BackupRoute.RouteMetric) {
-        Write-WANLog "Priorité de routage optimale : Métrique Primaire ($($PrimaryRoute.RouteMetric)) < Secours ($($BackupRoute.RouteMetric)). Bascule automatique active." "SUCCESS"
+        Write-WANLog "Priorité de routage optimale : Métrique Primaire ($($PrimaryRoute.RouteMetric)) < Secours ($($BackupRoute.RouteMetric)). Bascule automatique prête." "SUCCESS"
     } else {
         Write-WANLog "ATTENTION : Métriques de routage incohérentes pour la bascule de passerelle." "WARN"
     }
 } else {
     Write-WANLog "Passerelles multiples non actives simultanément dans la table de routage locale (Mode failover géré par routeur de bordure)." "INFO"
+}
+if ($SimulateFailover) {
+    $bkpReachable = try { $bp = [System.Net.NetworkInformation.Ping]::new(); $br = $bp.Send($BackupGateway, 1000); $bp.Dispose(); ($br.Status -eq [System.Net.NetworkInformation.IPStatus]::Success) } catch { $false }
+    $modeLabel = if ($ReportOnly) { "[REPORT-ONLY]" } else { "[SIMULATION FAILOVER]" }
+    Write-WANLog "$modeLabel Sonde passerelle de secours $BackupGateway : $(if ($bkpReachable) { 'JOIGNABLE (prête pour bascule)' } else { 'INJOIGNABLE (vérifier lien/IPsec de secours)' }). Aucune route modifiée." $(if ($bkpReachable) { "SUCCESS" } else { "WARN" })
 }
 
 # 5. Génération du Procès-Verbal de Recette Opérateur

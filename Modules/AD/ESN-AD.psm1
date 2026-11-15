@@ -5,6 +5,8 @@
     Fonctionne si le module RSAT ActiveDirectory est installé.
 #>
 
+Set-StrictMode -Version Latest
+
 function Test-ADAvailable {
     return ($null -ne (Get-Module -ListAvailable ActiveDirectory -ErrorAction SilentlyContinue))
 }
@@ -56,15 +58,27 @@ function Invoke-ADAudit {
     }
 
     # ── Réplication ──────────────────────────────────
-    try {
-        $replErrors = repadmin /replsummary 2>&1 | Select-String 'fail'
-        if ($replErrors) {
-            Add-ESNResult "AD" "Réplication" "ERROR" "Erreurs détectées" ($replErrors -join ' | ') 15
+    if (Get-Command Get-ADReplicationFailure -ErrorAction SilentlyContinue) {
+        try {
+            $replFails = @(Get-ADReplicationFailure -Target $env:USERDNSDOMAIN -Scope Domain -ErrorAction Stop)
+            if ($replFails.Count -gt 0) {
+                $detail = ($replFails | ForEach-Object { "$($_.Server):$($_.FailureType)(err $($_.LastError))" }) -join ' | '
+                Add-ESNResult "AD" "Réplication" "ERROR" "$($replFails.Count) erreur(s)" $detail 15
+            } else {
+                Add-ESNResult "AD" "Réplication" "OK" "Aucune erreur (Get-ADReplicationFailure)" ""
+            }
+        } catch {
+            Add-ESNResult "AD" "Réplication" "WARN" "Contrôle réplication impossible" $_.Exception.Message
+        }
+    } elseif (Get-Command repadmin -ErrorAction SilentlyContinue) {
+        $replOut = (& repadmin /replsummary 2>&1) -join "`n"
+        if ($LASTEXITCODE -ne 0 -or $replOut -match '(?i)\b(fail|fails|failure|erreur|échec)\b') {
+            Add-ESNResult "AD" "Réplication" "ERROR" "Erreurs détectées" ($replOut -replace '\s+', ' ').Trim() 15
         } else {
             Add-ESNResult "AD" "Réplication" "OK" "Aucune erreur" ""
         }
-    } catch {
-        Add-ESNResult "AD" "Réplication" "WARN" "repadmin indisponible" ""
+    } else {
+        Add-ESNResult "AD" "Réplication" "WARN" "repadmin/AD indisponible" ""
     }
 
     # ── Utilisateurs ─────────────────────────────────
@@ -95,9 +109,14 @@ function Invoke-ADAudit {
     Add-ESNResult "AD" "Inactifs +$InactiveDays j" $(if($inactive -gt 20){"WARN"}else{"OK"}) $inactive "" `
         -ScoreImpact $(if($inactive -gt 50){5}else{0})
 
-    # ── Domain Admins ────────────────────────────────
-    $da = @(Get-ADGroupMember 'Domain Admins' -Recursive -EA SilentlyContinue |
+    # ── Domain Admins (SID *-512 agnostique FR/EN) ──
+    $daTarget = if ($dom -and $dom.DomainSID) { "$($dom.DomainSID.Value)-512" } else { 'Domain Admins' }
+    $da = @(Get-ADGroupMember $daTarget -Recursive -EA SilentlyContinue |
           Where-Object objectClass -eq user)
+    if ($da.Count -eq 0 -and $daTarget -eq 'Domain Admins') {
+        $da = @(Get-ADGroupMember 'Admins du domaine' -Recursive -EA SilentlyContinue |
+              Where-Object objectClass -eq user)
+    }
     $daSt = if ($da.Count -gt 5) { "WARN" } else { "OK" }
     $daNames = @($da | ForEach-Object { $_.Name }) -join ', '
     Add-ESNResult "AD" "Domain Admins" $daSt "$($da.Count) membre(s)" $daNames `
@@ -137,6 +156,7 @@ function Invoke-ADAudit {
 function New-ESNRandomPassword {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '')]
     param([int]$Length = 16)
+    if ($Length -lt 8) { $Length = 8 }
     $upper = "ABCDEFGHJKLMNPQRSTUVWXYZ"
     $lower = "abcdefghijkmnpqrstuvwxyz"
     $digits = "23456789"
@@ -281,10 +301,13 @@ function New-ADUserESN {
     $sam     = "$($fnClean.Substring(0,1))$lnClean"
     if ($sam.Length -gt 20) { $sam = $sam.Substring(0,20) }
 
-    # Gérer doublons
+    # Gérer doublons dans la limite AD de 20 caractères
     $base = $sam; $i = 1
     while (Get-ADUser -Filter { SamAccountName -eq $sam } -EA SilentlyContinue) {
-        $sam = "$base$i"; $i++
+        $sfx = "$i"
+        $maxBase = 20 - $sfx.Length
+        $trimBase = if ($base.Length -gt $maxBase) { $base.Substring(0, $maxBase) } else { $base }
+        $sam = "$trimBase$sfx"; $i++
     }
 
     $upn     = "$sam@$DomainFQDN"

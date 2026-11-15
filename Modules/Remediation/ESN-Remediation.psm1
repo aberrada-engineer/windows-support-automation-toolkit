@@ -206,9 +206,10 @@ $script:Catalog = [ordered]@{
                 }
             }
 
+            $stoppedArr = @($stopped | Where-Object { $_ })
             return @{
                 Success = $true
-                Before  = "$($stopped.Count) service(s) arrêté(s) : $(($stopped | ForEach-Object { $_.Name }) -join ', ')"
+                Before  = "$($stoppedArr.Count) service(s) arrêté(s) : $(($stoppedArr | ForEach-Object { $_.Name }) -join ', ')"
                 After   = if ($results.Count -eq 0) { "Aucun service prioritaire arrêté" } else { $results -join " | " }
                 Detail  = "Services prioritaires redémarrés"
             }
@@ -226,8 +227,8 @@ $script:Catalog = [ordered]@{
             $teamsCache = Join-Path $env:LOCALAPPDATA "Microsoft\Teams"
             if (-not (Test-Path $teamsCache)) { return $false }
 
-            $sizeMB = (Get-ChildItem $teamsCache -Recurse -EA SilentlyContinue |
-                Measure-Object Length -Sum).Sum / 1MB
+            $tcMeasure = Get-ChildItem $teamsCache -Recurse -EA SilentlyContinue | Measure-Object Length -Sum
+            $sizeMB = if ($tcMeasure -and $tcMeasure.PSObject.Properties['Sum'] -and $null -ne $tcMeasure.Sum) { [double]$tcMeasure.Sum / 1MB } else { 0 }
 
             # Détecter crash récent ou cache > 1 Go
             $crashLogs = Get-ChildItem (Join-Path $teamsCache "logs.txt") -EA SilentlyContinue
@@ -263,8 +264,8 @@ $script:Catalog = [ordered]@{
             $cleaned = @()
             foreach ($path in $cachePaths) {
                 if (Test-Path $path) {
-                    $size = (Get-ChildItem $path -Recurse -EA SilentlyContinue |
-                        Measure-Object Length -Sum).Sum
+                    $sizeM = Get-ChildItem $path -Recurse -EA SilentlyContinue | Measure-Object Length -Sum
+                    $size = if ($sizeM -and $sizeM.PSObject.Properties['Sum'] -and $null -ne $sizeM.Sum) { $sizeM.Sum } else { 0 }
                     if (-not $sim) {
                         Get-ChildItem $path -Recurse -Force -EA SilentlyContinue |
                             Remove-Item -Force -Recurse -EA SilentlyContinue
@@ -301,8 +302,8 @@ $script:Catalog = [ordered]@{
 
             $ostPath = Join-Path $env:LOCALAPPDATA "Microsoft\Outlook"
             $ostSize = if (Test-Path $ostPath) {
-                (Get-ChildItem $ostPath -Filter "*.ost" -EA SilentlyContinue |
-                    Measure-Object Length -Sum).Sum / 1GB
+                $om = Get-ChildItem $ostPath -Filter "*.ost" -EA SilentlyContinue | Measure-Object Length -Sum
+                if ($om -and $om.PSObject.Properties['Sum'] -and $null -ne $om.Sum) { $om.Sum / 1GB } else { 0 }
             } else { 0 }
 
             $crashedAddins = Get-ItemProperty `
@@ -349,8 +350,9 @@ $script:Catalog = [ordered]@{
             $roamCache = Join-Path $env:LOCALAPPDATA "Microsoft\Outlook\RoamCache"
             $roamFreed = 0
             if (Test-Path $roamCache) {
-                $roamFreed = [math]::Round((Get-ChildItem $roamCache -Recurse -EA SilentlyContinue |
-                    Measure-Object Length -Sum).Sum / 1MB, 0)
+                $rm = Get-ChildItem $roamCache -Recurse -EA SilentlyContinue | Measure-Object Length -Sum
+                $roamSum = if ($rm -and $rm.PSObject.Properties['Sum'] -and $null -ne $rm.Sum) { $rm.Sum } else { 0 }
+                $roamFreed = [math]::Round($roamSum / 1MB, 0)
                 if (-not $sim) {
                     Get-ChildItem $roamCache -File -Recurse -EA SilentlyContinue |
                         Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-30) } |
@@ -477,9 +479,8 @@ $script:Catalog = [ordered]@{
             $total = 0
             foreach ($p in $paths) {
                 if (Test-Path $p) {
-                    $sum = (Get-ChildItem $p -File -Recurse -EA SilentlyContinue |
-                        Measure-Object -Property Length -Sum).Sum
-                    if ($null -ne $sum) { $total += $sum }
+                    $sm = Get-ChildItem $p -File -Recurse -EA SilentlyContinue | Measure-Object -Property Length -Sum
+                    if ($sm -and $sm.PSObject.Properties['Sum'] -and $null -ne $sm.Sum) { $total += $sm.Sum }
                 }
             }
             return $total -gt 500MB
@@ -507,7 +508,8 @@ $script:Catalog = [ordered]@{
                         $_.LastWriteTime -lt (Get-Date).AddDays(-$t.MinAgeDays)
                     })
 
-                $sizeBefore = if ($files.Count -gt 0) { ($files | Measure-Object Length -Sum).Sum } else { 0 }
+                $szM = if ($files.Count -gt 0) { $files | Measure-Object Length -Sum } else { $null }
+                $sizeBefore = if ($szM -and $szM.PSObject.Properties['Sum'] -and $null -ne $szM.Sum) { $szM.Sum } else { 0 }
                 $count      = $files.Count
 
                 if (-not $sim -and $count -gt 0) {
@@ -1040,7 +1042,7 @@ function _Export-RemediationReport {
 <body>
 <div class="hdr">
   <h1>🔧 Rapport de Remédiation — $([System.Net.WebUtility]::HtmlEncode([string]$Computer)) $simBadge</h1>
-  <p>Date : $(Get-Date -Format 'dd/MM/yyyy HH:mm') &nbsp;|&nbsp; Opérateur : $env:USERNAME</p>
+  <p>Date : $(Get-Date -Format 'dd/MM/yyyy HH:mm') &nbsp;|&nbsp; Opérateur : $([System.Net.WebUtility]::HtmlEncode([string]$env:USERNAME))</p>
 </div>
 <div class="container">
   <div class="cards">

@@ -66,6 +66,7 @@ param(
 )
 
 begin {
+    Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
     $schemaScript = Join-Path $PSScriptRoot "Core/ESN-OutputSchema.ps1"
     if (Test-Path $schemaScript) { . $schemaScript }
@@ -101,13 +102,23 @@ begin {
             Write-Warning "TLS certificate validation disabled via -AllowUntrustedCert for $Endpoint"
             if ($PSVersionTable.PSVersion.Major -ge 6) {
                 $invokeParams['SkipCertificateCheck'] = $true
+            } else {
+                $prevCallback = [System.Net.ServicePointManager]::ServerCertificateValidationCallback
+                [System.Net.ServicePointManager]::ServerCertificateValidationCallback = { $true }
             }
         }
+        [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
         if ($null -ne $Body) {
             $invokeParams['Body']        = ($Body | ConvertTo-Json -Depth 6 -Compress)
             $invokeParams['ContentType'] = 'application/json'
         }
-        return Invoke-RestMethod @invokeParams
+        try {
+            return Invoke-RestMethod @invokeParams
+        } finally {
+            if ($SkipCertCheck -and $PSVersionTable.PSVersion.Major -lt 6) {
+                [System.Net.ServicePointManager]::ServerCertificateValidationCallback = $prevCallback
+            }
+        }
     }
 
     function Get-LinearRunwayDays {

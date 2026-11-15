@@ -32,6 +32,7 @@ param(
     [switch]$SimulationMode,
     [switch]$OpenReport
 )
+Set-StrictMode -Version Latest
 
 $ErrorActionPreference = "Continue"
 $schemaScript = Join-Path $PSScriptRoot "Core/ESN-OutputSchema.ps1"
@@ -108,10 +109,10 @@ elseif ($IsOnline -and $SshCmd) {
 echo "===OS==="; grep PRETTY_NAME /etc/os-release 2>/dev/null | cut -d= -f2 | tr -d '"'; uname -r
 echo "===FAILED_SERVICES==="; systemctl --failed --no-legend --no-pager 2>/dev/null | wc -l
 echo "===DISK==="; df -h -x tmpfs -x devtmpfs -x squashfs 2>/dev/null | tail -n +2 | awk '{print $NF"|"$2"|"$3"|"$4"|"$5}'
-echo "===SSH_CONFIG==="; grep -E "^(PermitRootLogin|PasswordAuthentication)" /etc/ssh/sshd_config 2>/dev/null || true
-echo "===SERVICES==="; echo "UFW:$(ufw status 2>/dev/null | head -n 1)"; echo "SMB:$(systemctl is-active smbd 2>/dev/null || echo inactive)"
-echo "===UPDATES==="; (apt-get -s upgrade 2>/dev/null | grep -oE '^[0-9]+' | head -n 1) || echo "0"
-'@
+echo "===SSH_CONFIG==="; grep -hE "^[[:space:]]*(PermitRootLogin|PasswordAuthentication)[[:space:]]+" /etc/ssh/sshd_config.d/*.conf /etc/ssh/sshd_config 2>/dev/null || true
+echo "===SERVICES==="; echo "UFW:$((sudo -n ufw status 2>/dev/null || ufw status 2>/dev/null) | head -n 1)"; echo "SMB:$(systemctl is-active smbd 2>/dev/null || echo inactive)"
+echo "===UPDATES==="; (apt-get -s upgrade 2>/dev/null | grep -i '^Inst ' | grep -ic 'security') || echo "0"
+'@ -replace "`r", ""
     $sshArgs = @("-p", $SshPort, "-o", "StrictHostKeyChecking=accept-new", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5")
     if ($SshKeyPath) { $sshArgs += @("-i", $SshKeyPath) }
     $sshArgs += @("$Username@$TargetHost", $LinuxAuditCommands)
@@ -124,19 +125,22 @@ echo "===UPDATES==="; (apt-get -s upgrade 2>/dev/null | grep -oE '^[0-9]+' | hea
             if ($line -match '^===([A-Z_]+)===$') { $cur = $Matches[1]; $sections[$cur] = @() }
             elseif ($cur -and -not [string]::IsNullOrWhiteSpace($line)) { $sections[$cur] += $line.Trim() }
         }
-        $osLines = $sections["OS"]
+        $osLines = if ($sections.ContainsKey("OS")) { @($sections["OS"]) } else { @() }
         if ($osLines.Count -ge 1) { $LinuxOS = $osLines[0] }
         if ($osLines.Count -ge 2) { $LinuxKernel = $osLines[1] }
-        $FailedServicesCount = if ($sections["FAILED_SERVICES"] -and $sections["FAILED_SERVICES"][0] -match '^\d+$') { [int]$sections["FAILED_SERVICES"][0] } else { 0 }
-        $AptSecurityUpdates = if ($sections["UPDATES"] -and $sections["UPDATES"][0] -match '^\d+$') { [int]$sections["UPDATES"][0] } else { 0 }
-        $sshConf = ($sections["SSH_CONFIG"] -join "`n")
+        $failArr = if ($sections.ContainsKey("FAILED_SERVICES")) { @($sections["FAILED_SERVICES"]) } else { @() }
+        $FailedServicesCount = if ($failArr.Count -gt 0 -and $failArr[0] -match '^\d+$') { [int]$failArr[0] } else { 0 }
+        $updArr = if ($sections.ContainsKey("UPDATES")) { @($sections["UPDATES"]) } else { @() }
+        $AptSecurityUpdates = if ($updArr.Count -gt 0 -and $updArr[0] -match '^\d+$') { [int]$updArr[0] } else { 0 }
+        $sshConf = if ($sections.ContainsKey("SSH_CONFIG")) { @($sections["SSH_CONFIG"]) -join "`n" } else { "" }
         $RootLoginPermitted = if ($sshConf -match 'PermitRootLogin\s+(\S+)') { $Matches[1] } else { "default/non-explicit" }
         $PasswordAuth = if ($sshConf -match 'PasswordAuthentication\s+(\S+)') { $Matches[1] } else { "default/non-explicit" }
-        $svcConf = ($sections["SERVICES"] -join "`n")
+        $svcConf = if ($sections.ContainsKey("SERVICES")) { @($sections["SERVICES"]) -join "`n" } else { "" }
         $UfwStatus = if ($svcConf -match 'UFW:Status:\s*(\S+)') { $Matches[1] } else { "inactive/unknown" }
         $SambaStatus = if ($svcConf -match 'SMB:(\S+)') { $Matches[1] } else { "inactive" }
-        $DiskMetrics = @(foreach ($dl in $sections["DISK"]) {
-            $p = $dl -split '\|'
+        $diskLines = if ($sections.ContainsKey("DISK")) { @($sections["DISK"]) } else { @() }
+        $DiskMetrics = @(foreach ($dl in $diskLines) {
+            $p = @($dl -split '\|')
             if ($p.Count -ge 5) { @{ Mount = $p[0]; Size = $p[1]; Used = $p[2]; Avail = $p[3]; Pct = $p[4] } }
         })
         $BadgeLabel = if ($FailedServicesCount -eq 0 -and $RootLoginPermitted -eq "no") { "Conforme" } else { "Attention Requise" }
@@ -156,7 +160,33 @@ else {
     }
 }
 
-$escHost = [System.Net.WebUtility]::HtmlEncode($TargetHost)
+$escHost     = [System.Net.WebUtility]::HtmlEncode([string]$TargetHost)
+$escBadge    = [System.Net.WebUtility]::HtmlEncode([string]$BadgeLabel)
+$escOs       = [System.Net.WebUtility]::HtmlEncode([string]$LinuxOS)
+$escKernel   = [System.Net.WebUtility]::HtmlEncode([string]$LinuxKernel)
+$escRoot     = [System.Net.WebUtility]::HtmlEncode([string]$RootLoginPermitted)
+$escPwdAuth  = [System.Net.WebUtility]::HtmlEncode([string]$PasswordAuth)
+$escUfw      = [System.Net.WebUtility]::HtmlEncode([string]$UfwStatus)
+$escSamba    = [System.Net.WebUtility]::HtmlEncode([string]$SambaStatus)
+
+$svcSubText  = if ($FailedServicesCount -eq 0) { "Toutes les unités actives" } elseif ($FailedServicesCount -gt 0) { "$FailedServicesCount unité(s) en échec" } else { "Non audité" }
+$svcSubColor = if ($FailedServicesCount -eq 0) { "#3fb950" } elseif ($FailedServicesCount -gt 0) { "#f85149" } else { "#8b949e" }
+
+$sshHardened = ($RootLoginPermitted -eq "no" -and $PasswordAuth -eq "no")
+$sshVerdict  = if ($RootLoginPermitted -eq "inconnu") { "Non vérifié" } elseif ($sshHardened) { "Conforme ANSSI" } elseif ($RootLoginPermitted -eq "no") { "Partiel (PasswordAuth=$escPwdAuth)" } else { "Non conforme" }
+$sshClass    = if ($sshHardened) { "status-ok" } elseif ($RootLoginPermitted -eq "inconnu" -or $RootLoginPermitted -eq "no") { "status-warn" } else { "status-err" }
+
+$ufwActive   = ($UfwStatus -match '(?i)^active')
+$ufwClass    = if ($ufwActive) { "status-ok" } elseif ($UfwStatus -eq "inconnu") { "status-warn" } else { "status-err" }
+$ufwLabel    = if ($ufwActive) { "ACTIF" } elseif ($UfwStatus -eq "inconnu") { "NON VÉRIFIÉ" } else { "INACTIF / NON FILTRÉ" }
+
+$updClass    = if ($AptSecurityUpdates -eq 0) { "status-ok" } elseif ($AptSecurityUpdates -lt 0) { "status-warn" } else { "status-warn" }
+$updLabel    = if ($AptSecurityUpdates -eq 0) { "À JOUR" } elseif ($AptSecurityUpdates -lt 0) { "NON VÉRIFIÉ" } else { "À PLANIFIER ($AptSecurityUpdates)" }
+
+$smbActive   = ($SambaStatus -match '(?i)^active')
+$smbClass    = if ($smbActive) { "status-ok" } else { "status-warn" }
+$smbLabel    = if ($smbActive) { "ACTIF" } elseif ($SambaStatus -eq "inconnu") { "NON VÉRIFIÉ" } else { "INACTIF" }
+
 $DiskRowsHtml = ($DiskMetrics | ForEach-Object {
     "<tr><td><strong>$([System.Net.WebUtility]::HtmlEncode($_.Mount))</strong></td><td>$([System.Net.WebUtility]::HtmlEncode($_.Size))</td><td>$([System.Net.WebUtility]::HtmlEncode($_.Used))</td><td>$([System.Net.WebUtility]::HtmlEncode($_.Avail))</td><td>$([System.Net.WebUtility]::HtmlEncode($_.Pct))</td><td><span style='color:#4ade80;'>Analysé</span></td></tr>"
 }) -join "`n"
@@ -168,7 +198,7 @@ $HtmlContent = @"
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Audit Système Linux - $TargetHost</title>
+    <title>Audit Système Linux - $escHost</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #0d1117; color: #c9d1d9; margin: 0; padding: 28px; }
         .container { max-width: 1000px; margin: auto; background-color: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 32px; box-shadow: 0 10px 30px rgba(0,0,0,0.6); }
@@ -184,28 +214,29 @@ $HtmlContent = @"
         tr:nth-child(even) { background-color: #11161d; }
         .status-ok { color: #3fb950; font-weight: bold; }
         .status-warn { color: #d29922; font-weight: bold; }
+        .status-err { color: #f85149; font-weight: bold; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Audit Serveur Linux (Ubuntu/Debian) & Parcs Hétérogènes <span class="badge">$BadgeLabel</span></h1>
+        <h1>Audit Serveur Linux (Ubuntu/Debian) & Parcs Hétérogènes <span class="badge">$escBadge</span></h1>
         <p style="color: #8b949e;">Audit de santé, services systemd, sécurité SSH, stockage et conformité du serveur Linux <strong>$escHost</strong>.</p>
         
         <div class="grid">
             <div class="card">
                 <div class="card-title">Distribution & Kernel</div>
-                <div class="card-value" style="font-size: 15px;">$LinuxOS</div>
-                <div style="font-size: 11px; color: #8b949e; margin-top: 4px;">Kernel : $LinuxKernel</div>
+                <div class="card-value" style="font-size: 15px;">$escOs</div>
+                <div style="font-size: 11px; color: #8b949e; margin-top: 4px;">Kernel : $escKernel</div>
             </div>
             <div class="card">
                 <div class="card-title">Services en Échec (systemd)</div>
                 <div class="card-value">$FailedServicesCount</div>
-                <div style="font-size: 11px; color: #3fb950; margin-top: 4px;">Toutes les unités actives</div>
+                <div style="font-size: 11px; color: $svcSubColor; margin-top: 4px;">$svcSubText</div>
             </div>
             <div class="card">
                 <div class="card-title">Durcissement SSH</div>
-                <div class="card-value">Conforme ANSSI</div>
-                <div style="font-size: 11px; color: #8b949e; margin-top: 4px;">Root login: $RootLoginPermitted | Keys only</div>
+                <div class="card-value">$sshVerdict</div>
+                <div style="font-size: 11px; color: #8b949e; margin-top: 4px;">Root login: $escRoot | PasswordAuth: $escPwdAuth</div>
             </div>
         </div>
 
@@ -238,23 +269,23 @@ $HtmlContent = @"
             <tbody>
                 <tr>
                     <td><strong>Pare-feu Local (UFW)</strong></td>
-                    <td>Statut : $UfwStatus (Règles restrictives 22/tcp, 445/tcp)</td>
-                    <td class="status-ok">ACTIF & FILTRÉ</td>
+                    <td>Statut : $escUfw</td>
+                    <td class="$ufwClass">$ufwLabel</td>
                 </tr>
                 <tr>
-                    <td><strong>Mises à jour APT</strong></td>
-                    <td>$AptSecurityUpdates paquets de sécurité en attente de redémarrage</td>
-                    <td class="status-warn">À PLANIFIER</td>
+                    <td><strong>Mises à jour APT (sécurité)</strong></td>
+                    <td>$AptSecurityUpdates paquet(s) de sécurité en attente</td>
+                    <td class="$updClass">$updLabel</td>
                 </tr>
                 <tr>
-                    <td><strong>Partage Samba (smbd/nmbd)</strong></td>
-                    <td>$SambaStatus (Interconnexion Domaine Active Directory)</td>
-                    <td class="status-ok">OPÉRATIONNEL</td>
+                    <td><strong>Partage Samba (smbd)</strong></td>
+                    <td>$escSamba</td>
+                    <td class="$smbClass">$smbLabel</td>
                 </tr>
                 <tr>
                     <td><strong>SSH Daemon Hardening</strong></td>
-                    <td>PermitRootLogin: $RootLoginPermitted | PasswordAuth: $PasswordAuth</td>
-                    <td class="status-ok">DURCI</td>
+                    <td>PermitRootLogin: $escRoot | PasswordAuth: $escPwdAuth</td>
+                    <td class="$sshClass">$sshVerdict</td>
                 </tr>
             </tbody>
         </table>

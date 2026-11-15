@@ -42,6 +42,7 @@ param(
 
     [switch]$CleanUp
 )
+Set-StrictMode -Version Latest
 
 $ErrorActionPreference = "Stop"
 $ScriptDir = Split-Path $MyInvocation.PSCommandPath -Parent

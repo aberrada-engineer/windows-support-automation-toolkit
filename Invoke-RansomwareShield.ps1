@@ -21,8 +21,9 @@ param(
     [string]$OutputPath = "",
     [switch]$Simulate
 )
-if (-not $PSBoundParameters.ContainsKey('IsolateHost')) { $IsolateHost = $true }
-if (-not $PSBoundParameters.ContainsKey('CollectForensics')) { $CollectForensics = $true }
+Set-StrictMode -Version Latest
+if ($Simulate -and -not $PSBoundParameters.ContainsKey('IsolateHost') -and -not $RestoreNetwork) { $IsolateHost = $true }
+if (-not $PSBoundParameters.ContainsKey('CollectForensics')) { $CollectForensics = [bool]$IsolateHost -or [bool]$Simulate }
 
 $ErrorActionPreference = "Stop"
 $schemaScript = Join-Path $PSScriptRoot "Core/ESN-OutputSchema.ps1"
@@ -30,6 +31,10 @@ if (Test-Path $schemaScript) { . $schemaScript }
 
 try {
     $hostLabel = if ($env:COMPUTERNAME) { $env:COMPUTERNAME } else { [System.Environment]::MachineName }
+    if (-not $Simulate -and -not $IsolateHost -and -not $RestoreNetwork -and -not $CollectForensics) {
+        Write-Warning "Aucune action spécifiée : précisez -IsolateHost, -CollectForensics, -RestoreNetwork ou -Simulate."
+        return [PSCustomObject]@{ HostName = $hostLabel; Isolated = $false; Simulated = $false; ForensicsDir = $null; SiemLog = $null }
+    }
     if (-not $Simulate -and [Environment]::UserInteractive) {
         try { Clear-Host } catch { Write-Verbose "Clear-Host ignored: $($_.Exception.Message)" }
     }

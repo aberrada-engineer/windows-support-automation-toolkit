@@ -21,6 +21,7 @@ param(
     [string]$Subnet = "", # Ex: "192.168.1" (laisser vide pour auto-détection)
     [switch]$OpenReport
 )
+Set-StrictMode -Version Latest
 if (-not $PSBoundParameters.ContainsKey('OpenReport')) { $OpenReport = $true }
 
 if ([Environment]::UserInteractive) {
@@ -35,8 +36,8 @@ Write-Host ""
 # 1. AUTO-DETECTION DU SOUS-RESEAU
 if ([string]::IsNullOrWhiteSpace($Subnet)) {
     $ipConfig = Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.InterfaceAlias -notmatch "Loopback|vEthernet|Virtual" -and $_.IPAddress -notlike "169.254*" } | Select-Object -First 1
-    if ($ipConfig) {
-        $parts = $ipConfig.IPAddress.Split('.')
+    $parts = if ($ipConfig) { @($ipConfig.IPAddress.Split('.')) } else { @() }
+    if ($ipConfig -and $parts.Count -ge 3) {
         $Subnet = "$($parts[0]).$($parts[1]).$($parts[2])"
         Write-Host " [*] Sous-réseau local détecté : $Subnet.0/24 (via $($ipConfig.IPAddress))" -ForegroundColor Green
     } else {
@@ -108,7 +109,7 @@ try {
     $pool.Dispose()
 }
 
-$sortedHosts = $aliveHosts | Sort-Object { [version]$_.IP }
+$sortedHosts = @($aliveHosts | Sort-Object { [version]$_.IP })
 
 Write-Host "`n [OK] Scan terminé ! $($sortedHosts.Count) équipement(s) actif(s) détecté(s)." -ForegroundColor Green
 
@@ -120,9 +121,11 @@ $schemaScript = Join-Path $PSScriptRoot "Core/ESN-OutputSchema.ps1"
 if (Test-Path $schemaScript) { . $schemaScript }
 $reportDir = if (Get-Command Get-ESNReportRoot -ErrorAction SilentlyContinue) { Get-ESNReportRoot } else { Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/Reports" }
 if (-not (Test-Path $reportDir)) { New-Item -Path $reportDir -ItemType Directory -Force | Out-Null }
-$reportPath = Join-Path $reportDir "Fleet-Discovery-$Subnet.html"
+$encSubnet = [System.Net.WebUtility]::HtmlEncode([string]$Subnet)
+$safeSubnetFile = ($Subnet -replace '[^0-9A-Za-z._-]', '_')
+$reportPath = Join-Path $reportDir "Fleet-Discovery-$safeSubnetFile.html"
 $rows = ($sortedHosts | ForEach-Object {
-    "<tr><td><b>$($_.IP)</b></td><td>$([System.Net.WebUtility]::HtmlEncode($_.Nom))</td><td>$([System.Net.WebUtility]::HtmlEncode($_.Type))</td><td><code>$($_.Ports)</code></td></tr>"
+    "<tr><td><b>$([System.Net.WebUtility]::HtmlEncode([string]$_.IP))</b></td><td>$([System.Net.WebUtility]::HtmlEncode([string]$_.Nom))</td><td>$([System.Net.WebUtility]::HtmlEncode([string]$_.Type))</td><td><code>$([System.Net.WebUtility]::HtmlEncode([string]$_.Ports))</code></td></tr>"
 }) -join "`n"
 
 $html = @"
@@ -130,7 +133,7 @@ $html = @"
 <html>
 <head>
     <meta charset='utf-8'>
-    <title>Cartographie Réseau - $Subnet.0/24</title>
+    <title>Cartographie Réseau - $encSubnet.0/24</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f4f6f9; color: #222; padding: 25px; }
         .card { background: white; border-radius: 8px; padding: 25px; box-shadow: 0 2px 10px rgba(0,0,0,0.08); max-width: 1000px; margin: auto; }
@@ -146,7 +149,7 @@ $html = @"
     <div class='card'>
         <h1>🌐 Cartographie Réseau & Inventaire du Parc</h1>
         <div class='stats'>
-            <div class='stat-box'>Sous-réseau : $Subnet.0/24</div>
+            <div class='stat-box'>Sous-réseau : $encSubnet.0/24</div>
             <div class='stat-box'>Équipements en ligne : $($sortedHosts.Count)</div>
             <div class='stat-box'>Date : $(Get-Date -Format 'dd/MM/yyyy HH:mm')</div>
         </div>

@@ -365,7 +365,7 @@ function Export-ESNReport {
 </div>
 
 <div class="footer">
-  ESN Toolkit v$($script:ESNConfig.Version) — Généré le $(Get-Date -Format 'dd/MM/yyyy à HH:mm:ss') — $env:USERNAME
+  ESN Toolkit v$($script:ESNConfig.Version) — Généré le $(Get-Date -Format 'dd/MM/yyyy à HH:mm:ss') — $([System.Net.WebUtility]::HtmlEncode([string]$env:USERNAME))
 </div>
 </body>
 </html>
@@ -537,9 +537,12 @@ function Measure-ESNPingLatency {
             LossPct   = 100.0
         }
     }
-    $avg  = [math]::Round(($times | Measure-Object -Average).Average, 1)
-    $max  = ($times | Measure-Object -Maximum).Maximum
-    $min  = ($times | Measure-Object -Minimum).Minimum
+    $avgM = $times | Measure-Object -Average
+    $maxM = $times | Measure-Object -Maximum
+    $minM = $times | Measure-Object -Minimum
+    $avg  = if ($avgM -and $avgM.PSObject.Properties['Average'] -and $null -ne $avgM.Average) { [math]::Round($avgM.Average, 1) } else { 0.0 }
+    $max  = if ($maxM -and $maxM.PSObject.Properties['Maximum'] -and $null -ne $maxM.Maximum) { $maxM.Maximum } else { 0.0 }
+    $min  = if ($minM -and $minM.PSObject.Properties['Minimum'] -and $null -ne $minM.Minimum) { $minM.Minimum } else { 0.0 }
     $jit  = [math]::Round(($max - $min), 1)
     $loss = [math]::Round((($sent - $times.Count) / [double]$sent) * 100, 0)
     return [PSCustomObject]@{

@@ -17,6 +17,7 @@ param(
     [int]$CertExpiringDays = 30,
     [switch]$OpenReport
 )
+Set-StrictMode -Version Latest
 if (-not $PSBoundParameters.ContainsKey('OpenReport')) { $OpenReport = $true }
 
 if ([Environment]::UserInteractive) {
@@ -45,16 +46,16 @@ function Add-CoreCheck {
 # 1. AUDIT DES CERTIFICATS SSL / TLS EXPIRANT BIENTÔT
 Write-Host "[1/4] Contrôle des certificats SSL/TLS locaux et d'infrastructure..." -ForegroundColor Yellow
 $threshold = (Get-Date).AddDays($CertExpiringDays)
-$expiringCerts = Get-ChildItem -Path Cert:\LocalMachine\My -Recurse -ErrorAction SilentlyContinue |
-                 Where-Object { $_.NotAfter -le $threshold -and $_.NotAfter -ge (Get-Date) }
+$expiringCerts = @(Get-ChildItem -Path Cert:\LocalMachine\My -Recurse -ErrorAction SilentlyContinue |
+                 Where-Object { $_.NotAfter -le $threshold -and $_.NotAfter -ge (Get-Date) })
 
-$expiredCerts = Get-ChildItem -Path Cert:\LocalMachine\My -Recurse -ErrorAction SilentlyContinue |
-                Where-Object { $_.NotAfter -lt (Get-Date) }
+$expiredCerts = @(Get-ChildItem -Path Cert:\LocalMachine\My -Recurse -ErrorAction SilentlyContinue |
+                Where-Object { $_.NotAfter -lt (Get-Date) })
 
-if ($expiredCerts) {
-    Add-CoreCheck -Element "Certificats SSL Déjà Expirés" -Value "$($expiredCerts.Count) certificat(s)" -Status "CRITIQUE" -Detail "Certificats obsolètes détectés en magasin : $($expiredCerts.Subject -join ', ')"
-} elseif ($expiringCerts) {
-    Add-CoreCheck -Element "Certificats SSL Expirant (< $CertExpiringDays j)" -Value "$($expiringCerts.Count) certificat(s)" -Status "WARN" -Detail "Renouvellement requis sous peu pour : $($expiringCerts.Subject -join ', ')"
+if ($expiredCerts.Count -gt 0) {
+    Add-CoreCheck -Element "Certificats SSL Déjà Expirés" -Value "$($expiredCerts.Count) certificat(s)" -Status "CRITIQUE" -Detail "Certificats obsolètes détectés en magasin : $(($expiredCerts | ForEach-Object { $_.Subject }) -join ', ')"
+} elseif ($expiringCerts.Count -gt 0) {
+    Add-CoreCheck -Element "Certificats SSL Expirant (< $CertExpiringDays j)" -Value "$($expiringCerts.Count) certificat(s)" -Status "WARN" -Detail "Renouvellement requis sous peu pour : $(($expiringCerts | ForEach-Object { $_.Subject }) -join ', ')"
 } else {
     Add-CoreCheck -Element "Certificats SSL / PKI" -Value "Tous valides (> $CertExpiringDays j)" -Status "OK" -Detail "Aucun certificat en magasin local n'expire dans les $CertExpiringDays prochains jours."
 }
@@ -63,7 +64,15 @@ if ($expiredCerts) {
 Write-Host "`n[2/4] Audit des étendues DHCP et baux disponibles..." -ForegroundColor Yellow
 $dhcpSvc = Get-Service -Name "DHCPServer" -ErrorAction SilentlyContinue
 if ($dhcpSvc -and $dhcpSvc.Status -eq "Running") {
-    Add-CoreCheck -Element "Service Serveur DHCP" -Value "Actif (Running)" -Status "OK" -Detail "Service DHCP opérationnel sur ce serveur."
+    $scopes = if (Get-Command Get-DhcpServerv4ScopeStatistics -ErrorAction SilentlyContinue) { @(Get-DhcpServerv4ScopeStatistics -ErrorAction SilentlyContinue) } else { @() }
+    $hotScopes = @($scopes | Where-Object { $_.PercentageInUse -ge 85 })
+    if ($hotScopes.Count -gt 0) {
+        $maxPct = [math]::Round(($hotScopes | Measure-Object PercentageInUse -Maximum).Maximum, 1)
+        $statDhcp = if ($maxPct -ge 95) { "CRITIQUE" } else { "WARN" }
+        Add-CoreCheck -Element "Étendues DHCP v4" -Value "$($hotScopes.Count) saturée(s) (max $maxPct%)" -Status $statDhcp -Detail "Étendues proches de saturation (>=85%) : $(($hotScopes | ForEach-Object { "$($_.ScopeId)=$($_.PercentageInUse)%" }) -join ', ')"
+    } else {
+        Add-CoreCheck -Element "Service & Étendues DHCP" -Value "Actif ($($scopes.Count) étendue(s))" -Status "OK" -Detail "Service DHCP opérationnel ; aucune étendue saturée détectée."
+    }
 } else {
     Add-CoreCheck -Element "Serveur DHCP Local" -Value "Non hébergé" -Status "OK" -Detail "Cette machine n'héberge pas le rôle de serveur DHCP."
 }
@@ -72,7 +81,12 @@ if ($dhcpSvc -and $dhcpSvc.Status -eq "Running") {
 Write-Host "`n[3/4] Audit du rôle Serveur DNS..." -ForegroundColor Yellow
 $dnsSvc = Get-Service -Name "DNS" -ErrorAction SilentlyContinue
 if ($dnsSvc -and $dnsSvc.Status -eq "Running") {
-    Add-CoreCheck -Element "Service Serveur DNS" -Value "Actif (Running)" -Status "OK" -Detail "Résolution DNS interne opérationnelle."
+    $scav = if (Get-Command Get-DnsServerScavenging -ErrorAction SilentlyContinue) { Get-DnsServerScavenging -ErrorAction SilentlyContinue } else { $null }
+    if ($scav -and -not $scav.ScavengingState) {
+        Add-CoreCheck -Element "Serveur DNS & Scavenging" -Value "Scavenging désactivé" -Status "WARN" -Detail "Service DNS actif mais le nettoyage automatique (Scavenging) est désactivé."
+    } else {
+        Add-CoreCheck -Element "Service Serveur DNS" -Value "Actif (Running)" -Status "OK" -Detail "Résolution DNS interne et vieillissement opérationnels."
+    }
 } else {
     Add-CoreCheck -Element "Serveur DNS Local" -Value "Non hébergé" -Status "OK" -Detail "Résolution assurée par contrôleur de domaine distant."
 }
@@ -80,10 +94,12 @@ if ($dnsSvc -and $dnsSvc.Status -eq "Running") {
 # 4. AUDIT DES MISES A JOUR & PATCH MANAGEMENT (WSUS)
 Write-Host "`n[4/4] Contrôle de l'agent de mise à jour Windows Update / WSUS..." -ForegroundColor Yellow
 $wuSvc = Get-Service -Name "wuauserv" -ErrorAction SilentlyContinue
+$wuGpo = Get-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" -ErrorAction SilentlyContinue
+$wsusUrl = if ($wuGpo -and $wuGpo.PSObject.Properties['WUServer']) { $wuGpo.WUServer } else { "Windows Update direct" }
 if ($wuSvc -and $wuSvc.Status -eq "Running") {
-    Add-CoreCheck -Element "Agent Windows Update" -Value "Opérationnel" -Status "OK" -Detail "Service de mise à jour prêt pour réception des correctifs."
+    Add-CoreCheck -Element "Agent Windows Update" -Value "Opérationnel ($wsusUrl)" -Status "OK" -Detail "Service de mise à jour prêt pour réception des correctifs."
 } else {
-    Add-CoreCheck -Element "Agent Windows Update" -Value "Arrêté" -Status "WARN" -Detail "Service Windows Update inactif (Risque de retard de patching)."
+    Add-CoreCheck -Element "Agent Windows Update" -Value "Arrêté ($wsusUrl)" -Status "WARN" -Detail "Service Windows Update inactif (Risque de retard de patching)."
 }
 
 # 5. RAPPORT HTML
@@ -119,7 +135,7 @@ $html = @"
 <body>
     <div class='card'>
         <h1>🏢 Bilan des Services d'Infrastructure Critiques (DHCP, DNS, PKI, WSUS)</h1>
-        <p><b>Machine :</b> $env:COMPUTERNAME | <b>Date :</b> $(Get-Date -Format 'dd/MM/yyyy HH:mm') | <b>Ingénieur Référent :</b> Amine BERRADA</p>
+        <p><b>Machine :</b> $([System.Net.WebUtility]::HtmlEncode([string]$(if ($env:COMPUTERNAME) { $env:COMPUTERNAME } else { [System.Environment]::MachineName }))) | <b>Date :</b> $(Get-Date -Format 'dd/MM/yyyy HH:mm') | <b>Ingénieur Référent :</b> Amine BERRADA</p>
         <table>
             <thead><tr><th>Composant</th><th>Mesure Détectée</th><th>Statut</th><th>Détails & Analyse Technique</th></tr></thead>
             <tbody>$rows</tbody>

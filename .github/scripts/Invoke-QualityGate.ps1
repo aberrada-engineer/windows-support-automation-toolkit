@@ -3,6 +3,7 @@
     [string]$Stage = 'All',
     [switch]$RunAnalyzer
 )
+Set-StrictMode -Version Latest
 
 $ErrorActionPreference = 'Stop'
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot '../..')
@@ -35,7 +36,7 @@ Push-Location $repoRoot
 try {
     if ($Stage -in @('All', 'AST')) {
         Write-Host "=== Validation syntaxique AST ($($PSVersionTable.PSVersion)) ===" -ForegroundColor Cyan
-        $scripts = Get-ChildItem -Path . -Include '*.ps1', '*.psm1' -Recurse | Where-Object { $_.FullName -notmatch '[/\\]Tests[/\\]' }
+        $scripts = @(Get-ChildItem -Path . -Include '*.ps1', '*.psm1' -Recurse | Where-Object { $_.FullName -notmatch '[/\\]Tests[/\\]' })
         $errorsCount = 0
         foreach ($s in $scripts) {
             $parseErrors = $null

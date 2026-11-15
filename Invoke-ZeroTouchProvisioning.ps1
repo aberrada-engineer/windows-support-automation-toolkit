@@ -23,6 +23,7 @@ param(
     [string]$DomainName = "",
     [switch]$Simulation
 )
+Set-StrictMode -Version Latest
 
 if ([Environment]::UserInteractive) {
     try { Clear-Host } catch { Write-Verbose "Clear-Host ignored: $($_.Exception.Message)" }
@@ -48,14 +49,15 @@ function Add-StepResult {
 
 # 1. OPTIMISATION DU NOM DE MACHINE
 Write-Host "[1/6] Normalisation du nom de machine..." -ForegroundColor Yellow
-$serial = [string](Get-CimInstance Win32_BIOS -ErrorAction SilentlyContinue).SerialNumber
-$cleanRaw = ($serial -replace '[^a-zA-Z0-9]', '')
-if (-not $cleanRaw) { $cleanRaw = "000000" }
-$cleanSerial = $cleanRaw.Substring(0, [Math]::Min(6, $cleanRaw.Length))
+$bios = if (Get-Command Get-CimInstance -ErrorAction SilentlyContinue) { Get-CimInstance Win32_BIOS -ErrorAction SilentlyContinue } else { $null }
+$serial = if ($bios -and $bios.PSObject.Properties['SerialNumber']) { [string]$bios.SerialNumber } else { "" }
+$cleanRaw = ($serial -replace '[^a-zA-Z0-9]', '').ToUpper()
+$isGenericSerial = (-not $cleanRaw) -or ($cleanRaw -match '^(TOBEFILLED|SYSTEM|DEFAULT|NONE|NOTAPPLICABLE|OEM|0+|123456|VMWARE)')
+$cleanSerial = if ($isGenericSerial) { [guid]::NewGuid().ToString('N').Substring(0, 6).ToUpper() } else { $cleanRaw.Substring(0, [Math]::Min(6, $cleanRaw.Length)) }
 $newName = "$Prefix-$cleanSerial".ToUpper()
 
 if ($env:COMPUTERNAME -ne $newName) {
-    if (-not $Simulation) {
+    if (-not $Simulation -and $PSCmdlet.ShouldProcess($newName, "Renommer la machine (Rename-Computer)")) {
         Rename-Computer -NewName $newName -Force -ErrorAction SilentlyContinue
     }
     Add-StepResult "Nom du PC" "OK" "Machine configurée pour devenir '$newName' au redémarrage."
@@ -72,8 +74,8 @@ $bloatwareList = @(
 $removedCount = 0
 foreach ($b in $bloatwareList) {
     $apps = Get-AppxPackage -Name $b -AllUsers -ErrorAction SilentlyContinue
-    foreach ($app in $apps) {
-        if (-not $Simulation) {
+    foreach ($app in @($apps)) {
+        if (-not $Simulation -and $PSCmdlet.ShouldProcess($app.Name, "Supprimer Bloatware AppxPackage")) {
             Remove-AppxPackage -Package $app.PackageFullName -AllUsers -ErrorAction SilentlyContinue | Out-Null
         }
         $removedCount++
@@ -96,13 +98,17 @@ if (-not $SkipSoftwareInstall) {
     foreach ($soft in $softwareCatalog) {
         Write-Host "  -> Vérification de $($soft.Name)..." -NoNewline
         if (-not $Simulation) {
-            $check = winget list --id $soft.Id 2>&1 | Out-String
+            $check = winget list --id $soft.Id --accept-source-agreements 2>&1 | Out-String
             if ($check -match $soft.Id) {
                 Write-Host " Déjà installé." -ForegroundColor Green
-            } else {
+            } elseif ($PSCmdlet.ShouldProcess($soft.Id, "Installer application via winget")) {
                 Write-Host " Installation silencieuse..." -ForegroundColor Cyan
                 winget install --id $soft.Id --exact --silent --accept-package-agreements --accept-source-agreements --disable-interactivity | Out-Null
-                $installedCount++
+                if ($LASTEXITCODE -eq 0) {
+                    $installedCount++
+                } else {
+                    Write-Warning "Échec installation winget pour $($soft.Id) (code $LASTEXITCODE)."
+                }
             }
         } else {
             Write-Host " [SIMULATION]" -ForegroundColor Yellow
@@ -156,7 +162,7 @@ if ($EnableBitLocker) {
     Add-StepResult "Chiffrement BitLocker" "OK" "Protection TPM XTS-AES 256 activée sur C:."
 }
 if ($DomainName) {
-    Add-StepResult "Jonction Domaine AD" "OK" "Domaine cible préparé : $DomainName."
+    Add-StepResult "Jonction Domaine AD" "WARN" "Domaine cible '$DomainName' renseigné : jonction non exécutée automatiquement (exécuter Add-Computer -DomainName '$DomainName' -Credential <admin>)."
 }
 Add-StepResult "Configuration Système" "OK" "Fuseau horaire Europe/Paris configuré, veille prolongée optimisée."
 

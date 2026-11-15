@@ -14,9 +14,11 @@
 
 [CmdletBinding()]
 param(
+    [ValidateRange(0.01, 10000)]
     [double]$EstimatedDailyGrowthGB = 1.5,
     [switch]$OpenReport
 )
+Set-StrictMode -Version Latest
 if (-not $PSBoundParameters.ContainsKey('OpenReport')) { $OpenReport = $true }
 
 if ([Environment]::UserInteractive) {
@@ -32,26 +34,44 @@ $predictions = [System.Collections.Generic.List[PSCustomObject]]::new()
 
 # 1. EXTRAPOLATION DE SATURATION DU DISQUE SYSTEME C:
 Write-Host " [*] Calcul prédictif de saturation du lecteur système C:..." -ForegroundColor Yellow
-$c = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='C:'"
-$freeGB = [math]::Round($c.FreeSpace / 1GB, 1)
-$usedPercent = [math]::Round((($c.Size - $c.FreeSpace) / $c.Size) * 100, 1)
+$hostLabel = if ($env:COMPUTERNAME) { $env:COMPUTERNAME } else { [System.Environment]::MachineName }
+$c = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='C:'" -ErrorAction SilentlyContinue
+if (-not $c -or -not $c.Size -or $c.Size -le 0) {
+    $freeGB = 0
+    $usedPercent = 0
+    $daysRemaining = 0
+    $projectedExhaustionDate = "Non mesuré"
+    $status = "AVERTISSEMENT"
+    $color  = "Yellow"
+    Write-Host "  [!] Volume C: introuvable (hôte non-Windows ou WMI indisponible)." -ForegroundColor Yellow
+    $predictions.Add([PSCustomObject]@{
+        Domaine       = "Stockage C:"
+        Diagnostic    = "Volume C: non détecté"
+        Prediction    = "Indisponible"
+        Statut        = $status
+        Preconisation = "Exécuter sur un poste Windows pour mesurer le volume C:."
+    })
+} else {
+    $freeGB = [math]::Round($c.FreeSpace / 1GB, 1)
+    $usedPercent = [math]::Round((($c.Size - $c.FreeSpace) / $c.Size) * 100, 1)
 
-$daysRemaining = [math]::Floor($freeGB / $EstimatedDailyGrowthGB)
-$projectedExhaustionDate = (Get-Date).AddDays($daysRemaining).ToString("dd/MM/yyyy")
+    $daysRemaining = [math]::Min(36500, [int][math]::Floor($freeGB / $EstimatedDailyGrowthGB))
+    $projectedExhaustionDate = (Get-Date).AddDays($daysRemaining).ToString("dd/MM/yyyy")
 
-$status = if ($daysRemaining -lt 7) { "CRITIQUE" } elseif ($daysRemaining -lt 30) { "AVERTISSEMENT" } else { "OPTIMAL" }
-$color  = if ($status -eq "CRITIQUE") { "Red" } elseif ($status -eq "AVERTISSEMENT") { "Yellow" } else { "Green" }
+    $status = if ($daysRemaining -lt 7) { "CRITIQUE" } elseif ($daysRemaining -lt 30) { "AVERTISSEMENT" } else { "OPTIMAL" }
+    $color  = if ($status -eq "CRITIQUE") { "Red" } elseif ($status -eq "AVERTISSEMENT") { "Yellow" } else { "Green" }
 
-Write-Host "  -> Espace libre actuel : $freeGB Go ($usedPercent% utilisé)" -ForegroundColor Cyan
-Write-Host "  -> Au rythme de +$EstimatedDailyGrowthGB Go/jour, saturation estimée dans : $daysRemaining jours ($projectedExhaustionDate)" -ForegroundColor $color
+    Write-Host "  -> Espace libre actuel : $freeGB Go ($usedPercent% utilisé)" -ForegroundColor Cyan
+    Write-Host "  -> Au rythme de +$EstimatedDailyGrowthGB Go/jour, saturation estimée dans : $daysRemaining jours ($projectedExhaustionDate)" -ForegroundColor $color
 
-$predictions.Add([PSCustomObject]@{
-    Domaine       = "Stockage C:"
-    Diagnostic    = "$freeGB Go libres ($usedPercent% utilisé)"
-    Prediction    = "Saturation dans $daysRemaining jours ($projectedExhaustionDate)"
-    Statut        = $status
-    Preconisation = "Planifier une extension de volume ou activer le Self-Healing avant le $projectedExhaustionDate."
-})
+    $predictions.Add([PSCustomObject]@{
+        Domaine       = "Stockage C:"
+        Diagnostic    = "$freeGB Go libres ($usedPercent% utilisé)"
+        Prediction    = "Saturation dans $daysRemaining jours ($projectedExhaustionDate)"
+        Statut        = $status
+        Preconisation = "Planifier une extension de volume ou activer le Self-Healing avant le $projectedExhaustionDate."
+    })
+}
 
 # 2. AUDIT PHYSIQUE DE L'USURE DES DISQUES (SSD / HDD)
 Write-Host "`n [*] Audit physique de la santé des supports de stockage..." -ForegroundColor Yellow
@@ -81,7 +101,7 @@ $ticketRCA = @"
 ================================================================================
 FICHE D'ANALYSE D'INCIDENT & RCA (A COLLER DANS GLPI / JIRA)
 ================================================================================
-Machine impactée : $env:COMPUTERNAME
+Machine impactée : $hostLabel
 Date d'analyse   : $(Get-Date -Format 'dd/MM/yyyy HH:mm')
 Ingénieur N3     : Amine BERRADA
 
@@ -91,10 +111,10 @@ Ingénieur N3     : Amine BERRADA
 - Seuil d'épuisement critique calculé : $projectedExhaustionDate ($daysRemaining jours).
 
 2. CAUSE RACINE IDENTIFIEE (RCA) :
-- Accumulation de fichiers temporaires d'installation Windows Update et caches utilisateurs.
+- Accumulation de fichiers temporaires / caches ou croissance applicative à vérifier.
 
-3. ACTIONS CURATIVES IMMEDIATES EXECUTEES :
-- Lancement de la purge automatisée via ESN-Remediation (AutoFix).
+3. ACTIONS RECOMMANDEES (PLAN D'ACTION) :
+- Exécuter Invoke-Remediation -AutoFix ou Invoke-SelfHealingService.ps1 si le seuil critique est atteint.
 
 4. RECOMMANDATIONS PERMANENTES :
 - Déploiement de la tâche planifiée ESN-SelfHealing pour automatiser le maintien en conditions opérationnelles.
@@ -137,7 +157,7 @@ $html = @"
 <body>
     <div class='card'>
         <h1>🔮 Rapport d'Analyse Prédictive & AIOps 2.0</h1>
-        <p><b>Machine :</b> $env:COMPUTERNAME | <b>Date :</b> $(Get-Date -Format 'dd/MM/yyyy HH:mm') | <b>Analyste :</b> Amine BERRADA</p>
+        <p><b>Machine :</b> $([System.Net.WebUtility]::HtmlEncode([string]$env:COMPUTERNAME)) | <b>Date :</b> $(Get-Date -Format 'dd/MM/yyyy HH:mm') | <b>Analyste :</b> Amine BERRADA</p>
         <table>
             <thead><tr><th>Domaine</th><th>Diagnostic Actuel</th><th>Projection Mathématique</th><th>Statut</th><th>Préconisations Proactives</th></tr></thead>
             <tbody>$rows</tbody>

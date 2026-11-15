@@ -21,6 +21,7 @@ param(
     [switch]$Simulate,
     [string]$ExternalTestHost = "8.8.8.8"
 )
+Set-StrictMode -Version Latest
 
 $ErrorActionPreference = "Stop"
 $schemaScript = Join-Path $PSScriptRoot "Core/ESN-OutputSchema.ps1"
@@ -48,7 +49,7 @@ try {
         CriticalEvents = [System.Collections.Generic.List[PSCustomObject]]::new()
     }
 
-    if ($Simulate -or -not (Get-Command Get-WinEvent -ErrorAction SilentlyContinue)) {
+    if ($Simulate) {
         $triageReport.NetworkStatus = "Opérationnel (Passerelle 10.10.0.1 joignable - Simulé)"
         $triageReport.CriticalEvents.Add([PSCustomObject]@{
             Date    = (Get-Date).AddMinutes(-12).ToString("HH:mm:ss")
@@ -60,7 +61,7 @@ try {
     else {
         # 1. ANALYSE DES CRASH DUMPS (BSOD)
         Write-Host " [*] Recherche de Crash Dumps / Écrans Bleus (BSOD)..." -ForegroundColor Yellow
-        $dumpPath = "$env:SystemRoot\Minidump"
+        $dumpPath = if ($env:SystemRoot) { Join-Path $env:SystemRoot "Minidump" } else { "" }
         if ($dumpPath -and (Test-Path $dumpPath)) {
             $dumps = @(Get-ChildItem $dumpPath -Filter "*.dmp" -ErrorAction SilentlyContinue |
                      Where-Object { $_.LastWriteTime -ge (Get-Date).AddHours(-$HoursBack) } |
@@ -76,7 +77,9 @@ try {
 
         # 2. EXTRACTION DES ÉVÉNEMENTS CRITIQUES
         Write-Host "`n [*] Analyse des journaux d'événements critiques..." -ForegroundColor Yellow
-        $events = Get-WinEvent -FilterHashtable @{ LogName = @('System', 'Application'); Level = @(1, 2); StartTime = (Get-Date).AddHours(-$HoursBack) } -MaxEvents 50 -ErrorAction SilentlyContinue
+        $events = if (Get-Command Get-WinEvent -ErrorAction SilentlyContinue) {
+            Get-WinEvent -FilterHashtable @{ LogName = @('System', 'Application'); Level = @(1, 2); StartTime = (Get-Date).AddHours(-$HoursBack) } -MaxEvents 50 -ErrorAction SilentlyContinue
+        } else { @() }
         foreach ($evt in @($events)) {
             if ($null -ne $evt) {
                 $triageReport.CriticalEvents.Add([PSCustomObject]@{
@@ -90,19 +93,27 @@ try {
 
         # 3. SANTÉ DU STOCKAGE PHYSIQUE
         Write-Host "`n [*] Vérification de l'intégrité des disques physiques (SMART / WMI)..." -ForegroundColor Yellow
-        foreach ($dk in @(Get-CimInstance Win32_DiskDrive -ErrorAction SilentlyContinue)) {
-            if ($dk.Status -ne "OK") {
-                $storageAlertsList.Add("$($dk.Model) ($($dk.Status))")
+        if (Get-Command Get-CimInstance -ErrorAction SilentlyContinue) {
+            foreach ($dk in @(Get-CimInstance Win32_DiskDrive -ErrorAction SilentlyContinue)) {
+                if ($dk.Status -ne "OK") {
+                    $storageAlertsList.Add("$($dk.Model) ($($dk.Status))")
+                }
             }
         }
 
         # 4. CONNECTIVITÉ RÉSEAU D'URGENCE
-        $gw = (Get-NetRoute -DestinationPrefix "0.0.0.0/0" -ErrorAction SilentlyContinue | Select-Object -First 1).NextHop
+        $gw = if (Get-Command Get-NetRoute -ErrorAction SilentlyContinue) {
+            (Get-NetRoute -DestinationPrefix "0.0.0.0/0" -ErrorAction SilentlyContinue | Select-Object -First 1).NextHop
+        } else { $null }
         $pingObj = [System.Net.NetworkInformation.Ping]::new()
-        $gwPing  = if ($gw) { try { ($pingObj.Send($gw, 1000)).Status -eq 'Success' } catch { $false } } else { $false }
-        $dnsPing = try { ($pingObj.Send($ExternalTestHost, 1000)).Status -eq 'Success' } catch { $false }
-        $pingObj.Dispose()
-        $triageReport.NetworkStatus = if ($gwPing -and $dnsPing) { "Opérationnel (Passerelle $gw joignable)" } elseif ($gwPing) { "Dégradé (Passerelle OK, Sortie Internet KO)" } else { "CRITIQUE (Passerelle injoignable)" }
+        try {
+            $gwPing  = if ($gw) { try { ($pingObj.Send($gw, 1000)).Status -eq 'Success' } catch { $false } } else { $false }
+            $dnsPing = if (-not [string]::IsNullOrWhiteSpace($ExternalTestHost)) { try { ($pingObj.Send($ExternalTestHost, 1000)).Status -eq 'Success' } catch { $false } } else { $true }
+        }
+        finally {
+            $pingObj.Dispose()
+        }
+        $triageReport.NetworkStatus = if ($gwPing -and $dnsPing) { "Opérationnel (Passerelle $gw joignable)" } elseif ($gwPing) { "Dégradé (Passerelle OK, Sortie externe KO)" } else { "CRITIQUE (Passerelle injoignable)" }
     }
 
     # 5. GÉNÉRATION DU BILAN FLASH P1 (HTML + SIEM JSON)
@@ -116,12 +127,17 @@ try {
 
     $bsodBadge = if ($triageReport.BSODDetected) { "<span style='background:#d83b01;color:white;padding:4px 8px;border-radius:4px;'>CRASH DUMP DETECTE</span>" } else { "<span style='background:#107c41;color:white;padding:4px 8px;border-radius:4px;'>AUCUN CRASH BSOD</span>" }
 
+    $encHost = [System.Net.WebUtility]::HtmlEncode([string]$hostLabel)
+    $encTs   = [System.Net.WebUtility]::HtmlEncode([string]$triageReport.Timestamp)
+    $encNet  = [System.Net.WebUtility]::HtmlEncode([string]$triageReport.NetworkStatus)
+    $encDisk = if ($triageReport.StorageAlerts.Count -gt 0) { [System.Net.WebUtility]::HtmlEncode(($triageReport.StorageAlerts -join ', ')) } else { 'Intégrité Matérielle OK' }
+
     $html = @"
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset='utf-8'>
-    <title>Bilan Flash Incident P1 - $hostLabel</title>
+    <title>Bilan Flash Incident P1 - $encHost</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #0f141c; color: #e6edf3; padding: 25px; }
         .card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 25px; max-width: 950px; margin: auto; }
@@ -136,11 +152,11 @@ try {
 <body>
     <div class='card'>
         <h1>🚨 Bilan Flash Incident P1 / P2 — Astreinte</h1>
-        <p><b>Machine :</b> $hostLabel | <b>Horodatage :</b> $($triageReport.Timestamp) | <b>Analyste :</b> Amine BERRADA</p>
+        <p><b>Machine :</b> $encHost | <b>Horodatage :</b> $encTs | <b>Analyste :</b> Amine BERRADA</p>
         <div class='grid'>
             <div class='box'><b>État Système / BSOD :</b><br><br>$bsodBadge</div>
-            <div class='box'><b>Connectivité Réseau :</b><br><br>$($triageReport.NetworkStatus)</div>
-            <div class='box'><b>Alertes Matériel Disque :</b><br><br>$(if ($triageReport.StorageAlerts.Count -gt 0) { $triageReport.StorageAlerts -join ', ' } else { 'Intégrité Matérielle OK' })</div>
+            <div class='box'><b>Connectivité Réseau :</b><br><br>$encNet</div>
+            <div class='box'><b>Alertes Matériel Disque :</b><br><br>$encDisk</div>
         </div>
         <h3>Derniers Événements d'Erreur & Faits Marquants (Extrait 20 derniers)</h3>
         <table>

@@ -53,16 +53,32 @@ function Test-ESNADHealth {
     # Si c'est un contrôleur de domaine, test réplication
     if ($isDC) {
         Write-Host "  [*] Analyse de la réplication Active Directory (repadmin)..." -ForegroundColor Cyan
-        $repadmin = Get-Command repadmin.exe -ErrorAction SilentlyContinue
-        if ($repadmin) {
-            $repOutput = & repadmin.exe /replsummary 2>&1 | Out-String
-            if ($repOutput -match "fails") {
-                Write-Host "  [!] Des erreurs de réplication ont été détectées dans /replsummary" -ForegroundColor Red
-                $adReport.ReplicationOK = $false
-                $adReport.IssuesFound.Add("Échec de réplication AD détecté")
-            } else {
-                Write-Host "  [OK] Réplication Active Directory saine." -ForegroundColor Green
-                $adReport.ReplicationOK = $true
+        if (Get-Command Get-ADReplicationFailure -ErrorAction SilentlyContinue) {
+            try {
+                $rf = @(Get-ADReplicationFailure -Target $env:USERDNSDOMAIN -Scope Domain -ErrorAction Stop)
+                if ($rf.Count -gt 0) {
+                    Write-Host "  [!] $($rf.Count) erreur(s) de réplication AD détectée(s)" -ForegroundColor Red
+                    $adReport.ReplicationOK = $false
+                    $adReport.IssuesFound.Add("Échec de réplication AD détecté ($($rf.Count))")
+                } else {
+                    Write-Host "  [OK] Réplication Active Directory saine." -ForegroundColor Green
+                    $adReport.ReplicationOK = $true
+                }
+            } catch {
+                $adReport.IssuesFound.Add("Contrôle réplication AD impossible : $($_.Exception.Message)")
+            }
+        } else {
+            $repadmin = Get-Command repadmin.exe -ErrorAction SilentlyContinue
+            if ($repadmin) {
+                $repOutput = & $repadmin.Source /replsummary 2>&1 | Out-String
+                if ($LASTEXITCODE -ne 0 -or $repOutput -match "(?i)\b(fail|fails|failure|erreur|échec)\b") {
+                    Write-Host "  [!] Des erreurs de réplication ont été détectées dans /replsummary" -ForegroundColor Red
+                    $adReport.ReplicationOK = $false
+                    $adReport.IssuesFound.Add("Échec de réplication AD détecté")
+                } else {
+                    Write-Host "  [OK] Réplication Active Directory saine." -ForegroundColor Green
+                    $adReport.ReplicationOK = $true
+                }
             }
         }
     }

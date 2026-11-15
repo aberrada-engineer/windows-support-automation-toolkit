@@ -4,6 +4,8 @@
     ESN-Network — Diagnostic réseau complet (IP, DNS, latence, VPN, proxy, partages).
 #>
 
+Set-StrictMode -Version Latest
+
 function Invoke-NetworkDiag {
 <#
 .SYNOPSIS
@@ -73,11 +75,13 @@ function Invoke-NetworkDiag {
         }
         $pingSender.Dispose()
         $out.InternetPing = $latVals.Count -gt 0
-        $out.LatencyAvg = if ($latVals.Count -gt 0) {
-            [math]::Round(($latVals | Measure-Object -Average).Average, 0)
+        $latAvgM = if ($latVals.Count -gt 0) { $latVals | Measure-Object -Average } else { $null }
+        $latMaxM = if ($latVals.Count -gt 0) { $latVals | Measure-Object -Maximum } else { $null }
+        $out.LatencyAvg = if ($latAvgM -and $latAvgM.PSObject.Properties['Average'] -and $null -ne $latAvgM.Average) {
+            [math]::Round($latAvgM.Average, 0)
         } else { 9999 }
-        $out.LatencyMax = if ($latVals.Count -gt 0) {
-            ($latVals | Measure-Object -Maximum).Maximum
+        $out.LatencyMax = if ($latMaxM -and $latMaxM.PSObject.Properties['Maximum'] -and $null -ne $latMaxM.Maximum) {
+            $latMaxM.Maximum
         } else { 9999 }
 
         # ── Proxy ────────────────────────────────────────

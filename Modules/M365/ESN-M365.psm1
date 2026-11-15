@@ -5,6 +5,8 @@
     MFA, Intune. Utilise Microsoft.Graph.
 #>
 
+Set-StrictMode -Version Latest
+
 function Test-GraphAvailable {
     return ($null -ne (Get-Module -ListAvailable Microsoft.Graph.Users -EA SilentlyContinue))
 }
@@ -113,7 +115,7 @@ function Invoke-M365Audit {
         try {
             Write-ESNLog "Vérification MFA..." "INFO"
             $authMethods = @(Get-MgReportAuthenticationMethodUserRegistrationDetail -All `
-                -ErrorAction Stop | Select-Object -First 500)
+                -ErrorAction Stop)
 
             $mfaRegistered = @($authMethods | Where-Object IsMfaRegistered).Count
             $total2        = $authMethods.Count
@@ -171,11 +173,14 @@ function Set-M365UserLicense {
     if (-not $connected) { return }
 
     # Lister les SKUs disponibles si non précisé
-    $skus = Get-MgSubscribedSku
+    $skus = @(Get-MgSubscribedSku)
     if (-not $SkuPartNumber) {
         Write-ESNLog "Licences disponibles :" "INFO"
         $skus | ForEach-Object {
             Write-ESNLog "  $($_.SkuPartNumber) — $($_.PrepaidUnits.Enabled - $_.ConsumedUnits) dispo" "INFO"
+        }
+        if (-not [Environment]::UserInteractive) {
+            throw "Paramètre -SkuPartNumber requis en mode non interactif. SKUs disponibles : $(($skus | ForEach-Object { $_.SkuPartNumber }) -join ', ')"
         }
         $SkuPartNumber = Read-Host "Entrez le SkuPartNumber"
     }

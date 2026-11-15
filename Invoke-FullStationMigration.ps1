@@ -58,7 +58,7 @@ if ($choice -in @("1", "3")) {
     Write-Host "--- ETAPE 1 : SELECTION DU PROFIL A SAUVEGARDER ---`n" -ForegroundColor Yellow
 
     # Liste des profils locaux sur la machine
-    $profiles = Get-ChildItem "C:\Users" -Directory | Where-Object { $_.Name -notin @("Public", "Default", "Default User", "All Users") }
+    $profiles = @(Get-ChildItem "C:\Users" -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -notin @("Public", "Default", "Default User", "All Users") })
     Write-Host " Profils utilisateurs détectés sur ce poste :" -ForegroundColor Cyan
     for ($i = 0; $i -lt $profiles.Count; $i++) {
         Write-Host "  [$($i+1)] $($profiles[$i].Name)" -ForegroundColor White
@@ -67,7 +67,7 @@ if ($choice -in @("1", "3")) {
 
     $userChoice = Read-Host " Sélectionnez le profil à capturer (1-$($profiles.Count) ou M)"
     $selectedUser = $env:USERNAME
-    if ($userChoice -match "^\d+$" -and [int]$userChoice -le $profiles.Count) {
+    if ($userChoice -match "^\d+$" -and [int]$userChoice -ge 1 -and [int]$userChoice -le $profiles.Count) {
         $selectedUser = $profiles[[int]$userChoice - 1].Name
     } elseif ($userChoice.ToUpper() -eq "M") {
         $selectedUser = Read-Host " Entrez le nom exact du compte utilisateur"
@@ -138,9 +138,9 @@ elseif ($choice -eq "2") {
     }
 
     # Recherche des sauvegardes contenant un manifest.json
-    $backups = Get-ChildItem -Path $searchDir -Directory | Where-Object { Test-Path (Join-Path $_.FullName "manifest.json") }
+    $backups = @(Get-ChildItem -Path $searchDir -Directory -ErrorAction SilentlyContinue | Where-Object { Test-Path (Join-Path $_.FullName "manifest.json") })
 
-    if (-not $backups) {
+    if ($backups.Count -eq 0) {
         Write-Host " [!] Aucune sauvegarde valide trouvée dans $searchDir" -ForegroundColor Red
         Read-Host "Appuyez sur Entrée pour quitter..."
         exit
@@ -152,7 +152,7 @@ elseif ($choice -eq "2") {
     }
 
     $bkChoice = Read-Host "`n Sélectionnez la sauvegarde à restaurer (1-$($backups.Count))"
-    if ($bkChoice -match "^\d+$" -and [int]$bkChoice -le $backups.Count) {
+    if ($bkChoice -match "^\d+$" -and [int]$bkChoice -ge 1 -and [int]$bkChoice -le $backups.Count) {
         $chosenBackup = $backups[[int]$bkChoice - 1].FullName
     } else {
         Write-Host " [!] Choix invalide." -ForegroundColor Red

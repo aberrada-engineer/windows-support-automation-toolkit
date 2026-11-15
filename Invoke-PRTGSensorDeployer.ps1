@@ -24,6 +24,7 @@ param(
     [string]$OutputDirectory = "",
     [switch]$DeployLocally
 )
+Set-StrictMode -Version Latest
 
 Import-Module "$PSScriptRoot\Core\ESN-Core.psm1" -ErrorAction SilentlyContinue
 if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
@@ -59,8 +60,8 @@ $VeeamService = Get-Service -Name "VeeamBackupSvc" -ErrorAction SilentlyContinue
 $ServiceState = if ($VeeamService -and $VeeamService.Status -eq "Running") { 1 } else { 0 }
 
 # Récupération derniers événements Veeam
-$RecentErrors = Get-WinEvent -FilterHashtable @{LogName='Veeam Backup'; Level=2; StartTime=(Get-Date).AddHours(-24)} -ErrorAction SilentlyContinue
-$ErrorCount = if ($RecentErrors) { $RecentErrors.Count } else { 0 }
+$RecentErrors = @(Get-WinEvent -FilterHashtable @{LogName='Veeam Backup'; Level=2; StartTime=(Get-Date).AddHours(-24)} -ErrorAction SilentlyContinue)
+$ErrorCount = $RecentErrors.Count
 
 $StatusText = if ($ServiceState -eq 1 -and $ErrorCount -eq 0) { "Veeam Operationnel - 0 incident 24h" } elseif ($ServiceState -eq 1) { "Veeam Actif avec $ErrorCount erreurs 24h" } else { "Service Veeam Arrete" }
 
@@ -97,7 +98,8 @@ $Disks = Get-CimInstance -ClassName Win32_LogicalDisk -Filter "DriveType=3" -Err
 $MaxUsage = 0
 $ResultsXml = @()
 
-foreach ($d in $Disks) {
+foreach ($d in @($Disks)) {
+    if (-not $d -or -not $d.Size -or $d.Size -le 0) { continue }
     $pctUsed = [math]::Round((($d.Size - $d.FreeSpace) / $d.Size) * 100, 1)
     if ($pctUsed -gt $MaxUsage) { $MaxUsage = $pctUsed }
     

@@ -24,6 +24,7 @@ param(
     [string]$OutputPath         = "",
     [switch]$Simulate
 )
+Set-StrictMode -Version Latest
 if (-not $PSBoundParameters.ContainsKey('SingleRun')) { $SingleRun = $true }
 
 $ErrorActionPreference = "Stop"
@@ -97,7 +98,7 @@ try {
         )
         foreach ($cs in $criticalServices) {
             $svc = Get-Service -Name $cs.Name -ErrorAction SilentlyContinue
-            if ($svc -and $svc.Status -ne 'Running' -and $svc.StartType -ne 'Disabled') {
+            if ($svc -and $svc.Status -ne 'Running' -and $svc.StartType -eq 'Automatic') {
                 if ($PSCmdlet.ShouldProcess($cs.Name, "Redémarrage service critique arrêté")) {
                     try {
                         Start-Service -Name $cs.Name -ErrorAction Stop
@@ -121,7 +122,8 @@ try {
                 $tempDirs = @("$env:SystemRoot\Temp\*", "$env:LOCALAPPDATA\Temp\*", "$env:SystemRoot\SoftwareDistribution\Download\*")
                 $clearedMB = 0
                 foreach ($td in $tempDirs) {
-                    $size = (Get-ChildItem $td -Recurse -Force -ErrorAction SilentlyContinue | Measure-Object Length -Sum).Sum
+                    $sizeM = Get-ChildItem $td -Recurse -Force -ErrorAction SilentlyContinue | Measure-Object Length -Sum
+                    $size = if ($sizeM -and $sizeM.PSObject.Properties['Sum'] -and $null -ne $sizeM.Sum) { $sizeM.Sum } else { 0 }
                     if ($size) { $clearedMB += [math]::Round($size / 1MB, 1) }
                     Remove-Item $td -Recurse -Force -ErrorAction SilentlyContinue
                 }
@@ -133,12 +135,11 @@ try {
 
         # C. AUTO-RÉSOLUTION DNS
         $testDNS = try { Resolve-DnsName "www.microsoft.com" -ErrorAction Stop; $true } catch { $false }
-        if (-not $testDNS -and $PSCmdlet.ShouldProcess("Pile DNS", "Flush DNS et renouvellement DHCP")) {
+        if (-not $testDNS -and $PSCmdlet.ShouldProcess("Pile DNS", "Flush cache DNS")) {
             Clear-DnsClientCache -ErrorAction SilentlyContinue
             ipconfig /flushdns 2>&1 | Out-Null
-            ipconfig /renew 2>&1 | Out-Null
-            Log-SelfHealing "AUTO-HEAL : Cache DNS vidé et bail DHCP renouvelé." "HEALED"
-            $actionsHealed.Add("Résolution DNS rétablie")
+            Log-SelfHealing "AUTO-HEAL : Cache DNS vidé (renouvellement DHCP évité sans -Force)." "HEALED"
+            $actionsHealed.Add("Cache DNS vidé")
         }
 
         # D. DÉTECTION FUITES MÉMOIRE
@@ -150,8 +151,9 @@ try {
 
     if ($actionsHealed.Count -gt 0 -and $WebhookUrl) {
         try {
+            [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
             $body = @{ text = "🤖 **[ESN-SelfHealing] $hostLabel**`n" + (($actionsHealed | ForEach-Object { "• $_" }) -join "`n") } | ConvertTo-Json
-            Invoke-RestMethod -Uri $WebhookUrl -Method Post -Body $body -ContentType "application/json" -ErrorAction Stop | Out-Null
+            Invoke-RestMethod -Uri $WebhookUrl -Method Post -Body $body -ContentType "application/json" -TimeoutSec 15 -ErrorAction Stop | Out-Null
         } catch [System.Exception] {
             Log-SelfHealing "Échec envoi Webhook : $($_.Exception.Message)" "WARN"
         }

@@ -16,6 +16,7 @@
 param(
     [switch]$OpenReport
 )
+Set-StrictMode -Version Latest
 if (-not $PSBoundParameters.ContainsKey('OpenReport')) { $OpenReport = $true }
 
 if ([Environment]::UserInteractive) {
@@ -93,14 +94,16 @@ $endpoints = @(
 
 foreach ($ep in $endpoints) {
     $ping = try {
-        $tcp = New-Object System.Net.Sockets.TcpClient
+        $tcp = [System.Net.Sockets.TcpClient]::new()
         $start = [System.Diagnostics.Stopwatch]::StartNew()
         $connect = $tcp.BeginConnect($ep.Host, 443, $null, $null)
         $wait = $connect.AsyncWaitHandle.WaitOne(1500, $false)
         $start.Stop()
-        $tcp.Close()
-        if ($wait) { "$($start.ElapsedMilliseconds) ms" } else { "Échec" }
-    } catch { "Échec" }
+        if ($wait -and $tcp.Connected) {
+            $tcp.EndConnect($connect)
+            "$($start.ElapsedMilliseconds) ms"
+        } else { "Échec" }
+    } catch { "Échec" } finally { if ($tcp) { $tcp.Dispose() } }
 
     if ($ping -ne "Échec") {
         Add-CloudMetric -Element "Cloud $($ep.Name)" -Value "Joignable ($ping)" -Status "CONFORME" -Detail "Liaison HTTPS/443 fluide vers $($ep.Host)."
@@ -140,7 +143,7 @@ $html = @"
 <body>
     <div class='card'>
         <h1>☁️ Bilan de Santé Cloud Hybride & Microsoft 365</h1>
-        <p><b>Machine :</b> $env:COMPUTERNAME | <b>Date :</b> $(Get-Date -Format 'dd/MM/yyyy HH:mm') | <b>Analyste :</b> Amine BERRADA (Référent Cloud & N3)</p>
+        <p><b>Machine :</b> $([System.Net.WebUtility]::HtmlEncode([string]$env:COMPUTERNAME)) | <b>Date :</b> $(Get-Date -Format 'dd/MM/yyyy HH:mm') | <b>Analyste :</b> Amine BERRADA (Référent Cloud & N3)</p>
         <table>
             <thead><tr><th>Composant Cloud</th><th>Valeur Détectée</th><th>Statut</th><th>Détails & Analyse</th></tr></thead>
             <tbody>$rows</tbody>

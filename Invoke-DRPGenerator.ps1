@@ -29,6 +29,7 @@ param(
     [switch]$OpenReport,
     [string]$OutputPath = ""
 )
+Set-StrictMode -Version Latest
 
 $ErrorActionPreference = "Stop"
 $schemaScript = Join-Path $PSScriptRoot "Core/ESN-OutputSchema.ps1"
@@ -49,13 +50,17 @@ try {
     $Timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
     $HtmlReport = Join-Path $ReportDir "Dossier-PRA-Officiel-$Timestamp.html"
 
+    $eCompany      = [System.Net.WebUtility]::HtmlEncode([string]$CompanyName)
+    $ePrimarySite  = [System.Net.WebUtility]::HtmlEncode([string]$PrimarySite)
+    $eDisasterSite = [System.Net.WebUtility]::HtmlEncode([string]$DisasterSite)
+
 # Construction du dossier PRA exécutif
 $HtmlContent = @"
 <!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Plan de Reprise d'Activité (PRA / PCA) - $CompanyName</title>
+    <title>Plan de Reprise d'Activité (PRA / PCA) - $eCompany</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #0b0f19; color: #f1f5f9; margin: 0; padding: 32px; }
         .wrapper { max-width: 1100px; margin: auto; background-color: #111827; border: 1px solid #1f2937; border-radius: 12px; padding: 40px; box-shadow: 0 20px 40px rgba(0,0,0,0.7); }
@@ -81,7 +86,7 @@ $HtmlContent = @"
         <div class="header">
             <div>
                 <h1>Dossier Officiel de Plan de Reprise d'Activité (PRA / PCA)</h1>
-                <div class="subtitle">Organisation : <strong>$CompanyName</strong> • Conforme Référentiel ISO 22301 / ANSSI</div>
+                <div class="subtitle">Organisation : <strong>$eCompany</strong> • Conforme Référentiel ISO 22301 / ANSSI</div>
             </div>
             <div>
                 <span class="badge">Document Homologué</span>
@@ -96,12 +101,12 @@ $HtmlContent = @"
         <div class="grid-2">
             <div class="card">
                 <div style="color: #9ca3af; font-size: 12px; text-transform: uppercase; font-weight: bold;">Site Primaire (Production)</div>
-                <div style="font-size: 18px; font-weight: bold; color: #f1f5f9; margin-top: 4px;">$PrimarySite</div>
-                <div style="font-size: 13px; color: #4ade80; margin-top: 4px;">Cluster Nutanix / VMware vSphere 7.0</div>
+                <div style="font-size: 18px; font-weight: bold; color: #f1f5f9; margin-top: 4px;">$ePrimarySite</div>
+                <div style="font-size: 13px; color: #4ade80; margin-top: 4px;">Cluster Nutanix / VMware vSphere</div>
             </div>
             <div class="card">
                 <div style="color: #9ca3af; font-size: 12px; text-transform: uppercase; font-weight: bold;">Site de Secours (PRA)</div>
-                <div style="font-size: 18px; font-weight: bold; color: #f1f5f9; margin-top: 4px;">$DisasterSite</div>
+                <div style="font-size: 18px; font-weight: bold; color: #f1f5f9; margin-top: 4px;">$eDisasterSite</div>
                 <div style="font-size: 13px; color: #38bdf8; margin-top: 4px;">Veeam Replication + Dépôt Immuable WORM</div>
             </div>
         </div>
@@ -121,15 +126,15 @@ $HtmlContent = @"
                 <tr>
                     <td><strong>Tier 1 — Vital</strong></td>
                     <td>Contrôleurs de Domaine (AD/DNS), Cœur ERP, Base SQL</td>
-                    <td>&lt; 2 Heures</td>
-                    <td>&lt; 15 Minutes</td>
+                    <td>&lt; $MaxRtoHours Heure(s) (cible max contrat)</td>
+                    <td>&lt; $MaxRpoMinutes Minute(s)</td>
                     <td>Réplication CDP Veeam continue + Immutabilité</td>
                 </tr>
                 <tr>
                     <td><strong>Tier 2 — Critique</strong></td>
                     <td>Messagerie Exchange, Serveurs de Fichiers, VPN Nomade</td>
-                    <td>&lt; 4 Heures</td>
-                    <td>&lt; 2 Heures</td>
+                    <td>&lt; $([Math]::Max($MaxRtoHours, 4)) Heure(s)</td>
+                    <td>&lt; $([Math]::Max($MaxRpoMinutes * 4, 60)) Minute(s)</td>
                     <td>Snapshots horaires répliqués inter-sites</td>
                 </tr>
                 <tr>
@@ -157,7 +162,7 @@ $HtmlContent = @"
                     <td><strong>Directeur de Crise</strong></td>
                     <td>Directeur des Systèmes d'Information (DSI)</td>
                     <td>Directeur Technique</td>
-                    <td>Canal Astreinte N3 24/7 / berradapro@outlook.com</td>
+                    <td>Canal Astreinte N3 24/7 / Cellule Crise Client</td>
                 </tr>
                 <tr>
                     <td><strong>Référent Technique N3</strong></td>

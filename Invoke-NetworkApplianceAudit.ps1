@@ -20,6 +20,7 @@ param(
     [string]$ApplianceType = "FortiGate",
     [switch]$OpenReport
 )
+Set-StrictMode -Version Latest
 if (-not $PSBoundParameters.ContainsKey('OpenReport')) { $OpenReport = $true }
 
 if ([Environment]::UserInteractive) {

@@ -18,6 +18,7 @@ param(
     [int]$AnnualGrowthPercent = 20,
     [switch]$OpenReport
 )
+Set-StrictMode -Version Latest
 if (-not $PSBoundParameters.ContainsKey('OpenReport')) { $OpenReport = $true }
 
 if ([Environment]::UserInteractive) {
@@ -31,10 +32,17 @@ Write-Host ""
 
 # 1. AUDIT DES RESSOURCES MACHINE / HOTE
 Write-Host " [*] Audit des ressources de l'environnement hôte..." -ForegroundColor Yellow
-$cpuCores = (Get-CimInstance Win32_Processor | Measure-Object -Property NumberOfLogicalProcessors -Sum).Sum
-$totalRAMGB = [math]::Round(((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB), 1)
-$totalDiskGB = [math]::Round(((Get-CimInstance Win32_LogicalDisk -Filter "DriveType=3" | Measure-Object -Property Size -Sum).Sum / 1GB), 0)
-$usedDiskGB = [math]::Round(((Get-CimInstance Win32_LogicalDisk -Filter "DriveType=3" | ForEach-Object { $_.Size - $_.FreeSpace } | Measure-Object -Sum).Sum / 1GB), 0)
+$cpuMeasure = Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue | Measure-Object -Property NumberOfLogicalProcessors -Sum
+$cpuCores = if ($cpuMeasure -and $cpuMeasure.PSObject.Properties['Sum'] -and $null -ne $cpuMeasure.Sum) { [int]$cpuMeasure.Sum } else { 0 }
+$csInfo = Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue
+$totalRAMGB = if ($csInfo -and $csInfo.TotalPhysicalMemory) { [math]::Round(($csInfo.TotalPhysicalMemory / 1GB), 1) } else { 0 }
+$fixedDisks = @(Get-CimInstance Win32_LogicalDisk -Filter "DriveType=3" -ErrorAction SilentlyContinue | Where-Object { $_.Size -gt 0 })
+$diskSizeMeasure = $fixedDisks | Measure-Object -Property Size -Sum
+$totalDiskBytes = if ($diskSizeMeasure -and $diskSizeMeasure.PSObject.Properties['Sum'] -and $null -ne $diskSizeMeasure.Sum) { [double]$diskSizeMeasure.Sum } else { 0 }
+$usedMeasure = $fixedDisks | ForEach-Object { $_.Size - $_.FreeSpace } | Measure-Object -Sum
+$usedDiskBytes = if ($usedMeasure -and $usedMeasure.PSObject.Properties['Sum'] -and $null -ne $usedMeasure.Sum) { [double]$usedMeasure.Sum } else { 0 }
+$totalDiskGB = [math]::Round($totalDiskBytes / 1GB, 0)
+$usedDiskGB = [math]::Round($usedDiskBytes / 1GB, 0)
 
 Write-Host "  -> CPU Logiques : $cpuCores coeurs" -ForegroundColor Green
 Write-Host "  -> RAM Totale   : $totalRAMGB Go" -ForegroundColor Green
@@ -61,9 +69,10 @@ $physicalCoresNeeded = [math]::Ceiling($totalRequiredvCPU / 3)
 $nodesCount = [Math]::Max(3, [math]::Ceiling($totalRequiredRAM / 64) + 1)
 $ramPerNode = [math]::Ceiling($totalRequiredRAM / ($nodesCount - 1))
 
+$coresPerNode = [Math]::Max(8, [math]::Ceiling($physicalCoresNeeded / ($nodesCount - 1)))
 Write-Host "  -> Pour héberger $EstimatedVMCount VMs avec tolérance de panne (N+1) :" -ForegroundColor Green
 Write-Host "     * Architecture recommandée : Cluster de $nodesCount nœuds hyperconvergés (ex: Nutanix ou VMware vSphere)" -ForegroundColor Green
-Write-Host "     * Dimensionnement par nœud  : 16 Coeurs CPU ($physicalCoresNeeded coeurs physiques requis) / $ramPerNode Go RAM minimum" -ForegroundColor Green
+Write-Host "     * Dimensionnement par nœud  : $coresPerNode Coeurs CPU ($physicalCoresNeeded coeurs physiques utiles N+1) / $ramPerNode Go RAM minimum" -ForegroundColor Green
 
 # 4. DIMENSIONNEMENT SAUVEGARDE 3-2-1
 $backupFullGB = $usedDiskGB

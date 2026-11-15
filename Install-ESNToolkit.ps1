@@ -13,6 +13,7 @@ param(
     [switch]$RegisterDailyAuditTask,
     [switch]$Silent
 )
+Set-StrictMode -Version Latest
 if (-not $PSBoundParameters.ContainsKey('CreateDesktopShortcut')) { $CreateDesktopShortcut = $true }
 
 if (-not $Silent -and [Environment]::UserInteractive) {

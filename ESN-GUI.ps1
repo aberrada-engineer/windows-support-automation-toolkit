@@ -161,7 +161,7 @@ $tab1.Controls.Add((Create-ModernButton -Text "🖥️ Tableau de Bord Centralis
 
 $tab1.Controls.Add((Create-ModernButton -Text "🎬 Simulateur Live Demo (Auto-Fix)" -X 20 -Y 138 -Width 270 -Height 42 -BgColor ([System.Drawing.Color]::FromArgb(0, 130, 90)) -Action {
     Append-Log "Lancement de la simulation d'incident pour démonstration..." "Green"
-    Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-IncidentLabSimulator.ps1`" -Scenario N1-Workstation"
+    Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-IncidentLabSimulator.ps1`" -Scenario N1-Workstation -Simulate"
 }))
 
 $tab1.Controls.Add((Create-ModernButton -Text "📊 Pitch Deck Présentation (Slides HTML)" -X 310 -Y 138 -Width 270 -Height 42 -BgColor ([System.Drawing.Color]::FromArgb(100, 40, 140)) -Action {
@@ -317,8 +317,13 @@ $tab5.Controls.Add((Create-ModernButton -Text "🚨 Triage Urgence P1 (Astreinte
 }))
 
 $tab5.Controls.Add((Create-ModernButton -Text "🛑 Ransomware Emergency KillSwitch" -X 310 -Y 78 -Width 270 -Height 45 -BgColor ([System.Drawing.Color]::FromArgb(120, 0, 0)) -Action {
-    Append-Log "Isolement d'urgence de la machine..." "Red"
-    Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-RansomwareShield.ps1`""
+    $confirm = [System.Windows.Forms.MessageBox]::Show("Isoler immédiatement toutes les interfaces réseau de cet hôte ?", "Confirmation KillSwitch Ransomware", [System.Windows.Forms.MessageBoxButtons]::YesNo, [System.Windows.Forms.MessageBoxIcon]::Warning)
+    if ($confirm -eq [System.Windows.Forms.DialogResult]::Yes) {
+        Append-Log "Isolement d'urgence de la machine..." "Red"
+        Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-RansomwareShield.ps1`" -IsolateHost -Confirm:`$false"
+    } else {
+        Append-Log "KillSwitch Ransomware annulé par l'opérateur." "Yellow"
+    }
 }))
 
 $tab5.Controls.Add((Create-ModernButton -Text "🔮 Analyse Prédictive Saturation & SSD" -X 600 -Y 78 -Width 270 -Height 45 -BgColor ([System.Drawing.Color]::FromArgb(90, 40, 130)) -Action {

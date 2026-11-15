@@ -21,6 +21,7 @@ param(
     [switch]$Simulate,
     [switch]$OpenReport
 )
+Set-StrictMode -Version Latest
 if (-not $PSBoundParameters.ContainsKey('OpenReport')) { $OpenReport = $true }
 
 if ([Environment]::UserInteractive) {
@@ -151,7 +152,7 @@ $html = @"
     <div class='cert'>
         <h1>CERTIFICAT DE CONTRÔLE & TEST DE PRA / PCA</h1>
         <p style='text-align:center;'><b>Plan de Reprise d'Activité Informatique & Continuité de Service</b></p>
-        <p><b>Périmètre audité :</b> $env:COMPUTERNAME | <b>Date du test :</b> $(Get-Date -Format 'dd/MM/yyyy HH:mm') | <b>Ingénieur Référent :</b> Amine BERRADA</p>
+        <p><b>Périmètre audité :</b> $([System.Net.WebUtility]::HtmlEncode([string]$env:COMPUTERNAME)) | <b>Date du test :</b> $(Get-Date -Format 'dd/MM/yyyy HH:mm') | <b>Ingénieur Référent :</b> Amine BERRADA</p>
         <div class='badge-center'>$certBadge</div>
         <table>
             <thead><tr><th>Composant SLA</th><th>Cible Engagement</th><th>Mesure Réelle</th><th>Résultat</th><th>Observations</th></tr></thead>

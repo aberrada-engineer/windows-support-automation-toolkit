@@ -133,8 +133,8 @@ function Build-ESNReport {
     <text x='55' y='50' text-anchor='middle' font-size='20' font-weight='800' fill='$c'>$Score</text>
     <text x='55' y='65' text-anchor='middle' font-size='9' fill='#999'>/100</text>
   </svg>
-  <div style='font-weight:700;font-size:12px;margin-top:2px'>$DomLabel</div>
-  <div style='font-size:11px;color:$c'>$Label</div>
+  <div style='font-weight:700;font-size:12px;margin-top:2px'>$([System.Net.WebUtility]::HtmlEncode([string]$DomLabel))</div>
+  <div style='font-size:11px;color:$c'>$([System.Net.WebUtility]::HtmlEncode([string]$Label))</div>
 </div>
 "@
     }
@@ -158,10 +158,10 @@ function Build-ESNReport {
   <label for='sec-$Id' style='display:flex;justify-content:space-between;align-items:center;
     padding:12px 18px;background:#fff;cursor:pointer;font-weight:700;color:$TitleColor;
     font-size:14px;border-bottom:1px solid #e0e0e0'>
-    $Title
+    $([System.Net.WebUtility]::HtmlEncode([string]$Title))
     <span style='display:flex;align-items:center;gap:10px'>
       <span style='background:$TitleColor;color:#fff;border-radius:10px;
-        padding:2px 10px;font-size:12px'>$Count</span>
+        padding:2px 10px;font-size:12px'>$([System.Net.WebUtility]::HtmlEncode([string]$Count))</span>
       <span style='font-size:18px'>&#9660;</span>
     </span>
   </label>

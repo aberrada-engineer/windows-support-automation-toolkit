@@ -55,6 +55,7 @@ param(
 )
 
 begin {
+    Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
     $schemaScript = Join-Path $PSScriptRoot "Core/ESN-OutputSchema.ps1"
     if (Test-Path $schemaScript) { . $schemaScript }
@@ -72,12 +73,14 @@ process {
 }
 
 end {
-    if ($Simulate -or $targetList.Count -eq 0) {
+    if ($Simulate) {
         $targetList.Clear()
         for ($i = 1; $i -le $SimulateCount; $i++) {
             $targetList.Add(("srv-prod-{0:D4}.corp.local" -f $i))
         }
         $isSimulated = $true
+    } elseif ($targetList.Count -eq 0) {
+        throw "Aucune cible fournie (-ComputerName ou -InputFile requis sans -Simulate)."
     }
     else {
         $isSimulated = $false
@@ -144,7 +147,8 @@ end {
 
             try {
                 $m = Invoke-Command -ComputerName $TargetHost -ErrorAction Stop -ScriptBlock {
-                    $cpu = (Get-CimInstance Win32_Processor | Measure-Object LoadPercentage -Average).Average
+                    $cpuM = Get-CimInstance Win32_Processor | Measure-Object LoadPercentage -Average
+                    $cpu = if ($cpuM -and $cpuM.PSObject.Properties['Average'] -and $null -ne $cpuM.Average) { $cpuM.Average } else { $null }
                     $os = Get-CimInstance Win32_OperatingSystem
                     $ramPct = [Math]::Round((($os.TotalVisibleMemorySize - $os.FreePhysicalMemory) / [Math]::Max($os.TotalVisibleMemorySize, 1)) * 100, 1)
                     $sysDisk = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='$($env:SystemDrive)'"

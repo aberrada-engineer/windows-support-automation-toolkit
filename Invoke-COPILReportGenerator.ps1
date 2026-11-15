@@ -25,6 +25,7 @@ param(
     [switch]$Simulate,
     [switch]$OpenInBrowser
 )
+Set-StrictMode -Version Latest
 
 $ErrorActionPreference = "Continue"
 

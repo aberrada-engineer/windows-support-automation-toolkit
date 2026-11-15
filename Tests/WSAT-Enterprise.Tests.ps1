@@ -453,4 +453,41 @@ Describe "PS 5.1 Compatibility, Security Hardening & Live Guards" {
         $lat = Measure-ESNPingLatency -ComputerName "127.0.0.1" -Count 2 -TimeoutMs 1000
         $lat.Reachable | Should -BeTrue
     }
+
+    It "Invoke-RansomwareShield.ps1 returns non-isolated state when invoked without action flags or -Simulate" {
+        $res = & (Join-Path $script:RootDir "Invoke-RansomwareShield.ps1") -OutputPath $script:TmpOut -WarningAction SilentlyContinue
+        $res.Isolated  | Should -BeFalse
+        $res.Simulated | Should -BeFalse
+    }
+
+    It "Invoke-HighSpeedParallelAuditor.ps1 fails fast when no target is supplied without -Simulate" {
+        { & (Join-Path $script:RootDir "Invoke-HighSpeedParallelAuditor.ps1") } | Should -Throw "*Aucune cible*"
+    }
+
+    It "New-ArubaSwitchConfig.ps1 emits AOS-CX CLI when -SwitchOS AOS-CX is selected" {
+        $cxOut = Join-Path $script:TmpOut "aruba_cx"
+        & (Join-Path $script:RootDir "Projects/Network-Aruba/New-ArubaSwitchConfig.ps1") -Hostname "SW-CX-01" -SwitchOS "AOS-CX" -OutputDir $cxOut | Out-Null
+        $cfg = Get-Content (Join-Path $cxOut "SW-CX-01.cfg") -Raw
+        $cfg | Should -Match "snmp-server vrf mgmt"
+        $cfg | Should -Match "snmpv3 user"
+        $cfg | Should -Match "interface lag 1"
+    }
+
+    It "All .ps1 and .psm1 files start with UTF-8 BOM (0xEF 0xBB 0xBF)" {
+        $psFiles = @(Get-ChildItem -Path $script:RootDir -Include '*.ps1', '*.psm1' -Recurse |
+            Where-Object { $_.FullName -notmatch '[/\\](ESN-Toolkit|ESN-Toolkits)[/\\]' })
+        $psFiles.Count | Should -BeGreaterThan 40
+        foreach ($f in $psFiles) {
+            $bytes = [System.IO.File]::ReadAllBytes($f.FullName)
+            $bytes.Length | Should -BeGreaterOrEqual 3 -Because "$($f.FullName) must have UTF-8 BOM"
+            ($bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) | Should -BeTrue -Because "$($f.Name) missing UTF-8 BOM"
+        }
+    }
+
+    It "AD hygiene and AD module resolve Domain Admins via language-agnostic SID -512" {
+        $adModRaw  = Get-Content (Join-Path $script:RootDir "Modules/AD/ESN-AD.psm1") -Raw
+        $adHygRaw  = Get-Content (Join-Path $script:RootDir "Invoke-ADHygieneCheck.ps1") -Raw
+        $adModRaw  | Should -Match '\-512'
+        $adHygRaw  | Should -Match '\-512'
+    }
 }

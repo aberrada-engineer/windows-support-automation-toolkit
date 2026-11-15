@@ -38,8 +38,12 @@ param(
     [securestring]$ServiceNowPassword,
     [System.Management.Automation.PSCredential]$ServiceNowCredential
 )
+Set-StrictMode -Version Latest
 
 $ErrorActionPreference = "Continue"
+[Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+$hostLabel = if ($env:COMPUTERNAME) { $env:COMPUTERNAME } else { [System.Environment]::MachineName }
+$userLabel = if ($env:USERNAME) { $env:USERNAME } elseif ($env:USER) { $env:USER } else { "operator" }
 
 Write-Host "==========================================================================" -ForegroundColor Cyan
 Write-Host "   ITSM & ALERTING INTEGRATION CONNECTOR (GLPI / SERVICENOW / TEAMS)      " -ForegroundColor Cyan
@@ -56,7 +60,7 @@ $ThemeColor = switch ($Severity) {
     default       { "0078D4" } # Bleu
 }
 
-# 1. Envoi Webhook Microsoft Teams (MessageCard)
+# 1. Envoi Webhook Microsoft Teams (MessageCard - format historique Webhook Office 365; pour Workflows Power Automate, utiliser AdaptiveCard)
 if ($Target -eq "Teams") {
     if (-not $WebhookUrl) {
         Write-Host "[-] Erreur : URL de Webhook Teams obligatoire." -ForegroundColor Red
@@ -71,11 +75,11 @@ if ($Target -eq "Teams") {
         "sections"   = @(
             @{
                 "activityTitle"    = "🚨 **$Title**"
-                "activitySubtitle" = "Généré par ESN-Toolkit sur **$env:COMPUTERNAME**"
+                "activitySubtitle" = "Généré par ESN-Toolkit sur **$hostLabel**"
                 "facts"            = @(
                     @{ "name" = "Sévérité" ; "value" = $Severity },
-                    @{ "name" = "Hôte" ; "value" = $env:COMPUTERNAME },
-                    @{ "name" = "Utilisateur" ; "value" = $env:USERNAME },
+                    @{ "name" = "Hôte" ; "value" = $hostLabel },
+                    @{ "name" = "Utilisateur" ; "value" = $userLabel },
                     @{ "name" = "Horodatage" ; "value" = (Get-Date -Format 'dd/MM/yyyy HH:mm:ss') }
                 )
                 "text"             = $Message
@@ -84,7 +88,7 @@ if ($Target -eq "Teams") {
     } | ConvertTo-Json -Depth 5
 
     try {
-        [void](Invoke-RestMethod -Uri $WebhookUrl -Method Post -Body $Payload -ContentType "application/json")
+        [void](Invoke-RestMethod -Uri $WebhookUrl -Method Post -Body $Payload -ContentType "application/json" -TimeoutSec 15)
         Write-Host "[+] Alerte transmise avec succès au canal Teams !" -ForegroundColor Green
     } catch {
         Write-Host "[-] Échec de transmission Teams : $_" -ForegroundColor Red
@@ -95,30 +99,39 @@ if ($Target -eq "Teams") {
 elseif ($Target -eq "GLPI") {
     Write-Host "[*] Connexion à l'API GLPI ($GlpiApiUrl)..." -ForegroundColor White
     if ($GlpiAppToken -and $GlpiUserToken) {
+        $sessionToken = $null
+        $ticketHeader = $null
         try {
             # 1. Init Session
             $initHeader = @{ "App-Token" = $GlpiAppToken; "Authorization" = "user_token $GlpiUserToken" }
-            $sessionResp = Invoke-RestMethod -Uri "$GlpiApiUrl/initSession" -Headers $initHeader -Method Get
+            $sessionResp = Invoke-RestMethod -Uri "$GlpiApiUrl/initSession" -Headers $initHeader -Method Get -TimeoutSec 15
             $sessionToken = $sessionResp.session_token
 
             # 2. Create Ticket
             $ticketHeader = @{ "App-Token" = $GlpiAppToken; "Session-Token" = $sessionToken }
+            $osCaption = try { (Get-CimInstance Win32_OperatingSystem -ErrorAction Stop).Caption } catch { [System.Environment]::OSVersion.VersionString }
             $ticketBody = @{
                 "input" = @{
-                    "name"        = "[$Severity] $Title - $env:COMPUTERNAME"
-                    "content"     = "$Message`n`nMachine: $env:COMPUTERNAME`nOS: $( (Get-CimInstance Win32_OperatingSystem).Caption )"
+                    "name"        = "[$Severity] $Title - $hostLabel"
+                    "content"     = "$Message`n`nMachine: $hostLabel`nOS: $osCaption"
                     "urgency"     = $(if ($Severity -eq "P1-Bloquant") { 5 } else { 3 })
                     "impact"      = $(if ($Severity -eq "P1-Bloquant") { 5 } else { 3 })
                 }
             } | ConvertTo-Json -Depth 3
 
-            $newTicket = Invoke-RestMethod -Uri "$GlpiApiUrl/Ticket" -Headers $ticketHeader -Method Post -Body $ticketBody -ContentType "application/json"
+            $newTicket = Invoke-RestMethod -Uri "$GlpiApiUrl/Ticket" -Headers $ticketHeader -Method Post -Body $ticketBody -ContentType "application/json" -TimeoutSec 15
             Write-Host "[+] Ticket GLPI créé avec succès (ID: $($newTicket.id)) !" -ForegroundColor Green
-
-            # 3. Kill Session
-            Invoke-RestMethod -Uri "$GlpiApiUrl/killSession" -Headers $ticketHeader -Method Get | Out-Null
         } catch {
             Write-Host "[-] Échec de communication avec l'API GLPI : $_" -ForegroundColor Red
+        } finally {
+            # 3. Kill Session toujours exécuté si initSession a réussi
+            if ($sessionToken -and $ticketHeader) {
+                try {
+                    Invoke-RestMethod -Uri "$GlpiApiUrl/killSession" -Headers $ticketHeader -Method Get -TimeoutSec 10 | Out-Null
+                } catch {
+                    Write-Verbose "GLPI killSession ignoré : $($_.Exception.Message)"
+                }
+            }
         }
     } else {
         Write-Host "[!] Mode Simulation GLPI : Paramètres d'authentification App-Token ou User-Token absents." -ForegroundColor Yellow
@@ -132,10 +145,10 @@ elseif ($Target -eq "Slack") {
         return
     }
     $slackPayload = @{
-        text = "[$Severity] $Title ($env:COMPUTERNAME) - $Message"
+        text = "[$Severity] $Title ($hostLabel) - $Message"
     } | ConvertTo-Json -Depth 3
     try {
-        Invoke-RestMethod -Uri $WebhookUrl -Method Post -Body $slackPayload -ContentType "application/json" | Out-Null
+        Invoke-RestMethod -Uri $WebhookUrl -Method Post -Body $slackPayload -ContentType "application/json" -TimeoutSec 15 | Out-Null
         Write-Host "[+] Alerte transmise avec succès sur Slack !" -ForegroundColor Green
     } catch {
         Write-Host "[-] Échec de transmission Slack : $_" -ForegroundColor Red
@@ -158,13 +171,13 @@ elseif ($Target -eq "ServiceNow") {
             "Accept"        = "application/json"
         }
         $snBody = @{
-            "short_description" = "[$Severity] $Title - $env:COMPUTERNAME"
+            "short_description" = "[$Severity] $Title - $hostLabel"
             "description"       = $Message
             "urgency"           = $(if ($Severity -eq "P1-Bloquant") { "1" } else { "2" })
             "impact"            = $(if ($Severity -eq "P1-Bloquant") { "1" } else { "2" })
         } | ConvertTo-Json -Depth 3
         try {
-            $resp = Invoke-RestMethod -Uri "$baseUrl/api/now/table/incident" -Method Post -Headers $headers -Body $snBody -ContentType "application/json"
+            $resp = Invoke-RestMethod -Uri "$baseUrl/api/now/table/incident" -Method Post -Headers $headers -Body $snBody -ContentType "application/json" -TimeoutSec 15
             Write-Host "[+] Incident ServiceNow créé : $($resp.result.number)" -ForegroundColor Green
         } catch {
             Write-Host "[-] Échec de communication avec ServiceNow : $_" -ForegroundColor Red

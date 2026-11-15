@@ -24,9 +24,11 @@ param(
     [string]$DomainName = "corp.lan",
     [string]$TargetOS = "Windows 11 Enterprise",
     [string]$OuPath = "OU=Workstations,OU=Computers,DC=corp,DC=lan",
+    [string]$WsusServerUrl = "",
     [switch]$GenerateConfigsOnly,
     [switch]$ReportOnly
 )
+Set-StrictMode -Version Latest
 
 $ErrorActionPreference = "Continue"
 
@@ -92,11 +94,11 @@ $DriverStructure = @(
 
 foreach ($dir in $DriverStructure) {
     if (-not (Test-Path $dir)) {
-        if (-not $ReportOnly) {
+        if (-not $ReportOnly -and -not $GenerateConfigsOnly) {
             New-Item -ItemType Directory -Path $dir -Force | Out-Null
             Write-MDTLog "Dossier pilote créé : $dir" "SUCCESS"
         } else {
-            Write-MDTLog "[REPORT-ONLY] Dossier pilote absent (non créé) : $dir" "INFO"
+            Write-MDTLog "[SKIP-DISK] Dossier pilote non créé (ReportOnly=$ReportOnly, ConfigsOnly=$GenerateConfigsOnly) : $dir" "INFO"
         }
     }
 }
@@ -106,6 +108,7 @@ Write-MDTLog "[3/5] Génération des templates de configuration Zero-Touch / Lit
 $ControlDir = "$DeploymentSharePath\Control"
 if (-not $ReportOnly -and -not (Test-Path $ControlDir)) { New-Item -ItemType Directory -Path $ControlDir -Force | Out-Null }
 
+$wsusLine = if (-not [string]::IsNullOrWhiteSpace($WsusServerUrl)) { "`nWSUSServer=$WsusServerUrl" } else { "`n; WSUSServer=<SPECIFY_-WsusServerUrl>" }
 $CustomSettingsContent = @"
 [Settings]
 Priority=Model, Default
@@ -141,8 +144,7 @@ TimeZoneName=Romance Standard Time
 SkipSummary=YES
 SkipFinalSummary=NO
 FinishAction=REBOOT
-ApplyGPOPack=NO
-WSUSServer=http://wsus.corp.lan:8530
+ApplyGPOPack=NO$wsusLine
 
 ; Intégration Drivers Total Control
 DriverGroup001=Windows 10 x64\%Make%\%Model%
@@ -219,16 +221,23 @@ gpupdate /force /wait:0
 "@
 
 $PostInstallPath = "$ScriptsDir\Invoke-MDTPostConfiguration.ps1"
-if (-not $ReportOnly) {
+if (-not $ReportOnly -and -not $GenerateConfigsOnly) {
     Set-Content -Path $PostInstallPath -Value $PostInstallScript -Encoding UTF8
     Write-MDTLog "Script post-déploiement créé : $PostInstallPath" "SUCCESS"
 } else {
-    Write-MDTLog "[REPORT-ONLY] Génération script post-install ignorée : $PostInstallPath" "INFO"
+    Write-MDTLog "[SKIP-DISK] Génération script post-install ignorée (ReportOnly=$ReportOnly, ConfigsOnly=$GenerateConfigsOnly) : $PostInstallPath" "INFO"
 }
 
 # 5. Rapport de conformité industriel
 Write-MDTLog "[5/5] Génération du rapport d'industrialisation MDT..." "INFO"
 $HtmlReport = "$ReportDir\MDT-Industrialization-Summary.html"
+$eShare  = [System.Net.WebUtility]::HtmlEncode([string]$DeploymentSharePath)
+$eDom    = [System.Net.WebUtility]::HtmlEncode([string]$DomainName)
+$eCsPath = [System.Net.WebUtility]::HtmlEncode([string]$CustomSettingsPath)
+$eBsPath = [System.Net.WebUtility]::HtmlEncode([string]$BootstrapPath)
+$ePiPath = [System.Net.WebUtility]::HtmlEncode([string]$PostInstallPath)
+$cfgStat = if ($ReportOnly) { "NON GÉNÉRÉ (ReportOnly)" } else { "GÉNÉRÉ" }
+$drvStat = if ($ReportOnly -or $GenerateConfigsOnly) { "NON CRÉÉ (Mode lecture/config)" } else { "ARBORESCENCE PRÊTE" }
 
 $HtmlContent = @"
 <!DOCTYPE html>
@@ -260,11 +269,11 @@ $HtmlContent = @"
         <div class="grid">
             <div class="card">
                 <div class="card-title">Deployment Share</div>
-                <div class="card-value">$DeploymentSharePath</div>
+                <div class="card-value">$eShare</div>
             </div>
             <div class="card">
                 <div class="card-title">Domaine AD Cible</div>
-                <div class="card-value">$DomainName</div>
+                <div class="card-value">$eDom</div>
             </div>
             <div class="card">
                 <div class="card-title">Stratégie Pilotes</div>
@@ -288,23 +297,23 @@ $HtmlContent = @"
             <tbody>
                 <tr>
                     <td><strong>CustomSettings.ini</strong></td>
-                    <td>$CustomSettingsPath (ZeroTouch rules, nommage CLI-%SERIAL%)</td>
-                    <td class="status-ok">GÉNÉRÉ & VALIDÉ</td>
+                    <td>$eCsPath (ZeroTouch rules, nommage CLI-%SERIAL%)</td>
+                    <td class="status-ok">$cfgStat</td>
                 </tr>
                 <tr>
                     <td><strong>Bootstrap.ini</strong></td>
-                    <td>$BootstrapPath (Credentials de boot PXE LiteTouch)</td>
-                    <td class="status-ok">GÉNÉRÉ & VALIDÉ</td>
+                    <td>$eBsPath (Credentials de boot PXE LiteTouch)</td>
+                    <td class="status-ok">$cfgStat</td>
                 </tr>
                 <tr>
                     <td><strong>Driver Scrutiny Hierarchy</strong></td>
                     <td>Dell Latitude/OptiPlex, HP ProBook/EliteBook, Lenovo ThinkPad</td>
-                    <td class="status-ok">ARBORESCENCE PRÊTE</td>
+                    <td class="status-ok">$drvStat</td>
                 </tr>
                 <tr>
                     <td><strong>Post-Install Script</strong></td>
-                    <td>$PostInstallPath (Bloatware strip, TPM BitLocker, LAPS)</td>
-                    <td class="status-ok">INJECTÉ</td>
+                    <td>$ePiPath (Bloatware strip, TPM BitLocker, LAPS)</td>
+                    <td class="status-ok">$drvStat</td>
                 </tr>
             </tbody>
         </table>

@@ -23,6 +23,7 @@ param(
     [string]$OutputPath = "",
     [switch]$Simulate
 )
+Set-StrictMode -Version Latest
 
 $ErrorActionPreference = "Stop"
 $schemaScript = Join-Path $PSScriptRoot "Core/ESN-OutputSchema.ps1"
@@ -49,7 +50,7 @@ try {
     $TotalScore = 0
     $MaxScore = 100
 
-    if ($Simulate -or -not (Get-Command Get-Tpm -ErrorAction SilentlyContinue)) {
+    if ($Simulate) {
         $Checks.Add([PSCustomObject]@{ Check = "Module TPM 2.0"; Detail = "TPM 2.0 Présent et Prêt (Simulé)"; Score = 15; Max = 15; Status = "CONFORME" })
         $Checks.Add([PSCustomObject]@{ Check = "UEFI Secure Boot"; Detail = "Démarrage sécurisé actif (Simulé)"; Score = 15; Max = 15; Status = "CONFORME" })
         $Checks.Add([PSCustomObject]@{ Check = "Virtualization-Based Security (VBS)"; Detail = "VBS En service (Simulé)"; Score = 15; Max = 15; Status = "CONFORME" })
@@ -62,17 +63,17 @@ try {
     else {
         # 1. TPM 2.0
         Write-Host "[1/7] Contrôle du module cryptographique TPM 2.0..." -ForegroundColor White
-        $Tpm = Get-Tpm -ErrorAction SilentlyContinue
+        $Tpm = if (Get-Command Get-Tpm -ErrorAction SilentlyContinue) { Get-Tpm -ErrorAction SilentlyContinue } else { $null }
         if ($Tpm -and $Tpm.TpmPresent -and $Tpm.TpmReady) {
             $Checks.Add([PSCustomObject]@{ Check = "Module TPM 2.0"; Detail = "TPM Présent et Prêt (Ready)"; Score = 15; Max = 15; Status = "CONFORME" })
             $TotalScore += 15
         } else {
-            $Checks.Add([PSCustomObject]@{ Check = "Module TPM 2.0"; Detail = "TPM Absent ou non initialisé"; Score = 0; Max = 15; Status = "NON-CONFORME" })
+            $Checks.Add([PSCustomObject]@{ Check = "Module TPM 2.0"; Detail = "TPM Absent, non initialisé ou applet indisponible"; Score = 0; Max = 15; Status = "NON-CONFORME" })
         }
 
         # 2. Secure Boot UEFI
         Write-Host "[2/7] Contrôle du Démarrage Sécurisé (Secure Boot)..." -ForegroundColor White
-        $SecureBoot = Confirm-SecureBootUEFI -ErrorAction SilentlyContinue
+        $SecureBoot = if (Get-Command Confirm-SecureBootUEFI -ErrorAction SilentlyContinue) { try { Confirm-SecureBootUEFI -ErrorAction Stop } catch { $false } } else { $false }
         if ($SecureBoot) {
             $Checks.Add([PSCustomObject]@{ Check = "UEFI Secure Boot"; Detail = "Démarrage sécurisé actif"; Score = 15; Max = 15; Status = "CONFORME" })
             $TotalScore += 15
@@ -82,7 +83,7 @@ try {
 
         # 3. Virtualization-Based Security (VBS) & HVCI
         Write-Host "[3/7] Contrôle de la Sécurité Basée sur la Virtualisation (VBS)..." -ForegroundColor White
-        $DeviceGuard = Get-CimInstance -ClassName Win32_DeviceGuard -Namespace root\Microsoft\Windows\DeviceGuard -ErrorAction SilentlyContinue
+        $DeviceGuard = if (Get-Command Get-CimInstance -ErrorAction SilentlyContinue) { Get-CimInstance -ClassName Win32_DeviceGuard -Namespace root\Microsoft\Windows\DeviceGuard -ErrorAction SilentlyContinue } else { $null }
         if ($DeviceGuard -and $DeviceGuard.VirtualizationBasedSecurityStatus -eq 2) {
             $Checks.Add([PSCustomObject]@{ Check = "Virtualization-Based Security (VBS)"; Detail = "VBS En service (Statut: Running)"; Score = 15; Max = 15; Status = "CONFORME" })
             $TotalScore += 15
@@ -92,8 +93,9 @@ try {
 
         # 4. Credential Guard (Protection LSASS)
         Write-Host "[4/7] Audit de protection Credential Guard (Anti Mimikatz)..." -ForegroundColor White
-        $CredGuard = if ($DeviceGuard) { $DeviceGuard.SecurityServicesRunning -contains 1 } else { $false }
-        $LsaProtected = (Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa" -Name "RunAsPPL" -ErrorAction SilentlyContinue).RunAsPPL -eq 1
+        $CredGuard = if ($DeviceGuard -and ($DeviceGuard.PSObject.Properties['SecurityServicesRunning'])) { $DeviceGuard.SecurityServicesRunning -contains 1 } else { $false }
+        $lsaReg = Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa" -Name "RunAsPPL" -ErrorAction SilentlyContinue
+        $LsaProtected = ($null -ne $lsaReg -and $lsaReg.PSObject.Properties['RunAsPPL'] -and $lsaReg.RunAsPPL -eq 1)
         if ($CredGuard -or $LsaProtected) {
             $Checks.Add([PSCustomObject]@{ Check = "Credential Guard / LSA PPL"; Detail = "Secrets mémoire LSASS isolés (Anti-Dumping)"; Score = 15; Max = 15; Status = "CONFORME" })
             $TotalScore += 15
@@ -103,7 +105,7 @@ try {
 
         # 5. Chiffrement BitLocker
         Write-Host "[5/7] Audit du chiffrement matériel BitLocker..." -ForegroundColor White
-        $Blt = Get-BitLockerVolume -MountPoint "C:" -ErrorAction SilentlyContinue
+        $Blt = if (Get-Command Get-BitLockerVolume -ErrorAction SilentlyContinue) { Get-BitLockerVolume -MountPoint "C:" -ErrorAction SilentlyContinue } else { $null }
         if ($Blt -and $Blt.ProtectionStatus -eq "On") {
             $Checks.Add([PSCustomObject]@{ Check = "Chiffrement BitLocker"; Detail = "Volume C: chiffré ($($Blt.EncryptionMethod))"; Score = 15; Max = 15; Status = "CONFORME" })
             $TotalScore += 15
@@ -111,19 +113,21 @@ try {
             $Checks.Add([PSCustomObject]@{ Check = "Chiffrement BitLocker"; Detail = "Volume C: non protégé par BitLocker"; Score = 0; Max = 15; Status = "NON-CONFORME" })
         }
 
-        # 6. EDR & Antivirus Temps Réel
+        # 6. EDR & Antivirus Temps Réel (Defender ou EDR tiers : SentinelOne, Sophos, CrowdStrike...)
         Write-Host "[6/7] Vérification EDR / Defender Real-Time Protection..." -ForegroundColor White
-        $DefStatus = Get-MpComputerStatus -ErrorAction SilentlyContinue
-        if ($DefStatus -and $DefStatus.RealTimeProtectionEnabled) {
-            $Checks.Add([PSCustomObject]@{ Check = "EDR / Protection Temps Réel"; Detail = "Protection active & signatures à jour"; Score = 15; Max = 15; Status = "CONFORME" })
+        $DefStatus = if (Get-Command Get-MpComputerStatus -ErrorAction SilentlyContinue) { Get-MpComputerStatus -ErrorAction SilentlyContinue } else { $null }
+        $edrSvc = @(Get-Service -Name @('SentinelAgent','SophosEndpointDefense','CSFalconService','SavService','McShield') -ErrorAction SilentlyContinue | Where-Object { $_.Status -eq 'Running' })
+        if (($DefStatus -and $DefStatus.RealTimeProtectionEnabled) -or $edrSvc.Count -gt 0) {
+            $edrDetail = if ($edrSvc.Count -gt 0) { "EDR tiers actif ($($edrSvc[0].Name))" } else { "Defender temps réel actif" }
+            $Checks.Add([PSCustomObject]@{ Check = "EDR / Protection Temps Réel"; Detail = $edrDetail; Score = 15; Max = 15; Status = "CONFORME" })
             $TotalScore += 15
         } else {
-            $Checks.Add([PSCustomObject]@{ Check = "EDR / Protection Temps Réel"; Detail = "Protection temps réel inactive"; Score = 0; Max = 15; Status = "NON-CONFORME" })
+            $Checks.Add([PSCustomObject]@{ Check = "EDR / Protection Temps Réel"; Detail = "Protection temps réel / EDR inactif"; Score = 0; Max = 15; Status = "NON-CONFORME" })
         }
 
         # 7. Jonction Microsoft Entra ID / Intune
         Write-Host "[7/7] Vérification de l'adhésion Entra ID (Azure AD)..." -ForegroundColor White
-        $DsReg = dsregcmd.exe /status 2>&1 | Out-String
+        $DsReg = if (Get-Command dsregcmd.exe -ErrorAction SilentlyContinue) { (dsregcmd.exe /status 2>&1 | Out-String) } else { "" }
         if (($DsReg -match "AzureAdJoined\s*:\s*YES") -or ($DsReg -match "DomainJoined\s*:\s*YES")) {
             $Checks.Add([PSCustomObject]@{ Check = "Identité Gérée (Entra ID / AD)"; Detail = "Machine jointe au domaine ou Entra ID"; Score = 10; Max = 10; Status = "CONFORME" })
             $TotalScore += 10
@@ -138,15 +142,21 @@ $VerdictText = if ($TotalScore -ge 80) { "POSTURE ROBUSTE (Prêt pour Accès Con
 
 $CheckRowsHtml = ($Checks | ForEach-Object {
     $stClass = if ($_.Status -eq "CONFORME") { "status-ok" } else { "status-error" }
-    "<tr><td><strong>$($_.Check)</strong></td><td>$($_.Detail)</td><td>$($_.Score) / $($_.Max)</td><td class='$stClass'>$($_.Status)</td></tr>"
+    $encCheck  = [System.Net.WebUtility]::HtmlEncode([string]$_.Check)
+    $encDetail = [System.Net.WebUtility]::HtmlEncode([string]$_.Detail)
+    $encStatus = [System.Net.WebUtility]::HtmlEncode([string]$_.Status)
+    "<tr><td><strong>$encCheck</strong></td><td>$encDetail</td><td>$($_.Score) / $($_.Max)</td><td class='$stClass'>$encStatus</td></tr>"
 }) -join "`n"
+
+$encHost = [System.Net.WebUtility]::HtmlEncode([string]$hostLabel)
+$encUser = [System.Net.WebUtility]::HtmlEncode([string]$userLabel)
 
 $HtmlContent = @"
 <!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Audit Posture Zero-Trust - $env:COMPUTERNAME</title>
+    <title>Audit Posture Zero-Trust - $encHost</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #0b0f19; color: #f1f5f9; margin: 0; padding: 32px; }
         .wrapper { max-width: 1000px; margin: auto; background-color: #111827; border: 1px solid #1f2937; border-radius: 12px; padding: 36px; box-shadow: 0 20px 40px rgba(0,0,0,0.6); }
@@ -171,7 +181,7 @@ $HtmlContent = @"
         <div class="header">
             <div>
                 <h1>Audit de Posture de Sécurité Zero-Trust & Accès Conditionnel</h1>
-                <p class="subtitle">Hôte : <strong>$hostLabel</strong> • Utilisateur : <strong>$userLabel</strong> • Date : $(Get-Date -Format 'dd/MM/yyyy HH:mm')</p>
+                <p class="subtitle">Hôte : <strong>$encHost</strong> • Utilisateur : <strong>$encUser</strong> • Date : $(Get-Date -Format 'dd/MM/yyyy HH:mm')</p>
             </div>
             <div>
                 <span class="badge">ANSSI & CIS Baseline</span>

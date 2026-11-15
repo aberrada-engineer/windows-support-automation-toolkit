@@ -60,6 +60,7 @@ param(
 )
 
 process {
+    Set-StrictMode -Version Latest
     try {
         if ([string]::IsNullOrWhiteSpace($OutputFile)) {
             $reportDir = if (Get-Command Get-ESNReportRoot -ErrorAction SilentlyContinue) {

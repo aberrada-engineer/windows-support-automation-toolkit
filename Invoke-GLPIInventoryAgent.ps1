@@ -14,10 +14,12 @@
 [CmdletBinding()]
 param(
     [string]$GLPIApiUrl = "",
+    [string]$GLPIAppToken = "",
     [string]$GLPIUserToken = "",
     [string]$OutputDir = "",
     [switch]$OpenReport
 )
+Set-StrictMode -Version Latest
 if (-not $PSBoundParameters.ContainsKey('OpenReport')) { $OpenReport = $true }
 
 Import-Module "$PSScriptRoot\Core\ESN-Core.psm1" -ErrorAction SilentlyContinue
@@ -40,36 +42,40 @@ if (-not (Test-Path $OutputDir)) {
 
 Write-Host " [*] Collecte des caractéristiques matérielles du poste..." -ForegroundColor Yellow
 
-$bios   = Get-CimInstance Win32_BIOS
-$cs     = Get-CimInstance Win32_ComputerSystem
-$os     = Get-CimInstance Win32_OperatingSystem
-$cpu    = Get-CimInstance Win32_Processor | Select-Object -First 1
-$ramGB  = [math]::Round($cs.TotalPhysicalMemory / 1GB, 1)
-$serial = $bios.SerialNumber
-$model  = "$($cs.Manufacturer) $($cs.Model)"
+$hostLabel = if ($env:COMPUTERNAME) { $env:COMPUTERNAME } else { [System.Environment]::MachineName }
+$bios   = Get-CimInstance Win32_BIOS -ErrorAction SilentlyContinue
+$cs     = Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue
+$os     = Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue
+$cpu    = Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue | Select-Object -First 1
+$ramGB  = if ($cs -and $cs.TotalPhysicalMemory) { [math]::Round($cs.TotalPhysicalMemory / 1GB, 1) } else { 0 }
+$serial = if ($bios -and $bios.SerialNumber) { $bios.SerialNumber } else { "N/A" }
+$model  = if ($cs) { "$($cs.Manufacturer) $($cs.Model)".Trim() } else { "Poste Windows" }
+$cpuName = if ($cpu -and $cpu.Name) { $cpu.Name } else { "CPU inconnu" }
+$osCap   = if ($os -and $os.Caption) { $os.Caption } else { [System.Environment]::OSVersion.VersionString }
+$osArch  = if ($os -and $os.OSArchitecture) { $os.OSArchitecture } else { "" }
 
-Write-Host "  -> Machine : $env:COMPUTERNAME ($model)" -ForegroundColor Green
+Write-Host "  -> Machine : $hostLabel ($model)" -ForegroundColor Green
 Write-Host "  -> Numéro de série : $serial" -ForegroundColor Green
-Write-Host "  -> Processeur : $($cpu.Name) ($($cpu.NumberOfCores) coeurs / $($cpu.NumberOfLogicalProcessors) threads)" -ForegroundColor Green
+Write-Host "  -> Processeur : $cpuName ($(if ($cpu) { $cpu.NumberOfCores } else { 0 }) coeurs / $(if ($cpu) { $cpu.NumberOfLogicalProcessors } else { 0 }) threads)" -ForegroundColor Green
 Write-Host "  -> Mémoire vive : $ramGB Go RAM" -ForegroundColor Green
 
 # DISQUES ET STOCKAGE
-$disks = Get-CimInstance Win32_DiskDrive | ForEach-Object {
+$disks = @(Get-CimInstance Win32_DiskDrive -ErrorAction SilentlyContinue | ForEach-Object {
     [PSCustomObject]@{
         Model  = $_.Model
-        SizeGB = [math]::Round($_.Size / 1GB, 0)
+        SizeGB = if ($_.Size) { [math]::Round($_.Size / 1GB, 0) } else { 0 }
         Serial = $_.SerialNumber
     }
-}
+})
 
 # RESEAU & ADRESSES MAC
-$nics = Get-CimInstance Win32_NetworkAdapterConfiguration -Filter "IPEnabled=true" | ForEach-Object {
+$nics = @(Get-CimInstance Win32_NetworkAdapterConfiguration -Filter "IPEnabled=true" -ErrorAction SilentlyContinue | ForEach-Object {
     [PSCustomObject]@{
         Description = $_.Description
         MAC         = $_.MACAddress
         IP          = ($_.IPAddress -join ', ')
     }
-}
+})
 
 # LOGICIELS INSTALLES
 Write-Host "`n [*] Collecte de l'inventaire des logiciels installés..." -ForegroundColor Yellow
@@ -91,14 +97,14 @@ Write-Host "  -> $($uniqueApps.Count) application(s) recensée(s)." -ForegroundC
 # STRUCTURE DE L'OBJET GLPI
 $glpiPayload = [PSCustomObject]@{
     Hardware = [PSCustomObject]@{
-        Name         = $env:COMPUTERNAME
-        Manufacturer = $cs.Manufacturer
-        Model        = $cs.Model
+        Name         = $hostLabel
+        Manufacturer = if ($cs) { $cs.Manufacturer } else { "" }
+        Model        = if ($cs) { $cs.Model } else { "" }
         Serial       = $serial
-        OS           = $os.Caption
-        OSVersion    = $os.Version
+        OS           = $osCap
+        OSVersion    = if ($os) { $os.Version } else { "" }
         RAM_GB       = $ramGB
-        CPU          = $cpu.Name
+        CPU          = $cpuName
     }
     Storage   = $disks
     Networks  = $nics
@@ -106,16 +112,36 @@ $glpiPayload = [PSCustomObject]@{
     AuditDate = (Get-Date -Format "o")
 }
 
-# EXPORT JSON / XML GLPI
-$jsonFile = Join-Path $OutputDir "GLPI_Inventory_$env:COMPUTERNAME.json"
+# EXPORT JSON / XML GLPI & ENVOI API REST SI COMPLETE
+$jsonFile = Join-Path $OutputDir "GLPI_Inventory_$hostLabel.json"
 $glpiPayload | ConvertTo-Json -Depth 6 | Out-File $jsonFile -Encoding UTF8
 Write-Host "`n [OK] Fichier d'inventaire GLPI généré : $jsonFile" -ForegroundColor Green
-if ($GLPIApiUrl -and $GLPIUserToken) {
-    Write-Host " [*] Endpoint API REST GLPI configuré : $GLPIApiUrl (jeton utilisateur prêt)" -ForegroundColor Cyan
+if ($GLPIApiUrl -and $GLPIUserToken -and $GLPIAppToken) {
+    [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+    $apiBase = $GLPIApiUrl.TrimEnd('/')
+    $sessionToken = $null
+    $sessHeaders = $null
+    try {
+        $initHeaders = @{ "App-Token" = $GLPIAppToken; "Authorization" = "user_token $GLPIUserToken" }
+        $sess = Invoke-RestMethod -Uri "$apiBase/initSession" -Headers $initHeaders -Method Get -TimeoutSec 15
+        $sessionToken = $sess.session_token
+        $sessHeaders = @{ "App-Token" = $GLPIAppToken; "Session-Token" = $sessionToken }
+        $compBody = @{ input = @{ name = $hostLabel; serial = $serial; comment = "ESN-Toolkit RAM=${ramGB}GB OS=$osCap" } } | ConvertTo-Json -Depth 3
+        $pushed = Invoke-RestMethod -Uri "$apiBase/Computer" -Headers $sessHeaders -Method Post -Body $compBody -ContentType "application/json" -TimeoutSec 15
+        Write-Host " [OK] Poste poussé vers API REST GLPI (ID: $($pushed.id))." -ForegroundColor Green
+    } catch {
+        Write-Warning "Envoi API REST GLPI en échec : $($_.Exception.Message)"
+    } finally {
+        if ($sessionToken -and $sessHeaders) {
+            try { Invoke-RestMethod -Uri "$apiBase/killSession" -Headers $sessHeaders -Method Get -TimeoutSec 10 | Out-Null } catch { Write-Verbose "killSession: $($_.Exception.Message)" }
+        }
+    }
+} elseif ($GLPIApiUrl -or $GLPIUserToken) {
+    Write-Host " [LOCAL JSON ONLY] GLPIAppToken ou paramètres API incomplets — export JSON local prêt sans envoi HTTP." -ForegroundColor Yellow
 }
 
 # FICHE D'INVENTAIRE HTML
-$reportPath = Join-Path $OutputDir "Fiche-Inventaire-$env:COMPUTERNAME.html"
+$reportPath = Join-Path $OutputDir "Fiche-Inventaire-$hostLabel.html"
 $appRows = ($uniqueApps | Select-Object -First 25 | ForEach-Object {
     $nom = [System.Net.WebUtility]::HtmlEncode([string]$_.Nom)
     $ver = [System.Net.WebUtility]::HtmlEncode([string]$_.Version)
@@ -123,12 +149,21 @@ $appRows = ($uniqueApps | Select-Object -First 25 | ForEach-Object {
     "<tr><td><b>$nom</b></td><td>$ver</td><td>$ed</td></tr>"
 }) -join "`n"
 
+$firstNic  = $nics | Select-Object -First 1
+$encHost   = [System.Net.WebUtility]::HtmlEncode([string]$hostLabel)
+$encSerial = [System.Net.WebUtility]::HtmlEncode([string]$serial)
+$encModel  = [System.Net.WebUtility]::HtmlEncode([string]$model)
+$encCpu    = [System.Net.WebUtility]::HtmlEncode([string]$cpuName)
+$encOs     = [System.Net.WebUtility]::HtmlEncode("$osCap ($osArch)")
+$encMac    = [System.Net.WebUtility]::HtmlEncode([string]$(if ($firstNic) { $firstNic.MAC } else { "N/A" }))
+$encIp     = [System.Net.WebUtility]::HtmlEncode([string]$(if ($firstNic) { $firstNic.IP } else { "N/A" }))
+
 $html = @"
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset='utf-8'>
-    <title>Fiche d'Inventaire Parc - $env:COMPUTERNAME</title>
+    <title>Fiche d'Inventaire Parc - $encHost</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f8fafc; color: #1e293b; padding: 30px; }
         .card { background: white; border: 1px solid #cbd5e1; border-radius: 8px; padding: 35px; max-width: 900px; margin: auto; }
@@ -143,19 +178,19 @@ $html = @"
 <body>
     <div class='card'>
         <h1>📦 Fiche d'Inventaire Matériel & Logiciel (GLPI)</h1>
-        <p><b>Machine :</b> $env:COMPUTERNAME | <b>Numéro de Série :</b> $serial | <b>Date :</b> $(Get-Date -Format 'dd/MM/yyyy HH:mm')</p>
+        <p><b>Machine :</b> $encHost | <b>Numéro de Série :</b> $encSerial | <b>Date :</b> $(Get-Date -Format 'dd/MM/yyyy HH:mm')</p>
         <div class='grid'>
             <div class='box'>
                 <b>Caractéristiques Matérielles :</b><br>
-                • Modèle : $model<br>
-                • Processeur : $($cpu.Name)<br>
+                • Modèle : $encModel<br>
+                • Processeur : $encCpu<br>
                 • Mémoire : $ramGB Go RAM<br>
-                • Système : $($os.Caption) ($($os.OSArchitecture))
+                • Système : $encOs
             </div>
             <div class='box'>
                 <b>Réseau & Interfaces :</b><br>
-                • Adresse MAC : $(($nics | Select-Object -First 1).MAC)<br>
-                • Adresse IP : $(($nics | Select-Object -First 1).IP)
+                • Adresse MAC : $encMac<br>
+                • Adresse IP : $encIp
             </div>
         </div>
         <h3>Logiciels Installés (Extrait des 25 premiers sur $(@($uniqueApps).Count)) :</h3>

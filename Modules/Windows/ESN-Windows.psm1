@@ -5,6 +5,8 @@
     events critiques, drivers, Windows Update, profil.
 #>
 
+Set-StrictMode -Version Latest
+
 function Invoke-WindowsDiag {
 <#
 .SYNOPSIS
@@ -47,13 +49,13 @@ function Invoke-WindowsDiag {
         # ── RAM ──────────────────────────────────────────
         $out.RAM_TotalGB = [math]::Round($cs.TotalPhysicalMemory / 1GB, 1)
         $out.RAM_FreeMB  = [math]::Round($os.FreePhysicalMemory / 1KB, 0)
-        $out.RAM_Pct     = [math]::Round(100 - ($os.FreePhysicalMemory / $os.TotalVisibleMemorySize * 100), 1)
+        $out.RAM_Pct     = if ($os.TotalVisibleMemorySize -gt 0) { [math]::Round(100 - ($os.FreePhysicalMemory / $os.TotalVisibleMemorySize * 100), 1) } else { 0 }
 
         # ── CPU ──────────────────────────────────────────
         $cpu = Get-CimInstance Win32_Processor | Select-Object -First 1
-        $out.CPU_Name  = $cpu.Name.Trim()
-        $out.CPU_Cores = $cpu.NumberOfCores
-        $out.CPU_Load  = $cpu.LoadPercentage
+        $out.CPU_Name  = if ($cpu -and $cpu.Name) { $cpu.Name.Trim() } else { "CPU inconnu" }
+        $out.CPU_Cores = if ($cpu) { $cpu.NumberOfCores } else { 0 }
+        $out.CPU_Load  = if ($cpu -and $null -ne $cpu.LoadPercentage) { [int]$cpu.LoadPercentage } else { 0 }
 
         # ── Disques ──────────────────────────────────────
         $out.Disks = Get-PSDrive -PSProvider FileSystem | Where-Object { $_.Used + $_.Free -gt 0 } |
@@ -157,7 +159,7 @@ function Invoke-WindowsDiag {
         -ScoreImpact $(if($cpuSt -eq "ERROR"){10}elseif($cpuSt -eq "WARN"){3}else{0})
 
     # Disques
-    foreach ($disk in $d.Disks) {
+    foreach ($disk in @($d.Disks | Where-Object { $_ })) {
         $dSt = if ($disk.UsedPct -ge 90) { "ERROR" } elseif ($disk.UsedPct -ge 80) { "WARN" } else { "OK" }
         Add-ESNResult "Windows" "Disque $($disk.Name):" $dSt "$($disk.UsedPct)% utilisé" "$($disk.FreeGB) Go libres / $($disk.TotalGB) Go" `
             -ScoreImpact $(if($dSt -eq "ERROR"){20}elseif($dSt -eq "WARN"){8}else{0})
@@ -174,7 +176,8 @@ function Invoke-WindowsDiag {
 
     # Events
     $evSt = if ($d.CritEventsTotal -gt 50) { "ERROR" } elseif ($d.CritEventsTotal -gt 10) { "WARN" } else { "OK" }
-    $evDetail = if ($d.CritEvents) { ($d.CritEvents | ForEach-Object { "$($_.Name):$($_.Count)" }) -join ' | ' } else { "" }
+    $critEvArr = @($d.CritEvents | Where-Object { $_ })
+    $evDetail = if ($critEvArr.Count -gt 0) { ($critEvArr | ForEach-Object { "$($_.Name):$($_.Count)" }) -join ' | ' } else { "" }
     Add-ESNResult "Windows" "Events critiques ${HoursBack}h" $evSt "$($d.CritEventsTotal) événement(s)" $evDetail `
         -ScoreImpact $(if($evSt -eq "ERROR"){10}elseif($evSt -eq "WARN"){5}else{0})
 

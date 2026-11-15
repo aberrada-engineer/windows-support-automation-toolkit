@@ -21,6 +21,7 @@ param(
     [switch]$Simulation,
     [switch]$OpenReport
 )
+Set-StrictMode -Version Latest
 if (-not $PSBoundParameters.ContainsKey('OpenReport')) { $OpenReport = $true }
 
 if ([Environment]::UserInteractive) {
@@ -48,7 +49,12 @@ if (-not $user) {
 Write-Host " Utilisateur ciblé : $($user.Name) ($($user.UserPrincipalName))" -ForegroundColor Cyan
 Write-Host " Poste : $($user.Title) | Service : $($user.Department)" -ForegroundColor DarkGray
 
-if (-not $Force -and -not $Simulation) {
+$skipPrompt = $Force -or $Simulation -or ($PSBoundParameters.ContainsKey('Confirm') -and -not $PSBoundParameters['Confirm'])
+if (-not $skipPrompt) {
+    if (-not [Environment]::UserInteractive) {
+        Write-Warning "Session non interactive détectée : utilisez -Force ou -Simulation pour exécuter l'offboarding sans invite."
+        return
+    }
     $confirm = Read-Host "`n Confirmez-vous la clôture immédiate de ce compte ? (O/N)"
     if ($confirm.ToUpper() -ne "O") {
         Write-Host " Opération annulée." -ForegroundColor Yellow
@@ -64,7 +70,7 @@ if (-not (Test-Path $backupDir)) { New-Item $backupDir -ItemType Directory -Forc
 $backupFile = Join-Path $backupDir "$Username-Groups-Backup.json"
 
 $groups = @($user.MemberOf | Where-Object { $_ })
-$groups | ConvertTo-Json | Out-File $backupFile -Encoding UTF8
+ConvertTo-Json -InputObject @($groups) | Out-File $backupFile -Encoding UTF8
 Write-Host "`n [OK] Groupes sauvegardés pour traçabilité dans : $backupFile" -ForegroundColor Green
 
 # 2. DESACTIVATION DU COMPTE
@@ -73,11 +79,12 @@ if (-not $Simulation -and $PSCmdlet.ShouldProcess($Username, "Disable-ADAccount"
 }
 Write-Host " [OK] Compte Active Directory désactivé." -ForegroundColor Green
 
-# 3. SUPPRESSION DES GROUPES (Sauf 'Domain Users' obligatoire)
+# 3. SUPPRESSION DES GROUPES (Sauf groupe primaire SID *-513 : Utilisateurs du domaine / Domain Users)
 foreach ($g in $groups) {
     try {
-        $groupName = (Get-ADGroup -Identity $g -ErrorAction Stop).Name
-        if ($groupName -ne "Domain Users" -and -not $Simulation -and $PSCmdlet.ShouldProcess($groupName, "Remove-ADGroupMember $Username")) {
+        $grpObj = Get-ADGroup -Identity $g -Properties SID -ErrorAction Stop
+        $isDomainUsers = ($null -ne $grpObj.SID -and $grpObj.SID.Value -match '-513$')
+        if (-not $isDomainUsers -and -not $Simulation -and $PSCmdlet.ShouldProcess($grpObj.Name, "Remove-ADGroupMember $Username")) {
             Remove-ADGroupMember -Identity $g -Members $Username -Confirm:$false -ErrorAction Stop
         }
     } catch {
@@ -86,7 +93,7 @@ foreach ($g in $groups) {
 }
 Write-Host " [OK] Retiré de tous les groupes de sécurité et de distribution." -ForegroundColor Green
 
-# 4. RANDOM PASSWORD & EXPIRATION (CSPRNG compatible PS 5.1 & PS 7+)
+# 4. RANDOM PASSWORD, EXPIRATION & REVOCATION SESSIONS
 $rngBytes = New-Object byte[] 20
 $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
 $rng.GetBytes($rngBytes)
@@ -94,11 +101,23 @@ $rng.Dispose()
 $pwdChars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%&*+-=?'
 $rawPwd = (-join ($rngBytes | ForEach-Object { $pwdChars[$_ % $pwdChars.Length] })) + 'A9#z'
 $randomPwd = ([System.Net.NetworkCredential]::new('', $rawPwd)).SecurePassword
+$m365Revoked = $false
 if (-not $Simulation -and $PSCmdlet.ShouldProcess($Username, "Set-ADAccountPassword & Expiration")) {
     Set-ADAccountPassword -Identity $Username -NewPassword $randomPwd -Reset
     Set-ADUser -Identity $Username -AccountExpirationDate (Get-Date)
+    if ((Get-Command Get-MgContext -ErrorAction SilentlyContinue) -and (Get-MgContext) -and (Get-Command Revoke-MgUserSignInSession -ErrorAction SilentlyContinue) -and $user.UserPrincipalName) {
+        try {
+            Revoke-MgUserSignInSession -UserId $user.UserPrincipalName -ErrorAction Stop | Out-Null
+            $m365Revoked = $true
+        } catch {
+            Write-Warning "Révocation session Entra ID impossible : $($_.Exception.Message)"
+        }
+    }
 }
 Write-Host " [OK] Mot de passe réinitialisé aléatoirement et compte expiré." -ForegroundColor Green
+if (-not $m365Revoked) {
+    Write-Host " [INFO] Si tenant hybride M365 actif, exécutez Revoke-MgUserSignInSession sur $($user.UserPrincipalName) ; les TGT Kerberos expirent à échéance." -ForegroundColor DarkGray
+}
 
 # 5. GENERATION DU PROCES-VERBAL OFFICIEL (HTML)
 $repDir = if (Get-Command Get-ESNToolkitRoot -ErrorAction SilentlyContinue) { Get-ESNToolkitRoot -SubFolder "Reports" -Ensure } else { Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/Reports" }
@@ -135,7 +154,7 @@ $pvHtml = @"
                 <li>Désactivation immédiate du compte d'annuaire Active Directory</li>
                 <li>Révocation des appartenances aux groupes de sécurité ($(@($groups).Count) groupes archivés)</li>
                 <li>Réinitialisation du mot de passe avec une clé aléatoire forte</li>
-                <li>Révocation des sessions actives et jetons d'authentification</li>
+                <li>Révocation des jetons Entra ID $(if ($m365Revoked) { 'effectuée via Microsoft Graph' } else { '(à vérifier sur tenant M365 si hybride ; TGT Kerberos en expiration)' })</li>
             </ul>
         </div>
         <div class='signatures'>

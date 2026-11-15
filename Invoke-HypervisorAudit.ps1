@@ -22,6 +22,7 @@ param(
     [switch]$Simulate,
     [switch]$OpenReport
 )
+Set-StrictMode -Version Latest
 if (-not $PSBoundParameters.ContainsKey('OpenReport')) { $OpenReport = $true }
 
 if ([Environment]::UserInteractive) {
@@ -69,14 +70,27 @@ if ($Simulate) {
     Add-VirtCheck -Element "Audit Snapshots ($HypervisorPlatform)" -Value "Non vérifié" -Status "ATTENTION" -Detail "Module hyperviseur ($HypervisorPlatform) absent ou non connecté (passer -Simulate pour démo)."
 }
 
-# 2. SATURATION DES DATASTORES & POOLS NUTANIX
-Write-Host "`n[2/4] Audit de capacité des Datastores et Containers de stockage..." -ForegroundColor Yellow
+# 2. SATURATION DES DATASTORES / STOCKAGE LOCAL
+Write-Host "`n[2/4] Audit de capacité des Datastores / volumes..." -ForegroundColor Yellow
+if ($ClusterEndpoint -and -not $Simulate) {
+    $epHost = ($ClusterEndpoint -replace '^https?://', '' -split '[:/]')[0]
+    $epPort = if ($ClusterEndpoint -match ':(\d+)') { [int]$Matches[1] } elseif ($HypervisorPlatform -eq "Nutanix") { 9440 } else { 443 }
+    $epOk = $false
+    try {
+        $tcp = [System.Net.Sockets.TcpClient]::new()
+        $ar = $tcp.BeginConnect($epHost, $epPort, $null, $null)
+        if ($ar.AsyncWaitHandle.WaitOne(1500, $false)) { $tcp.EndConnect($ar); $epOk = $true }
+        $tcp.Dispose()
+    } catch { $epOk = $false }
+    $epStat = if ($epOk) { "OPTIMAL" } else { "ATTENTION" }
+    Add-VirtCheck -Element "Endpoint Cluster $epHost`:$epPort" -Value $(if ($epOk) { "Port ouvert" } else { "Injoignable" }) -Status $epStat -Detail "Vérification connectivité API hyperviseur ($HypervisorPlatform)."
+}
 $drives = @(Get-CimInstance Win32_LogicalDisk -Filter "DriveType=3" -ErrorAction SilentlyContinue | Where-Object { $_.Size -gt 0 })
 foreach ($d in $drives) {
     $usedPct = [math]::Round((($d.Size - $d.FreeSpace) / $d.Size) * 100, 1)
     $freeGB  = [math]::Round($d.FreeSpace / 1GB, 1)
     $stat = if ($usedPct -gt 85) { "ATTENTION" } else { "OPTIMAL" }
-    Add-VirtCheck -Element "Volume local $($d.DeviceID)" -Value "$usedPct% utilisé ($freeGB Go libres)" -Status $stat -Detail "Capacité disque local mesurée (Seuil critique 85%)."
+    Add-VirtCheck -Element "Stockage local hôte $($d.DeviceID)" -Value "$usedPct% utilisé ($freeGB Go libres)" -Status $stat -Detail "[LOCAL HOST ONLY] Capacité disque local mesurée (PowerCLI / Prism requis pour datastores partagés)."
 }
 
 # 3. SURALLOCATION CPU ET RAM (OVERCOMMIT)
@@ -143,7 +157,7 @@ $html = @"
 <body>
     <div class='card'>
         <h1>🖥️ Bilan de Santé Hyperviseurs & Clusters HA</h1>
-        <p><b>Plateforme :</b> VMware vSphere & Nutanix | <b>Date :</b> $(Get-Date -Format 'dd/MM/yyyy HH:mm') | <b>Ingénieur Référent :</b> Amine BERRADA</p>
+        <p><b>Plateforme :</b> $([System.Net.WebUtility]::HtmlEncode("$HypervisorPlatform$epInfo")) | <b>Date :</b> $(Get-Date -Format 'dd/MM/yyyy HH:mm') | <b>Ingénieur Référent :</b> Amine BERRADA</p>
         <table>
             <thead><tr><th>Composant Cluster</th><th>Mesure Détectée</th><th>Statut</th><th>Détails & Analyse Technique</th></tr></thead>
             <tbody>$rows</tbody>

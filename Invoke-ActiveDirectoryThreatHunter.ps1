@@ -55,6 +55,7 @@ param(
 )
 
 begin {
+    Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
     $schemaScript = Join-Path $PSScriptRoot "Core/ESN-OutputSchema.ps1"
     if (Test-Path $schemaScript) { . $schemaScript }
@@ -108,7 +109,8 @@ process {
 </QueryList>
 "@
             $events = Get-WinEvent -ComputerName $DomainController -FilterXml $filterXml -MaxEvents 500 -ErrorAction SilentlyContinue
-            $rc4Events = foreach ($evt in $events) {
+            $rc4Events = @(foreach ($evt in @($events)) {
+                if ($null -eq $evt) { continue }
                 $xml = [xml]$evt.ToXml()
                 $enc = ($xml.Event.EventData.Data | Where-Object { $_.Name -eq 'TicketEncryptionType' }).'#text'
                 $svc = ($xml.Event.EventData.Data | Where-Object { $_.Name -eq 'ServiceName' }).'#text'
@@ -116,13 +118,13 @@ process {
                 if ($enc -eq '0x17' -and $svc -notmatch '^krbtgt$' -and $svc -notmatch '\$$') {
                     [PSCustomObject]@{ Service = $svc; SourceIp = $ip }
                 }
-            }
-            foreach ($grp in ($rc4Events | Group-Object SourceIp | Where-Object { $_.Count -ge 5 })) {
+            })
+            foreach ($grp in @($rc4Events | Group-Object SourceIp | Where-Object { $_.Count -ge 5 })) {
                 $findings.Add([PSCustomObject]@{
                     ThreatCategory    = "Kerberoasting (RC4 0x17 TGS Sweep)"
                     MITRETechnique    = "T1558.003"
                     Severity          = "CRITICAL"
-                    TargetAccount     = ($grp.Group.Service | Select-Object -Unique) -join ', '
+                    TargetAccount     = (@($grp.Group | ForEach-Object { $_.Service } | Select-Object -Unique)) -join ', '
                     SourceWorkstation = $grp.Name
                     Evidence          = "$($grp.Count) RC4 TGS ticket requests detected in $LookbackHours h window"
                     RecommendedAction = "Isolate source host and rotate affected SPN service account credentials"
@@ -137,6 +139,7 @@ process {
 
                     # AS-REP Roasting: UF_DONT_REQUIRE_PREAUTH (4194304)
                     $asrepSearcher = New-Object System.DirectoryServices.DirectorySearcher($searchRoot)
+                    $asrepSearcher.PageSize = 1000
                     $asrepSearcher.Filter = "(&(objectCategory=person)(objectClass=user)(userAccountControl:1.2.840.113556.1.4.803:=4194304))"
                     [void]$asrepSearcher.PropertiesToLoad.Add("samaccountname")
                     foreach ($hit in $asrepSearcher.FindAll()) {
@@ -152,16 +155,17 @@ process {
                         })
                     }
 
-                    # AdminSDHolder / Orphaned adminCount=1 outside known Tier-0 groups
+                    # AdminSDHolder / Orphaned adminCount=1 outside known Tier-0 groups (EN + FR)
                     $adminSearcher = New-Object System.DirectoryServices.DirectorySearcher($searchRoot)
+                    $adminSearcher.PageSize = 1000
                     $adminSearcher.Filter = "(&(objectCategory=person)(objectClass=user)(adminCount=1))"
                     [void]$adminSearcher.PropertiesToLoad.Add("samaccountname")
                     [void]$adminSearcher.PropertiesToLoad.Add("memberof")
                     foreach ($hit in $adminSearcher.FindAll()) {
                         $sam = [string]$hit.Properties["samaccountname"][0]
-                        if ($sam -in @("Administrator","krbtgt")) { continue }
+                        if ($sam -in @("Administrator","Administrateur","krbtgt")) { continue }
                         $groups = @($hit.Properties["memberof"] | ForEach-Object { [string]$_ })
-                        $inTier0 = @($groups | Where-Object { $_ -match '^CN=(Domain Admins|Enterprise Admins|Schema Admins|Administrators),' }).Count -gt 0
+                        $inTier0 = @($groups | Where-Object { $_ -match '^CN=(Domain Admins|Admins du domaine|Enterprise Admins|Administrateurs de l''entreprise|Schema Admins|Administrateurs du schéma|Administrators|Administrateurs),' }).Count -gt 0
                         if (-not $inTier0) {
                             $findings.Add([PSCustomObject]@{
                                 ThreatCategory    = "Orphaned AdminSDHolder / Shadow Admin"

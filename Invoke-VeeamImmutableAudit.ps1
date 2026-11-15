@@ -33,7 +33,7 @@
     Author  : Amine BERRADA (Senior Systems & Network Administrator / L3 Technical Lead)
     Project : Windows Support & Infrastructure Automation Toolkit (WSAT)
 #>
-[CmdletBinding(SupportsShouldProcess = $true)]
+[CmdletBinding()]
 param(
     [Parameter(Mandatory = $false, ValueFromPipeline = $true)]
     [ValidateNotNullOrEmpty()]
@@ -58,6 +58,7 @@ param(
 )
 
 process {
+    Set-StrictMode -Version Latest
     try {
         $schemaScript = Join-Path $PSScriptRoot "Core/ESN-OutputSchema.ps1"
         if (Test-Path $schemaScript) { . $schemaScript }
@@ -76,21 +77,38 @@ process {
         else {
             $sshExe = Get-Command ssh -ErrorAction SilentlyContinue
             $repoPathEsc = $RepositoryPath -replace "'", "'\\''"
-            $probeScript = "findmnt -T '$repoPathEsc' -no FSTYPE,OPTIONS 2>/dev/null || df -T '$repoPathEsc' 2>/dev/null | tail -n 1; " +
-                           "echo '---IMMUT---'; find '$repoPathEsc' -maxdepth 3 \( -name '*.vbk' -o -name '*.vib' \) -exec lsattr {} + 2>/dev/null | head -n 20; " +
+            $probeScript = "findmnt -T '$repoPathEsc' -no FSTYPE,OPTIONS 2>&1 || df -T '$repoPathEsc' 2>&1 | tail -n 1; " +
+                           "echo '---IMMUT---'; find '$repoPathEsc' -maxdepth 3 \( -name '*.vbk' -o -name '*.vib' \) -exec lsattr {} + 2>&1 | head -n 20; " +
                            "echo '---NTP---'; (systemctl is-active chronyd 2>/dev/null || systemctl is-active systemd-timesyncd 2>/dev/null || echo unknown)"
+            $isUnixHost = ([System.Environment]::OSVersion.Platform -eq [System.PlatformID]::Unix)
+            $repoRetention = $null
 
             if ($SshUser -and $sshExe) {
                 $sshArgs = @("-o", "StrictHostKeyChecking=accept-new", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5")
                 if ($SshKeyPath) { $sshArgs += @("-i", $SshKeyPath) }
                 $sshArgs += @("$SshUser@$RepositoryHost", $probeScript)
                 $rawProbe = (& $sshExe.Source @sshArgs 2>&1) -join "`n"
-                $pathOk = $LASTEXITCODE -eq 0 -and ($rawProbe -notmatch 'No such file or directory')
+                $permDenied = $rawProbe -match 'Permission denied'
+                $pathOk = $LASTEXITCODE -eq 0 -and -not $permDenied -and ($rawProbe -notmatch 'No such file or directory')
                 $isXfs = $rawProbe -match '\bxfs\b'
                 $hasImmut = $rawProbe -match '[-]+i[-]+'
                 $ntpActive = $rawProbe -match '(?m)^active$'
                 $checks = @(
                     [PSCustomObject]@{ Control = "SSH & Repository Reachable"; Passed = $pathOk; Detail = if ($pathOk) { "Connected to $RepositoryHost ($RepositoryPath)" } else { "SSH probe failed: $rawProbe" } }
+                    [PSCustomObject]@{ Control = "XFS Filesystem Verified"; Passed = $isXfs; Detail = if ($isXfs) { "XFS mount detected on $RepositoryPath" } else { "XFS not confirmed in mount output" } }
+                    [PSCustomObject]@{ Control = "Immutable Attribute (+i) on Backup Chains"; Passed = $hasImmut; Detail = if ($hasImmut) { "lsattr +i confirmed on backup files" } else { "No +i immutable .vbk/.vib files found" } }
+                    [PSCustomObject]@{ Control = "NTP Time-Sync Protection"; Passed = $ntpActive; Detail = if ($ntpActive) { "chronyd / timesyncd active" } else { "NTP daemon state unverified" } }
+                )
+            }
+            elseif ($isUnixHost -and (Test-Path -Path $RepositoryPath) -and (Get-Command bash -ErrorAction SilentlyContinue)) {
+                $rawProbe = (& bash -c $probeScript 2>&1) -join "`n"
+                $permDenied = $rawProbe -match 'Permission denied'
+                $pathOk = -not $permDenied -and ($rawProbe -notmatch 'No such file or directory')
+                $isXfs = $rawProbe -match '\bxfs\b'
+                $hasImmut = $rawProbe -match '[-]+i[-]+'
+                $ntpActive = $rawProbe -match '(?m)^active$'
+                $checks = @(
+                    [PSCustomObject]@{ Control = "Local Linux Repository Accessible"; Passed = $pathOk; Detail = if ($pathOk) { "Local path verified: $RepositoryPath" } else { "Local probe error: $rawProbe" } }
                     [PSCustomObject]@{ Control = "XFS Filesystem Verified"; Passed = $isXfs; Detail = if ($isXfs) { "XFS mount detected on $RepositoryPath" } else { "XFS not confirmed in mount output" } }
                     [PSCustomObject]@{ Control = "Immutable Attribute (+i) on Backup Chains"; Passed = $hasImmut; Detail = if ($hasImmut) { "lsattr +i confirmed on backup files" } else { "No +i immutable .vbk/.vib files found" } }
                     [PSCustomObject]@{ Control = "NTP Time-Sync Protection"; Passed = $ntpActive; Detail = if ($ntpActive) { "chronyd / timesyncd active" } else { "NTP daemon state unverified" } }
@@ -103,11 +121,10 @@ process {
                     [PSCustomObject]@{ Control = "Remote SSH XFS / chattr +i Verification"; Passed = $false; Detail = "SSH credentials (-SshUser) and OpenSSH client required to certify XFS reflink and +i immutability remotely." }
                 )
             }
-            $repoRetention = $ImmutabilityDays
         }
 
         $failedCount = @($checks | Where-Object { -not $_.Passed }).Count
-        $isCompliant = ($failedCount -eq 0 -and $repoRetention -ge $ImmutabilityDays)
+        $isCompliant = ($failedCount -eq 0 -and ($null -eq $repoRetention -or $repoRetention -ge $ImmutabilityDays))
 
         $resObj = [PSCustomObject]@{
             Timestamp                 = $timestamp

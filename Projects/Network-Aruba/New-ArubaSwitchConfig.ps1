@@ -26,8 +26,11 @@ param(
     [string]$SNMPVersion = "v3",
     [string]$SNMPv3User = "prtg-monitor",
     [string]$SNMPCommunity = "",
+    [ValidateSet("ProCurve", "AOS-CX")]
+    [string]$SwitchOS = "ProCurve",
     [string]$OutputDir = ""
 )
+Set-StrictMode -Version Latest
 
 $repoCore = Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) "Core\ESN-Core.psm1"
 if (-not (Get-Command Get-ESNToolkitRoot -ErrorAction SilentlyContinue) -and (Test-Path $repoCore)) {
@@ -60,7 +63,74 @@ if (-not (Test-Path $OutputDir)) {
 
 $configFile = Join-Path $OutputDir "$Hostname.cfg"
 
-$snmpBlock = if ($SNMPVersion -eq "v3") {
+if ($SwitchOS -eq "AOS-CX") {
+    $snmpBlockCx = if ($SNMPVersion -eq "v3") {
+@"
+! 6. GESTION ADMINISTRATIVE & SUPERVISION PRTG (SNMPv3 authPriv)
+snmp-server vrf mgmt
+snmpv3 user $SNMPv3User auth sha auth-pass ciphertext <REPLACE_WITH_AUTH_KEY> priv aes priv-pass ciphertext <REPLACE_WITH_PRIV_KEY>
+snmp-server host $DefaultGateway trap version v3 user $SNMPv3User vrf mgmt
+"@
+    } else {
+        $communityVal = if (-not [string]::IsNullOrWhiteSpace($SNMPCommunity)) { $SNMPCommunity } else { "<REPLACE_WITH_SNMP_COMMUNITY>" }
+@"
+! 6. GESTION ADMINISTRATIVE & SUPERVISION PRTG (SNMPv2c)
+snmp-server vrf mgmt
+snmp-server community $communityVal
+snmp-server host $DefaultGateway trap version v2c community $communityVal vrf mgmt
+"@
+    }
+    $arubaConfig = @"
+! ============================================================================
+! CONFIGURATION ARUBAOS-CX GENEREE AUTOMATIQUEMENT
+! Switch : $Hostname
+! Date : $(Get-Date -Format 'dd/MM/yyyy HH:mm')
+! Concu pour integration PRTG & MCO par Amine BERRADA
+! ============================================================================
+hostname $Hostname
+
+vlan $VlanData
+    name DATA_UTILISATEURS
+vlan $VlanVoIP
+    name VOIP_TELEPHONIE
+vlan $VlanWiFi
+    name WIFI_BORNES
+vlan $VlanMgmt
+    name MANAGEMENT_INFRA
+
+interface vlan $VlanMgmt
+    ip address $ManagementIP/$SubnetMask
+ip route 0.0.0.0/0 $DefaultGateway
+
+interface lag 1
+    no shutdown
+    no routing
+    vlan trunk native 1
+    vlan trunk allowed $VlanData,$VlanVoIP,$VlanWiFi,$VlanMgmt
+    lacp mode active
+interface 1/1/47-1/1/48
+    no shutdown
+    lag 1
+
+interface 1/1/1-1/1/20
+    no shutdown
+    no routing
+    vlan access $VlanData
+    spanning-tree bpdu-guard
+
+spanning-tree
+spanning-tree mode rpvst
+spanning-tree priority 8
+
+$snmpBlockCx
+
+ssh server vrf mgmt
+https-server vrf mgmt
+write memory
+! FIN DE CONFIGURATION
+"@
+} else {
+    $snmpBlock = if ($SNMPVersion -eq "v3") {
 @"
 ; 6. GESTION ADMINISTRATIVE & SUPERVISION PRTG (SNMPv3 authPriv SHA/AES)
 snmpv3 enable
@@ -69,19 +139,19 @@ snmpv3 group managerpriv user "$SNMPv3User" sec-model ver3
 snmp-server host $DefaultGateway version 3 authpriv "$SNMPv3User"
 snmp-server enable traps
 "@
-} else {
-    $communityVal = if (-not [string]::IsNullOrWhiteSpace($SNMPCommunity)) { $SNMPCommunity } else { "<REPLACE_WITH_SNMP_COMMUNITY>" }
+    } else {
+        $communityVal = if (-not [string]::IsNullOrWhiteSpace($SNMPCommunity)) { $SNMPCommunity } else { "<REPLACE_WITH_SNMP_COMMUNITY>" }
 @"
 ; 6. GESTION ADMINISTRATIVE & SUPERVISION PRTG (SNMPv2c)
 snmp-server community "$communityVal" operator
 snmp-server host $DefaultGateway community "$communityVal"
 snmp-server enable traps
 "@
-}
+    }
 
-$arubaConfig = @"
+    $arubaConfig = @"
 ; ============================================================================
-; CONFIGURATION ARUBAOS-CX / PROCURVE GENEREE AUTOMATIQUEMENT
+; CONFIGURATION ARUBAOS-SWITCH (PROCURVE) GENEREE AUTOMATIQUEMENT
 ; Switch : $Hostname
 ; Date : $(Get-Date -Format 'dd/MM/yyyy HH:mm')
 ; Concu pour integration PRTG & MCO par Amine BERRADA
@@ -148,6 +218,7 @@ Tout acces non autorise fera l'objet de poursuites.
 write memory
 ; FIN DE CONFIGURATION
 "@
+}
 
 $arubaConfig | Out-File -FilePath $configFile -Encoding ASCII
 Write-Host " [OK] Fichier de configuration généré : $configFile" -ForegroundColor Green

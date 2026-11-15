@@ -158,7 +158,7 @@ do {
         "30" { & "$ScriptDir\Invoke-DRPGenerator.ps1" -OpenReport; Read-Host "`nAppuyez sur Entrée pour continuer..." }
         "31" { & "$ScriptDir\Invoke-ZeroTrustAudit.ps1" -OpenReport; Read-Host "`nAppuyez sur Entrée pour continuer..." }
         "32" { & "$ScriptDir\Invoke-ITSMConnector.ps1" -Target Simulation; Read-Host "`nAppuyez sur Entrée pour continuer..." }
-        "33" { & "$ScriptDir\Invoke-IncidentLabSimulator.ps1" -Scenario "N1-Workstation"; Read-Host "`nAppuyez sur Entrée pour continuer..." }
+        "33" { & "$ScriptDir\Invoke-IncidentLabSimulator.ps1" -Scenario "N1-Workstation" -Simulate; Read-Host "`nAppuyez sur Entrée pour continuer..." }
         "34" {
             $slides = Join-Path $ScriptDir "Presentation\index.html"
             if (Test-Path $slides) { Start-Process $slides; Write-Host "[OK] Pitch Deck ouvert." -ForegroundColor Green }

@@ -12,13 +12,14 @@
     5. Rapport de conformité de durcissement post-audit
 #>
 
-[CmdletBinding()]
+[CmdletBinding(SupportsShouldProcess = $true)]
 param(
     [string]$CustomAdminAccountName = "AdmLocal_ESN",
     [int]$PasswordAgeDays = 30,
     [int]$PasswordLength = 16,
     [switch]$AuditOnly
 )
+Set-StrictMode -Version Latest
 
 if ([Environment]::UserInteractive) {
     try { Clear-Host } catch { Write-Verbose "Clear-Host ignored: $($_.Exception.Message)" }
@@ -32,24 +33,28 @@ Write-Host "  Compte géré : $CustomAdminAccountName | Rotation : $PasswordAgeD
 $lapsRegPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\LAPS"
 
 if (-not (Test-Path $lapsRegPath) -and -not $AuditOnly) {
-    New-Item -Path $lapsRegPath -Force | Out-Null
+    if ($PSCmdlet.ShouldProcess($lapsRegPath, "Créer la clé de stratégie Windows LAPS")) {
+        New-Item -Path $lapsRegPath -Force | Out-Null
+    }
 }
 
 if (-not $AuditOnly) {
-    Write-Host "[1/3] Application des règles de durcissement LAPS dans le Registre..." -ForegroundColor Yellow
-    
-    # Activation du backup dans Active Directory (1 = AD, 2 = Azure AD / Entra ID)
-    Set-ItemProperty -Path $lapsRegPath -Name "BackupDirectory" -Value 1 -Type DWord -Force
-    # Complexité maximale : Majuscules + Minuscules + Chiffres + Symboles (Value 4)
-    Set-ItemProperty -Path $lapsRegPath -Name "PasswordComplexity" -Value 4 -Type DWord -Force
-    # Longueur du mot de passe (16 caractères)
-    Set-ItemProperty -Path $lapsRegPath -Name "PasswordLength" -Value $PasswordLength -Type DWord -Force
-    # Périodicité de rotation (30 jours)
-    Set-ItemProperty -Path $lapsRegPath -Name "PasswordAgeDays" -Value $PasswordAgeDays -Type DWord -Force
-    # Nom du compte local administré
-    Set-ItemProperty -Path $lapsRegPath -Name "AdministratorAccountName" -Value $CustomAdminAccountName -Type String -Force
+    if ($PSCmdlet.ShouldProcess($lapsRegPath, "Configurer les paramètres de durcissement Windows LAPS")) {
+        Write-Host "[1/3] Application des règles de durcissement LAPS dans le Registre..." -ForegroundColor Yellow
 
-    Write-Host "  [OK] Stratégie LAPS configurée avec succès." -ForegroundColor Green
+        # Activation du backup dans Active Directory (1 = AD, 2 = Azure AD / Entra ID)
+        Set-ItemProperty -Path $lapsRegPath -Name "BackupDirectory" -Value 1 -Type DWord -Force
+        # Complexité maximale : Majuscules + Minuscules + Chiffres + Symboles (Value 4)
+        Set-ItemProperty -Path $lapsRegPath -Name "PasswordComplexity" -Value 4 -Type DWord -Force
+        # Longueur du mot de passe (16 caractères)
+        Set-ItemProperty -Path $lapsRegPath -Name "PasswordLength" -Value $PasswordLength -Type DWord -Force
+        # Périodicité de rotation (30 jours)
+        Set-ItemProperty -Path $lapsRegPath -Name "PasswordAgeDays" -Value $PasswordAgeDays -Type DWord -Force
+        # Nom du compte local administré
+        Set-ItemProperty -Path $lapsRegPath -Name "AdministratorAccountName" -Value $CustomAdminAccountName -Type String -Force
+
+        Write-Host "  [OK] Stratégie LAPS configurée avec succès." -ForegroundColor Green
+    }
 }
 
 # 2. AUDIT DE CONFORMITE DU POSTE
@@ -74,6 +79,12 @@ $reportDir  = if (Get-Command Get-ESNToolkitRoot -ErrorAction SilentlyContinue) 
 $reportPath = Join-Path $reportDir "Dossier-Projet-Securisation-LAPS.html"
 if (-not (Test-Path $reportDir)) { New-Item $reportDir -ItemType Directory -Force | Out-Null }
 
+$badgeColor = if ($isCompliant) { "#10b981" } else { "#ef4444" }
+$eStatus    = [System.Net.WebUtility]::HtmlEncode([string]$status)
+$eAdminAcct = [System.Net.WebUtility]::HtmlEncode([string]$CustomAdminAccountName)
+$eBkDir     = if ($backupDir -eq 1) { "Active Directory (1)" } elseif ($backupDir -eq 2) { "Entra ID (2)" } else { "Non configuré ($backupDir)" }
+$eBkDirHtml = [System.Net.WebUtility]::HtmlEncode([string]$eBkDir)
+
 $html = @"
 <!DOCTYPE html>
 <html>
@@ -84,19 +95,24 @@ $html = @"
         body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #0f172a; color: #f8fafc; padding: 30px; }
         .card { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 35px; max-width: 900px; margin: auto; }
         h1 { color: #f87171; margin-top: 0; }
-        .badge { background: #10b981; color: white; padding: 5px 12px; border-radius: 20px; font-weight: bold; font-size: 13px; }
+        .badge { background: $badgeColor; color: white; padding: 5px 12px; border-radius: 20px; font-weight: bold; font-size: 13px; }
     </style>
 </head>
 <body>
     <div class='card'>
         <h1>🛡️ Dossier Projet : Sécurisation Post-Audit & Déploiement Windows LAPS</h1>
         <p><b>Ingénieur SecOps :</b> Amine BERRADA | <b>Contexte :</b> Remédiation des Failles d'Audit & Durcissement</p>
-        <span class='badge'>Conforme Recommandations ANSSI & CIS</span>
+        <span class='badge'>Statut LAPS Audité : $eStatus</span>
 
-        <h3>Problématique Audit Résolue :</h3>
-        <p>Auparavant, les postes de travail partageaient un mot de passe administrateur local identique ou statique, permettant à un attaquant de se déplacer latéralement sur tout le réseau (Pass-the-Hash).</p>
+        <h3>État Réel Mesuré sur $([System.Net.WebUtility]::HtmlEncode([string]$env:COMPUTERNAME)) :</h3>
+        <ul>
+            <li><b>BackupDirectory :</b> $eBkDirHtml</li>
+            <li><b>PasswordLength :</b> $pwdLen caractère(s) (seuil requis &ge; 14)</li>
+            <li><b>Compte administré cible :</b> <code>$eAdminAcct</code></li>
+            <li><b>Mode d'exécution :</b> $(if ($AuditOnly) { "Audit uniquement (-AuditOnly)" } else { "Déploiement / Durcissement" })</li>
+        </ul>
 
-        <h3>Architecture de Remédiation Déployée :</h3>
+        <h3>Architecture de Remédiation Cible :</h3>
         <ul>
             <li><b>Mots de passe uniques et aléatoires :</b> Chaque machine génère un mot de passe unique de 16 caractères tournant tous les 30 jours.</li>
             <li><b>Chiffrement dans l'Active Directory :</b> Seuls les administrateurs habilités peuvent lire le mot de passe via l'attribut chiffré <code>msLAPS-Password</code>.</li>

@@ -22,6 +22,7 @@ param(
     [switch]$PreserveSIDHistory,
     [switch]$ExportAclOnly
 )
+Set-StrictMode -Version Latest
 if (-not $PSBoundParameters.ContainsKey('PreserveSIDHistory')) { $PreserveSIDHistory = $true }
 
 $repoCore = Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) "Core\ESN-Core.psm1"
@@ -56,7 +57,8 @@ if ($SharePathToMigrate -and (Test-Path $SharePathToMigrate)) {
 }
 
 if ($ExportAclOnly) {
-    Write-Host "  [i] Mode -ExportAclOnly actif : sauvegarde prioritaire des ACL NTFS." -ForegroundColor Cyan
+    Write-Host "  [i] Mode -ExportAclOnly actif : arrêt après sauvegarde des ACL NTFS." -ForegroundColor Cyan
+    return
 }
 
 # 2. INVENTAIRE DES COMPTES UTILISATEURS & GROUPES A MIGRER
@@ -101,7 +103,7 @@ $profileSwitchScript = @"
 set NEW_DOMAIN=$safeTargetDomain
 
 echo Jonction au domaine %NEW_DOMAIN%...
-powershell -Command "Add-Computer -DomainName '%NEW_DOMAIN%' -Restart -Force"
+powershell -Command "Add-Computer -DomainName '%NEW_DOMAIN%' -Credential (Get-Credential) -Confirm"
 "@
 $scriptFile = Join-Path $OutputDirectory "Switch-Workstation-Domain.bat"
 $profileSwitchScript | Out-File -FilePath $scriptFile -Encoding ASCII

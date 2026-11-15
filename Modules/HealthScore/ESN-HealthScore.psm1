@@ -90,10 +90,10 @@ function Get-ScoreIcon([int]$score) {
 # ─────────────────────────────────────────────────────────────
 function _Collect-MachineData {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseApprovedVerbs', '')]
-    param([string]$ComputerName, [int]$HoursBack)
+    param([string]$ComputerName, [int]$HoursBack, [bool]$AirGap = $false)
 
     $sb = {
-        param([int]$hrs)
+        param([int]$hrs, [bool]$airGapMode)
 
         $data = @{}
 
@@ -114,28 +114,34 @@ function _Collect-MachineData {
             try { ($pingSender.Send($gw.NextHop, 1000)).Status -eq [System.Net.NetworkInformation.IPStatus]::Success } catch { $false }
         } else { $false }
 
+        $dnsTarget = if ($airGapMode) {
+            if ($env:USERDNSDOMAIN) { $env:USERDNSDOMAIN } elseif ($env:COMPUTERNAME) { $env:COMPUTERNAME } else { 'localhost' }
+        } else { 'google.com' }
         $data.Net.DNSResolve  = try {
-            Resolve-DnsName 'google.com' -ErrorAction Stop | Select-Object -First 1 | Out-Null
+            Resolve-DnsName $dnsTarget -ErrorAction Stop | Select-Object -First 1 | Out-Null
             $true
         } catch { $false }
 
         $latVals = [System.Collections.Generic.List[double]]::new()
         $sentPings = 0
-        for ($pi = 0; $pi -lt 5; $pi++) {
-            $sentPings++
-            $pr = try { $pingSender.Send('8.8.8.8', 1000) } catch { $null }
-            if ($null -ne $pr -and $pr.Status -eq [System.Net.NetworkInformation.IPStatus]::Success) {
-                $latVals.Add([double]$pr.RoundtripTime)
-            } elseif ($pi -eq 0) {
-                break
+        if (-not $airGapMode) {
+            for ($pi = 0; $pi -lt 5; $pi++) {
+                $sentPings++
+                $pr = try { $pingSender.Send('8.8.8.8', 1000) } catch { $null }
+                if ($null -ne $pr -and $pr.Status -eq [System.Net.NetworkInformation.IPStatus]::Success) {
+                    $latVals.Add([double]$pr.RoundtripTime)
+                } elseif ($pi -eq 0) {
+                    break
+                }
             }
         }
         $pingSender.Dispose()
         $data.Net.InternetOK  = $latVals.Count -gt 0
-        $data.Net.LatencyAvg  = if ($latVals.Count -gt 0) {
-            [math]::Round(($latVals | Measure-Object -Average).Average, 0)
+        $latAvgM = if ($latVals.Count -gt 0) { $latVals | Measure-Object -Average } else { $null }
+        $data.Net.LatencyAvg  = if ($latAvgM -and $latAvgM.PSObject.Properties['Average'] -and $null -ne $latAvgM.Average) {
+            [math]::Round($latAvgM.Average, 0)
         } else { 9999 }
-        $data.Net.PacketLoss  = if ($latVals.Count -gt 0) {
+        $data.Net.PacketLoss  = if ($sentPings -gt 0 -and $latVals.Count -gt 0) {
             [math]::Round((1 - $latVals.Count / [double]$sentPings) * 100, 0)
         } else { 100 }
 
@@ -146,16 +152,16 @@ function _Collect-MachineData {
 
         # ── SYSTÈME ─────────────────────────────────────────
         $data.Sys = @{}
-        $os  = Get-CimInstance Win32_OperatingSystem
-        $cs  = Get-CimInstance Win32_ComputerSystem
-        $cpu = Get-CimInstance Win32_Processor | Select-Object -First 1
+        $os  = Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue
+        $cs  = Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue
+        $cpu = Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue | Select-Object -First 1
 
-        $data.Sys.OS         = $os.Caption
-        $data.Sys.Build      = $os.BuildNumber
-        $data.Sys.UptimeDays = [math]::Round(((Get-Date) - $os.LastBootUpTime).TotalDays, 1)
-        $data.Sys.RAM_Total  = [math]::Round($cs.TotalPhysicalMemory / 1GB, 1)
-        $data.Sys.RAM_Free   = [math]::Round($os.FreePhysicalMemory / 1MB, 0)
-        $data.Sys.RAM_Pct    = [math]::Round(100 - ($os.FreePhysicalMemory / $os.TotalVisibleMemorySize * 100), 1)
+        $data.Sys.OS         = if ($os -and $os.Caption) { $os.Caption } else { "Windows" }
+        $data.Sys.Build      = if ($os -and $os.BuildNumber) { $os.BuildNumber } else { "" }
+        $data.Sys.UptimeDays = if ($os -and $os.LastBootUpTime) { [math]::Round(((Get-Date) - $os.LastBootUpTime).TotalDays, 1) } else { 0 }
+        $data.Sys.RAM_Total  = if ($cs -and $cs.TotalPhysicalMemory -gt 0) { [math]::Round($cs.TotalPhysicalMemory / 1GB, 1) } else { 0 }
+        $data.Sys.RAM_Free   = if ($os -and $null -ne $os.FreePhysicalMemory) { [math]::Round($os.FreePhysicalMemory / 1MB, 0) } else { 0 }
+        $data.Sys.RAM_Pct    = if ($os -and $os.TotalVisibleMemorySize -gt 0) { [math]::Round(100 - ($os.FreePhysicalMemory / $os.TotalVisibleMemorySize * 100), 1) } else { 0 }
         $data.Sys.CPU_Load   = if ($cpu -and $null -ne $cpu.LoadPercentage) { [int]$cpu.LoadPercentage } else { 0 }
         $data.Sys.CPU_Name   = if ($cpu -and $cpu.Name) { $cpu.Name.Trim() } else { "Unknown CPU" }
         $data.Sys.CrashDumps = @(Get-ChildItem 'C:\Windows\Minidump' -Filter '*.dmp' -ErrorAction SilentlyContinue).Count
@@ -216,10 +222,10 @@ function _Collect-MachineData {
 
         $adminLocal = @(try {
             Get-LocalUser -ErrorAction SilentlyContinue |
-                Where-Object { $_.Name -in @('Administrateur','Administrator') -and $_.Enabled }
+                Where-Object { ($_.SID.Value -match '-500$' -or $_.Name -in @('Administrateur','Administrator')) -and $_.Enabled }
         } catch {
             Get-CimInstance Win32_UserAccount -Filter "LocalAccount = TRUE" -ErrorAction SilentlyContinue |
-                Where-Object { $_.Name -in @('Administrateur','Administrator') -and -not $_.Disabled }
+                Where-Object { ($_.SID -match '-500$' -or $_.Name -in @('Administrateur','Administrator')) -and -not $_.Disabled }
         })
         $data.Sec.AdminLocalActive = $adminLocal.Count -gt 0
 
@@ -251,7 +257,8 @@ function _Collect-MachineData {
         $tmpSize = try {
             $tmpFiles = @(Get-ChildItem $env:TEMP -File -Recurse -ErrorAction SilentlyContinue)
             if ($tmpFiles.Count -gt 0) {
-                ($tmpFiles | Measure-Object Length -Sum).Sum / 1MB
+                $tm = $tmpFiles | Measure-Object Length -Sum
+                if ($tm -and $tm.PSObject.Properties['Sum'] -and $null -ne $tm.Sum) { $tm.Sum / 1MB } else { 0 }
             } else { 0 }
         } catch { 0 }
         $data.Storage.TempMB = [math]::Round($tmpSize, 0)
@@ -276,7 +283,9 @@ function _Collect-MachineData {
 
         $critStopped = @($criticalServices | Where-Object {
             $svc = Get-Service $_ -ErrorAction SilentlyContinue
-            $svc -and $svc.Status -ne 'Running'
+            if (-not $svc) { return $false }
+            if ($_ -eq 'Spooler' -and $svc.StartType -ne 'Automatic') { return $false }
+            $svc.Status -ne 'Running'
         })
         $data.Svc.CritStopped      = $critStopped.Count
         $data.Svc.CritStoppedNames = $critStopped -join ', '
@@ -285,9 +294,9 @@ function _Collect-MachineData {
     }
 
     if ($ComputerName -ne $env:COMPUTERNAME) {
-        return Invoke-Command -ComputerName $ComputerName -ScriptBlock $sb -ArgumentList $HoursBack -ErrorAction Stop
+        return Invoke-Command -ComputerName $ComputerName -ScriptBlock $sb -ArgumentList $HoursBack, $AirGap -ErrorAction Stop
     } else {
-        return & $sb -hrs $HoursBack
+        return & $sb -hrs $HoursBack -airGapMode $AirGap
     }
 }
 
@@ -296,7 +305,7 @@ function _Collect-MachineData {
 # ─────────────────────────────────────────────────────────────
 function _Score-Network {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseApprovedVerbs', '')]
-    param($net)
+    param($net, [bool]$RequireInternet = $true)
 
     # Grille de points (total possible = 100)
     $points   = 0
@@ -337,34 +346,46 @@ function _Score-Network {
 
     # Internet (20 pts)
     if (-not $net.InternetOK) {
-        $details += @{ Check="Connectivité internet"; Val="Aucune (8.8.8.8)"; Pts=0; Max=20; Sev="critical" }
-        $recs    += "CRITIQUE : Pas d'accès internet — vérifier FAI, proxy, firewall"
-        $points  += 0
+        if (-not $RequireInternet) {
+            $points += 20
+            $details += @{ Check="Connectivité internet"; Val="Non requise (VLAN isolé / AirGap)"; Pts=20; Max=20; Sev="ok" }
+        } else {
+            $details += @{ Check="Connectivité internet"; Val="Aucune (8.8.8.8)"; Pts=0; Max=20; Sev="critical" }
+            $recs    += "CRITIQUE : Pas d'accès internet — vérifier FAI, proxy, firewall"
+            $points  += 0
+        }
     } else {
         $points  += 20
         $details += @{ Check="Connectivité internet"; Val="OK (8.8.8.8)"; Pts=20; Max=20; Sev="ok" }
     }
 
     # Latence (10 pts)
-    $latPts  = if ($net.LatencyAvg -le 20)  { 10 }
-               elseif ($net.LatencyAvg -le 50)  { 8 }
-               elseif ($net.LatencyAvg -le 100) { 5 }
-               elseif ($net.LatencyAvg -le 200) { 2 }
-               else { 0 }
-    $latSev  = if ($latPts -ge 8) { "ok" } elseif ($latPts -ge 4) { "warn" } else { "critical" }
-    $points += $latPts
-    $details += @{ Check="Latence internet"; Val="$($net.LatencyAvg) ms (perte $($net.PacketLoss)%)"; Pts=$latPts; Max=10; Sev=$latSev }
-    if ($latPts -lt 5) { $recs += "Latence élevée ($($net.LatencyAvg) ms) — possible saturation réseau ou problème FAI" }
-    if ($net.PacketLoss -gt 10) { $recs += "Perte de paquets $($net.PacketLoss)% — vérifier câble, switch, carte réseau" }
+    if (-not $net.InternetOK -and -not $RequireInternet) {
+        $latPts = 10; $lossPts = 10
+        $points += 20
+        $details += @{ Check="Latence internet"; Val="N/A (AirGap)"; Pts=10; Max=10; Sev="ok" }
+        $details += @{ Check="Perte de paquets"; Val="N/A (AirGap)"; Pts=10; Max=10; Sev="ok" }
+    } else {
+        $latPts  = if ($net.LatencyAvg -le 20)  { 10 }
+                   elseif ($net.LatencyAvg -le 50)  { 8 }
+                   elseif ($net.LatencyAvg -le 100) { 5 }
+                   elseif ($net.LatencyAvg -le 200) { 2 }
+                   else { 0 }
+        $latSev  = if ($latPts -ge 8) { "ok" } elseif ($latPts -ge 4) { "warn" } else { "critical" }
+        $points += $latPts
+        $details += @{ Check="Latence internet"; Val="$($net.LatencyAvg) ms (perte $($net.PacketLoss)%)"; Pts=$latPts; Max=10; Sev=$latSev }
+        if ($latPts -lt 5) { $recs += "Latence élevée ($($net.LatencyAvg) ms) — possible saturation réseau ou problème FAI" }
+        if ($net.PacketLoss -gt 10) { $recs += "Perte de paquets $($net.PacketLoss)% — vérifier câble, switch, carte réseau" }
 
-    # Perte de paquets (10 pts) — sans ce critère le barème plafonnait à 90
-    $lossPts = if ($net.PacketLoss -le 0) { 10 } elseif ($net.PacketLoss -le 5) { 7 } elseif ($net.PacketLoss -le 10) { 4 } else { 0 }
-    $points += $lossPts
-    $details += @{ Check="Perte de paquets"; Val="$($net.PacketLoss)%"; Pts=$lossPts; Max=10; Sev=$(if ($lossPts -ge 7) { "ok" } elseif ($lossPts -ge 4) { "warn" } else { "critical" }) }
+        # Perte de paquets (10 pts) — sans ce critère le barème plafonnait à 90
+        $lossPts = if ($net.PacketLoss -le 0) { 10 } elseif ($net.PacketLoss -le 5) { 7 } elseif ($net.PacketLoss -le 10) { 4 } else { 0 }
+        $points += $lossPts
+        $details += @{ Check="Perte de paquets"; Val="$($net.PacketLoss)%"; Pts=$lossPts; Max=10; Sev=$(if ($lossPts -ge 7) { "ok" } elseif ($lossPts -ge 4) { "warn" } else { "critical" }) }
+    }
 
     # Une couche réseau fondamentale en échec rend le poste inopérant : plafond du score
     if ($net.APIPA) { $points = [Math]::Min($points, 25) }
-    elseif (-not $net.Gateway -or -not $net.GatewayPing -or -not $net.InternetOK -or -not $net.DNSResolve) { $points = [Math]::Min($points, 60) }
+    elseif (-not $net.Gateway -or -not $net.GatewayPing -or ($RequireInternet -and -not $net.InternetOK) -or -not $net.DNSResolve) { $points = [Math]::Min($points, 60) }
 
     $score = [Math]::Min(100, [Math]::Max(0, $points))
     return @{ Score=$score; Label=(Get-ScoreLabel $score); Details=$details; Recommendations=$recs }
@@ -933,7 +954,8 @@ function Invoke-HealthScore {
         [switch]$OpenReport,
         [string]$ExportPath   = "",
         [switch]$Simulation,
-        [switch]$PassThru
+        [switch]$PassThru,
+        [switch]$AirGap
     )
 
     $isRemote = ($ComputerName -ne $env:COMPUTERNAME)
@@ -954,7 +976,7 @@ function Invoke-HealthScore {
     # Collecte
     Write-Host "[*] Collecte des données..." -ForegroundColor Cyan
     try {
-        $data = _Collect-MachineData -ComputerName $ComputerName -HoursBack $HoursBack
+        $data = _Collect-MachineData -ComputerName $ComputerName -HoursBack $HoursBack -AirGap $AirGap.IsPresent
     } catch {
         $errAt = if ($_.InvocationInfo) { "L$($_.InvocationInfo.ScriptLineNumber)" } else { "?" }
         $errMsg = $_.Exception.Message
@@ -966,7 +988,7 @@ function Invoke-HealthScore {
     # Calcul des scores
     Write-Host "[*] Calcul des scores..." -ForegroundColor Cyan
     $scores = @{
-        Network  = _Score-Network  $data.Net
+        Network  = _Score-Network  $data.Net (-not $AirGap.IsPresent)
         System   = _Score-System   $data.Sys
         Security = _Score-Security $data.Sec
         Storage  = _Score-Storage  $data.Storage

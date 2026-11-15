@@ -19,6 +19,7 @@ param(
     [switch]$Simulation,
     [switch]$OpenReport
 )
+Set-StrictMode -Version Latest
 if (-not $PSBoundParameters.ContainsKey('Simulation')) { $Simulation = $true }
 if (-not $PSBoundParameters.ContainsKey('OpenReport')) { $OpenReport = $true }
 

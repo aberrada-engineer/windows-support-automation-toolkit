@@ -9,6 +9,7 @@
 param(
     [switch]$OpenBrowser
 )
+Set-StrictMode -Version Latest
 if (-not $PSBoundParameters.ContainsKey('OpenBrowser')) { $OpenBrowser = $true }
 
 $ScriptDir = Split-Path $MyInvocation.PSCommandPath -Parent

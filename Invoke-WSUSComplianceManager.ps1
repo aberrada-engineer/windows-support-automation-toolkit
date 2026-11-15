@@ -16,13 +16,14 @@
     .\Invoke-WSUSComplianceManager.ps1 -ForceSync -OpenReport
 #>
 
-[CmdletBinding()]
+[CmdletBinding(SupportsShouldProcess = $true)]
 param(
     [string]$WsusServerUrl,
     [switch]$ForceSync,
     [switch]$ResetWuCache,
     [switch]$OpenReport
 )
+Set-StrictMode -Version Latest
 
 $ErrorActionPreference = "Continue"
 
@@ -68,7 +69,7 @@ $AuDesc = switch ($AuOptions) {
     default { "Géré localement / Non configuré par GPO" }
 }
 
-$WsusTarget = if ($WsusServerUrl) { $WsusServerUrl } elseif ($ConfiguredWsus) { $ConfiguredWsus } else { "http://wsus.corp.lan:8530" }
+$WsusTarget = if ($WsusServerUrl) { $WsusServerUrl } else { $ConfiguredWsus }
 
 Write-Host "  -> Serveur WSUS configuré : $(if ($ConfiguredWsus) { $ConfiguredWsus } else { 'Aucun (Windows Update direct)' })" -ForegroundColor Gray
 Write-Host "  -> Serveur Status WSUS    : $(if ($ConfiguredStatus) { $ConfiguredStatus } else { 'N/A' }) (UseWUServer=$UseWus)" -ForegroundColor Gray
@@ -77,7 +78,9 @@ Write-Host "  -> Mode AUOptions         : $AuDesc ($AuOptions)" -ForegroundColor
 # 2. Test de connectivité WSUS
 Write-Host "[2/4] Test de connectivité réseau vers le serveur WSUS..." -ForegroundColor White
 $WsusAccessible = $false
-if ($WsusTarget -match "https?://([^:/]+):?(\d+)?") {
+if (-not $WsusTarget) {
+    Write-Host "  -> Aucun serveur WSUS GPO configuré — test port WSUS ignoré (Windows Update direct)." -ForegroundColor DarkGray
+} elseif ($WsusTarget -match "https?://([^:/]+):?(\d+)?") {
     $wsusHost = $Matches[1]
     $wsusPort = if ($Matches[2]) { [int]$Matches[2] } else { 8530 }
     if (Get-Command Test-NetConnection -ErrorAction SilentlyContinue) {
@@ -102,7 +105,8 @@ Write-Host "[3/4] Détection de l'état de redémarrage en attente (Pending Rebo
 $RebootPending = $false
 $CbsReboot = Test-Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending"
 $WuReboot = Test-Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired"
-$PendingFileRename = (Get-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager" -Name "PendingFileRenameOperations" -ErrorAction SilentlyContinue).PendingFileRenameOperations
+$pfrObj = Get-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager" -Name "PendingFileRenameOperations" -ErrorAction SilentlyContinue
+$PendingFileRename = if ($pfrObj -and $pfrObj.PSObject.Properties['PendingFileRenameOperations']) { $pfrObj.PendingFileRenameOperations } else { $null }
 
 if ($CbsReboot -or $WuReboot -or $PendingFileRename) {
     $RebootPending = $true
@@ -112,20 +116,28 @@ if ($CbsReboot -or $WuReboot -or $PendingFileRename) {
 }
 
 # 4. Forçage de la synchronisation / Reset cache si demandé
-if ($ResetWuCache) {
+if ($ResetWuCache -and $PSCmdlet.ShouldProcess("wuauserv / SoftwareDistribution", "Réinitialiser le cache Windows Update")) {
     Write-Host "[*] Réinitialisation du cache Windows Update demandée (-ResetWuCache)..." -ForegroundColor Yellow
     Stop-Service -Name wuauserv, bits -Force -ErrorAction SilentlyContinue
+    $sdDownload = if ($env:SystemRoot) { Join-Path $env:SystemRoot "SoftwareDistribution\Download" } else { "" }
+    if ($sdDownload -and (Test-Path $sdDownload)) {
+        Get-ChildItem -Path $sdDownload -Force -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+        Write-Host "  -> Cache SoftwareDistribution\Download purgé." -ForegroundColor Green
+    }
     Start-Service -Name wuauserv, bits -ErrorAction SilentlyContinue
 }
-if ($ForceSync) {
-    Write-Host "[*] Déclenchement forcé de la synchronisation WSUS (USOClient & wuauclt)..." -ForegroundColor Cyan
-    Start-Process -FilePath "usoclient.exe" -ArgumentList "StartScan" -ErrorAction SilentlyContinue
-    Start-Process -FilePath "wuauclt.exe" -ArgumentList "/detectnow /reportnow" -ErrorAction SilentlyContinue
-    Write-Host "  -> Signal de détection et rapport envoyé au serveur WSUS." -ForegroundColor Green
+if ($ForceSync -and $PSCmdlet.ShouldProcess("UsoClient", "Déclencher scan Windows Update")) {
+    Write-Host "[*] Déclenchement forcé de la synchronisation Windows Update (UsoClient)..." -ForegroundColor Cyan
+    if (Get-Command usoclient.exe -ErrorAction SilentlyContinue) {
+        Start-Process -FilePath "usoclient.exe" -ArgumentList "StartInteractiveScan" -ErrorAction SilentlyContinue
+    }
+    Write-Host "  -> Signal de détection envoyé au client Windows Update." -ForegroundColor Green
 }
 
 # 5. Inventaire des derniers Hotfixes installés
-$Hotfixes = Get-CimInstance -ClassName Win32_QuickFixEngineering -ErrorAction SilentlyContinue | Sort-Object InstalledOn -Descending | Select-Object -First 5
+$Hotfixes = Get-CimInstance -ClassName Win32_QuickFixEngineering -ErrorAction SilentlyContinue |
+    Sort-Object { $dt = $null; if ([datetime]::TryParse([string]$_.InstalledOn, [ref]$dt)) { $dt } else { [datetime]::MinValue } } -Descending |
+    Select-Object -First 5
 $HotfixRows = if ($Hotfixes) {
     (@($Hotfixes) | ForEach-Object {
         $kb   = [System.Net.WebUtility]::HtmlEncode([string]$_.HotFixID)
@@ -137,8 +149,10 @@ $HotfixRows = if ($Hotfixes) {
     "<tr><td colspan='4' style='color:#94a3b8;'>Aucun correctif récent détecté via Win32_QuickFixEngineering</td></tr>"
 }
 
-$compHtml   = [System.Net.WebUtility]::HtmlEncode([string]$env:COMPUTERNAME)
-$wsusHtml   = [System.Net.WebUtility]::HtmlEncode([string]$WsusTarget)
+$hostLabel  = if ($env:COMPUTERNAME) { $env:COMPUTERNAME } else { [System.Environment]::MachineName }
+$compHtml   = [System.Net.WebUtility]::HtmlEncode([string]$hostLabel)
+$wsusLabel  = if ($WsusTarget) { $WsusTarget } else { "Windows Update direct (aucun WSUS GPO)" }
+$wsusHtml   = [System.Net.WebUtility]::HtmlEncode([string]$wsusLabel)
 $auOptHtml  = [System.Net.WebUtility]::HtmlEncode([string]$AuOptions)
 $auDescHtml = [System.Net.WebUtility]::HtmlEncode([string]$AuDesc)
 
