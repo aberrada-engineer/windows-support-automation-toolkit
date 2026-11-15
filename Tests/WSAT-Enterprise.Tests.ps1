@@ -345,8 +345,15 @@ Describe "PS 5.1 Compatibility, Security Hardening & Live Guards" {
                 $declared = @()
                 if ($tAst.ParamBlock) {
                     $declared = @($tAst.ParamBlock.Parameters | ForEach-Object { $_.Name.VariablePath.UserPath })
-                    if ($tAst.ParamBlock.Extent.Text -match 'SupportsShouldProcess\s*=\s*\$true') {
-                        $declared += @('Confirm', 'WhatIf')
+                    foreach ($attr in @($tAst.ParamBlock.Attributes)) {
+                        if ($attr.TypeName.Name -match '^CmdletBinding(Attribute)?$') {
+                            $spArgs = @($attr.NamedArguments | Where-Object {
+                                $_.ArgumentName -eq 'SupportsShouldProcess' -and ($_.ExpressionOmitted -or $_.Argument.Extent.Text -match '\$true')
+                            })
+                            if ($spArgs.Count -gt 0) {
+                                $declared += @('Confirm', 'WhatIf')
+                            }
+                        }
                     }
                 }
 
