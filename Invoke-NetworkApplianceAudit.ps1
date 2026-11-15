@@ -22,7 +22,9 @@ param(
 )
 if (-not $PSBoundParameters.ContainsKey('OpenReport')) { $OpenReport = $true }
 
-Clear-Host
+if ([Environment]::UserInteractive) {
+    try { Clear-Host } catch { Write-Verbose "Clear-Host ignored: $($_.Exception.Message)" }
+}
 Write-Host "================================================================================" -ForegroundColor Cyan
 Write-Host "   🌐  AUDIT APPLIANCES RESEAU, PARE-FEUX & SWITCHES — ESN-TOOLKIT" -ForegroundColor White
 Write-Host "       FortiGate, Stormshield, Aruba CX, Tunnels VPN IPsec — Amine BERRADA" -ForegroundColor Gray
@@ -64,30 +66,60 @@ if ($RemoteVpnIP) {
     Write-Host "`n [*] Contrôle de la liaison VPN IPsec vers le site distant ($RemoteVpnIP)..." -ForegroundColor Yellow
     $vpnPing = if (Get-Command Test-ESNHostPing -ErrorAction SilentlyContinue) { Test-ESNHostPing -ComputerName $RemoteVpnIP -TimeoutMs 1000 } else { Test-Connection -ComputerName $RemoteVpnIP -Count 1 -Quiet -ErrorAction SilentlyContinue }
     
-    # Test port UDP 500 (IKE) via UDP Client
-    $udp500 = try {
-        $u = New-Object System.Net.Sockets.UdpClient
+    # Test port UDP 500 (IKE) avec datagramme et timeout strict
+    $udp500State = "TIMEOUT"
+    $u = $null
+    try {
+        $u = [System.Net.Sockets.UdpClient]::new()
+        $u.Client.ReceiveTimeout = 600
         $u.Connect($RemoteVpnIP, 500)
-        $u.Close()
-        $true
-    } catch { $false }
+        $null = $u.Send([byte[]]@(0), 1)
+        $remoteEp = [System.Net.IPEndPoint]::new([System.Net.IPAddress]::Any, 0)
+        $null = $u.Receive([ref]$remoteEp)
+        $udp500State = "RESPONSE"
+    } catch [System.Net.Sockets.SocketException] {
+        if ($_.Exception.SocketErrorCode -eq [System.Net.Sockets.SocketError]::ConnectionReset) {
+            $udp500State = "CLOSED"
+        }
+    } catch {
+        $udp500State = "TIMEOUT"
+    } finally {
+        if ($null -ne $u) { $u.Close() }
+    }
 
     if ($vpnPing) {
-        Add-NetCheck -Element "Tunnel VPN IPsec ($RemoteVpnIP)" -Value "Actif (UP)" -Status "OK" -Detail "Liaison chiffrée intersites opérationnelle avec trafic fluide."
-    } elseif ($udp500) {
-        Add-NetCheck -Element "Tunnel VPN IPsec ($RemoteVpnIP)" -Value "Phase 1 OK (Trafic bloqué)" -Status "WARN" -Detail "Port UDP 500 ouvert mais pas de réponse ICMP en phase 2 (Sécurité ou routing)."
+        Add-NetCheck -Element "Tunnel VPN IPsec ($RemoteVpnIP)" -Value "Actif (UP)" -Status "OK" -Detail "Liaison chiffrée intersites joignable (ICMP phase 2 OK)."
+    } elseif ($udp500State -eq "RESPONSE") {
+        Add-NetCheck -Element "Tunnel VPN IPsec ($RemoteVpnIP)" -Value "Phase 1 IKE UP (ICMP bloqué)" -Status "WARN" -Detail "Réponse IKE UDP 500 détectée sans réponse ICMP phase 2."
+    } elseif ($udp500State -eq "TIMEOUT") {
+        Add-NetCheck -Element "Tunnel VPN IPsec ($RemoteVpnIP)" -Value "Inconnu / Filtré (ICMP KO)" -Status "WARN" -Detail "Aucune réponse ICMP ni IKE UDP 500 dans le délai (pare-feu probable)."
     } else {
-        Add-NetCheck -Element "Tunnel VPN IPsec ($RemoteVpnIP)" -Value "Inaccessible (DOWN)" -Status "CRITIQUE" -Detail "Le pair VPN distant ne répond pas aux négociations."
+        Add-NetCheck -Element "Tunnel VPN IPsec ($RemoteVpnIP)" -Value "Inaccessible (DOWN)" -Status "CRITIQUE" -Detail "Port UDP 500 fermé (ICMP Unreachable) et hôte injoignable."
     }
 }
 
 # 3. TEST DE FRAGMENTATION ET MTU (MAX TRANSMISSION UNIT)
 Write-Host "`n [*] Test de fragmentation MTU (Détection problèmes MSS Clamping VPN)..." -ForegroundColor Yellow
-$mtuTest = & ping.exe 8.8.8.8 -f -l 1472 -n 1 2>&1 | Out-String
-if ($mtuTest -match "100% loss|fragmented|fragmentation") {
-    Add-NetCheck -Element "Optimisation MTU Réseau" -Value "Fragmentation Détectée" -Status "WARN" -Detail "Trames de 1500 octets fragmentées (Ajustement MSS Clamping conseillé sur le pare-feu)."
+$mtuTarget = if ($GatewayIP) { $GatewayIP } else { "8.8.8.8" }
+$mtuStatus = "UNKNOWN"
+$mtuPinger = [System.Net.NetworkInformation.Ping]::new()
+try {
+    $dfOpts = [System.Net.NetworkInformation.PingOptions]::new(64, $true)
+    $dfBuf  = [byte[]]::new(1472)
+    $mtuReply = $mtuPinger.Send($mtuTarget, 1000, $dfBuf, $dfOpts)
+    $mtuStatus = [string]$mtuReply.Status
+} catch {
+    $mtuStatus = "ERROR"
+} finally {
+    $mtuPinger.Dispose()
+}
+
+if ($mtuStatus -eq "PacketTooBig") {
+    Add-NetCheck -Element "Optimisation MTU Réseau ($mtuTarget)" -Value "Fragmentation Détectée" -Status "WARN" -Detail "Trames de 1500 octets (1472 + 28) trop grandes : ajustement MSS Clamping conseillé."
+} elseif ($mtuStatus -eq "Success") {
+    Add-NetCheck -Element "Optimisation MTU Réseau ($mtuTarget)" -Value "MTU 1500 OK" -Status "OK" -Detail "Aucune fragmentation sur trame 1500 octets (DF-bit validé)."
 } else {
-    Add-NetCheck -Element "Optimisation MTU Réseau" -Value "MTU 1500 OK" -Status "OK" -Detail "Aucune fragmentation anormale sur le lien réseau."
+    Add-NetCheck -Element "Optimisation MTU Réseau ($mtuTarget)" -Value "Non vérifié ($mtuStatus)" -Status "WARN" -Detail "Impossible de valider le MTU vers $mtuTarget (ICMP filtré ou cible injoignable)."
 }
 
 # 4. GESTION DES FICHIERS DE CONFIGURATION
@@ -102,10 +134,14 @@ Add-NetCheck -Element "Archivage Configuration $appLabel" -Value "Dépôt Prêt"
 # 5. GENERATION DU RAPPORT HTML
 $reportDir  = if (Get-Command Get-ESNToolkitRoot -ErrorAction SilentlyContinue) { Get-ESNToolkitRoot -SubFolder "Reports" -Ensure } else { Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/Reports" }
 $reportPath = Join-Path $reportDir "Network-Appliance-Report.html"
-$rows = $netResults | ForEach-Object {
+$rows = ($netResults | ForEach-Object {
     $badge = if ($_.Statut -eq "OK") { "#107c41" } elseif ($_.Statut -eq "WARN") { "#d83b01" } else { "#a80000" }
-    "<tr><td><b>$($_.Composant)</b></td><td>$($_.Mesure)</td><td><span style='background:$badge;color:white;padding:3px 8px;border-radius:4px;font-weight:bold;'>$($_.Statut)</span></td><td>$($_.Observation)</td></tr>"
-} -join "`n"
+    $comp  = [System.Net.WebUtility]::HtmlEncode([string]$_.Composant)
+    $mes   = [System.Net.WebUtility]::HtmlEncode([string]$_.Mesure)
+    $stat  = [System.Net.WebUtility]::HtmlEncode([string]$_.Statut)
+    $obs   = [System.Net.WebUtility]::HtmlEncode([string]$_.Observation)
+    "<tr><td><b>$comp</b></td><td>$mes</td><td><span style='background:$badge;color:white;padding:3px 8px;border-radius:4px;font-weight:bold;'>$stat</span></td><td>$obs</td></tr>"
+}) -join "`n"
 
 $html = @"
 <!DOCTYPE html>

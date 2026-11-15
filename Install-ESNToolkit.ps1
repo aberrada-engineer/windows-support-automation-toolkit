@@ -15,7 +15,9 @@ param(
 )
 if (-not $PSBoundParameters.ContainsKey('CreateDesktopShortcut')) { $CreateDesktopShortcut = $true }
 
-if (-not $Silent) { Clear-Host }
+if (-not $Silent -and [Environment]::UserInteractive) {
+    try { Clear-Host } catch { Write-Verbose "Clear-Host ignored: $($_.Exception.Message)" }
+}
 Write-Host "=================================================================" -ForegroundColor Cyan
 Write-Host "        DEPLOIEMENT D'ESN-TOOLKIT - AMINE BERRADA" -ForegroundColor White
 Write-Host "=================================================================" -ForegroundColor Cyan

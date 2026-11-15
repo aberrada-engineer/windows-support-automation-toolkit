@@ -36,6 +36,7 @@ enum ESNSeverity {
     INFO     = 1
     WARNING  = 2
     CRITICAL = 3
+    SKIP     = 4
 }
 
 # ── Mappage gravité → impact score par défaut ─────────────────
@@ -44,6 +45,7 @@ $script:DefaultImpacts = @{
     INFO     = 0
     WARNING  = 5
     CRITICAL = 15
+    SKIP     = 0
 }
 
 # ── Mappage gravité → couleur HTML ───────────────────────────
@@ -52,6 +54,7 @@ $script:SeverityColors = @{
     INFO     = "#e2f3fd"
     WARNING  = "#fff3cd"
     CRITICAL = "#f8d7da"
+    SKIP     = "#f8f9fa"
 }
 
 $script:SeverityIcons = @{
@@ -59,6 +62,7 @@ $script:SeverityIcons = @{
     INFO     = "&#9432;"    # ℹ
     WARNING  = "&#9888;"    # ⚠
     CRITICAL = "&#10007;"   # ✗
+    SKIP     = "&#9197;"    # ⏭
 }
 
 $script:SeverityTextColors = @{
@@ -66,6 +70,7 @@ $script:SeverityTextColors = @{
     INFO     = "#0c5460"
     WARNING  = "#856404"
     CRITICAL = "#721c24"
+    SKIP     = "#6c757d"
 }
 
 # ── Compteurs d'IDs par domaine ───────────────────────────────
@@ -99,7 +104,7 @@ function New-ESNCheck {
 .PARAMETER Check
     Nom lisible du check (ex: "Adresse IP", "Windows Defender").
 .PARAMETER Severity
-    OK | WARNING | CRITICAL | INFO
+    OK | WARNING | CRITICAL | INFO | SKIP
 .PARAMETER Value
     Valeur mesurée (ex: "192.168.1.42", "95%", "Activé").
 .PARAMETER Detail
@@ -117,7 +122,7 @@ function New-ESNCheck {
     param(
         [Parameter(Mandatory)][string]$Domain,
         [Parameter(Mandatory)][string]$Check,
-        [Parameter(Mandatory)][ValidateSet("OK","WARNING","CRITICAL","INFO")][string]$Severity,
+        [Parameter(Mandatory)][ValidateSet("OK","WARNING","CRITICAL","INFO","SKIP")][string]$Severity,
         [string]  $Value       = "",
         [string]  $Detail      = "",
         [int]     $ScoreImpact = -1,
@@ -158,12 +163,13 @@ function New-ESNDomainResult {
     $score       = $BaseScore
     $criticals   = @($Checks | Where-Object severity -eq "CRITICAL")
     $warnings    = @($Checks | Where-Object severity -eq "WARNING")
-    $totalImpact = ($Checks | Where-Object { $_.severity -in "WARNING","CRITICAL" } |
-                    Measure-Object score_impact -Sum).Sum
+    $impactMeasure = $Checks | Where-Object { $_.severity -in "WARNING","CRITICAL" } |
+                     Measure-Object score_impact -Sum
+    $totalImpact = if ($impactMeasure -and $impactMeasure.PSObject.Properties['Sum'] -and $null -ne $impactMeasure.Sum) { [int]$impactMeasure.Sum } else { 0 }
 
     $score = [Math]::Max(0, [Math]::Min(100, $score - $totalImpact))
 
-    $label = if ($score -ge 80) { "Bon" } elseif ($score -ge 60) { "Dégradé" } elseif ($score -ge 40) { "Mauvais" } else { "Critique" }
+    $label = if ($score -ge 90) { "Excellent" } elseif ($score -ge 80) { "Bon" } elseif ($score -ge 60) { "Dégradé" } elseif ($score -ge 40) { "Mauvais" } else { "Critique" }
 
     $recs = @($Checks | Where-Object { $_.remediation -and $_.severity -in "WARNING","CRITICAL" } |
               Select-Object -ExpandProperty remediation | Select-Object -Unique)
@@ -210,7 +216,7 @@ function Get-ESNToolkitRoot {
         Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit"
     }
     $target = if ([string]::IsNullOrWhiteSpace($SubFolder)) { $base } else { Join-Path $base $SubFolder }
-    if (($Ensure -or -not $PSBoundParameters.ContainsKey('Ensure')) -and -not (Test-Path -Path $target)) {
+    if ($Ensure -and -not (Test-Path -Path $target)) {
         New-Item -Path $target -ItemType Directory -Force | Out-Null
     }
     return $target
@@ -220,7 +226,7 @@ function Get-ESNReportRoot {
     [CmdletBinding()]
     param([string]$SubFolder = "")
     $sub = if ([string]::IsNullOrWhiteSpace($SubFolder)) { "Reports" } else { Join-Path "Reports" $SubFolder }
-    return Get-ESNToolkitRoot -SubFolder $sub
+    return Get-ESNToolkitRoot -SubFolder $sub -Ensure
 }
 
 function Write-ESNSiemAlert {
@@ -278,7 +284,7 @@ function ConvertTo-ESNCheck {
         "WARN"  { "WARNING"  }
         "ERROR" { "CRITICAL" }
         "INFO"  { "INFO"     }
-        "SKIP"  { "INFO"     }
+        "SKIP"  { "SKIP"     }
         default { "INFO"     }
     }
 
@@ -306,13 +312,15 @@ function Export-ESNResultJson {
         [string]$IncidentId   = "EXPORT"
     )
 
+    $avgMeasure  = $DomainResults | Measure-Object score -Average
+    $globalScore = if ($avgMeasure -and $avgMeasure.PSObject.Properties['Average'] -and $null -ne $avgMeasure.Average) { [math]::Round($avgMeasure.Average, 0) } else { 0 }
     $payload = [PSCustomObject]@{
         schema_version = "1.0"
         incident_id    = $IncidentId
         computer       = $ComputerName
         operator       = $env:USERNAME
         generated_at   = (Get-Date -Format "o")
-        global_score   = [math]::Round(($DomainResults | Measure-Object score -Average).Average, 0)
+        global_score   = $globalScore
         domains        = $DomainResults
     }
 

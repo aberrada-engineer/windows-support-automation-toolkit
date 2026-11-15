@@ -15,7 +15,7 @@
     7. Rapport de mise en service HTML
 #>
 
-[CmdletBinding()]
+[CmdletBinding(SupportsShouldProcess = $true)]
 param(
     [string]$Prefix = "CLI-W11",
     [switch]$SkipSoftwareInstall,
@@ -24,7 +24,9 @@ param(
     [switch]$Simulation
 )
 
-Clear-Host
+if ([Environment]::UserInteractive) {
+    try { Clear-Host } catch { Write-Verbose "Clear-Host ignored: $($_.Exception.Message)" }
+}
 Write-Host "================================================================================" -ForegroundColor Cyan
 Write-Host "   🚀  ZERO-TOUCH PROVISIONING — PREPARATION DE POSTE NEUF (ESN-TOOLKIT)" -ForegroundColor White
 Write-Host "       Mise en service industrialisée pour Technicien & Administrateur" -ForegroundColor Gray
@@ -114,19 +116,32 @@ if (-not $SkipSoftwareInstall) {
 # 4. DURCISSEMENT CYBERSÉCURITÉ D'ENTREPRISE
 Write-Host "`n[4/6] Application des règles de durcissement (Hardening)..." -ForegroundColor Yellow
 
-# A. Désactivation de SMBv1
-Set-SmbServerConfiguration -EnableSMB1Protocol $false -Force -ErrorAction SilentlyContinue
-Add-StepResult "Sécurité SMB" "OK" "Protocole obsolète SMBv1 désactivé."
+if ($Simulation) {
+    Write-Host "  [SIMULATION] SMBv1, LLMNR et Pare-feu vérifiés (aucune modification système)." -ForegroundColor DarkYellow
+    Add-StepResult "Sécurité SMB" "SIMULÉ" "Désactivation SMBv1 simulée (mode -Simulation)."
+    Add-StepResult "Sécurité LLMNR" "SIMULÉ" "Désactivation LLMNR simulée (mode -Simulation)."
+    Add-StepResult "Pare-feu Windows" "SIMULÉ" "Activation profils pare-feu simulée (mode -Simulation)."
+} elseif ($PSCmdlet.ShouldProcess($newName, "Durcissement SMBv1, LLMNR et Pare-feu Windows")) {
+    # A. Désactivation de SMBv1
+    if (Get-Command Set-SmbServerConfiguration -ErrorAction SilentlyContinue) {
+        Set-SmbServerConfiguration -EnableSMB1Protocol $false -Force -ErrorAction SilentlyContinue
+    }
+    Add-StepResult "Sécurité SMB" "OK" "Protocole obsolète SMBv1 désactivé."
 
-# B. Désactivation de LLMNR (Prévention des attaques de relais NTLM/Responder)
-$llmnrPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient"
-if (-not (Test-Path $llmnrPath)) { New-Item $llmnrPath -Force | Out-Null }
-Set-ItemProperty -Path $llmnrPath -Name "EnableMulticast" -Value 0 -Force
-Add-StepResult "Sécurité LLMNR" "OK" "LLMNR désactivé (Protection anti-Responder)."
+    # B. Désactivation de LLMNR (Prévention des attaques de relais NTLM/Responder)
+    $llmnrPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient"
+    if (-not (Test-Path $llmnrPath)) { New-Item $llmnrPath -Force | Out-Null }
+    Set-ItemProperty -Path $llmnrPath -Name "EnableMulticast" -Value 0 -Force
+    Add-StepResult "Sécurité LLMNR" "OK" "LLMNR désactivé (Protection anti-Responder)."
 
-# C. Activation de tous les profils de pare-feu
-Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled True -ErrorAction SilentlyContinue
-Add-StepResult "Pare-feu Windows" "OK" "Tous les profils (Domaine, Privé, Public) activés."
+    # C. Activation de tous les profils de pare-feu
+    if (Get-Command Set-NetFirewallProfile -ErrorAction SilentlyContinue) {
+        Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled True -ErrorAction SilentlyContinue
+    }
+    Add-StepResult "Pare-feu Windows" "OK" "Tous les profils (Domaine, Privé, Public) activés."
+} else {
+    Add-StepResult "Durcissement Système" "IGNORES (-WhatIf)" "Modifications annulées par -WhatIf."
+}
 
 # 5. CONFIGURATION SYSTÈME, BITLOCKER, DOMAINE ET ÉNERGIE
 Write-Host "`n[5/6] Configuration des paramètres d'entreprise..." -ForegroundColor Yellow
@@ -150,16 +165,22 @@ $reportDir = if (Get-Command Get-ESNToolkitRoot -ErrorAction SilentlyContinue) {
 if (-not (Test-Path $reportDir)) { New-Item $reportDir -ItemType Directory -Force | Out-Null }
 $reportPath = Join-Path $reportDir "Provisioning-Report-$newName.html"
 
-$htmlRows = $reportSteps | ForEach-Object {
-    "<tr><td><b>$($_.Etape)</b></td><td style='color:green;font-weight:bold;'>$($_.Statut)</td><td>$($_.Detail)</td></tr>"
-} -join "`n"
+$htmlRows = ($reportSteps | ForEach-Object {
+    $etape  = [System.Net.WebUtility]::HtmlEncode([string]$_.Etape)
+    $statut = [System.Net.WebUtility]::HtmlEncode([string]$_.Statut)
+    $detail = [System.Net.WebUtility]::HtmlEncode([string]$_.Detail)
+    "<tr><td><b>$etape</b></td><td style='color:green;font-weight:bold;'>$statut</td><td>$detail</td></tr>"
+}) -join "`n"
+
+$newNameHtml = [System.Net.WebUtility]::HtmlEncode([string]$newName)
+$serialHtml  = [System.Net.WebUtility]::HtmlEncode([string]$serial)
 
 $htmlContent = @"
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset='utf-8'>
-    <title>Rapport de Mise en Service - $newName</title>
+    <title>Rapport de Mise en Service - $newNameHtml</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f4f6f9; color: #333; padding: 25px; }
         .card { background: white; border-radius: 8px; padding: 25px; box-shadow: 0 2px 10px rgba(0,0,0,0.08); max-width: 800px; margin: auto; }
@@ -173,7 +194,7 @@ $htmlContent = @"
 <body>
     <div class='card'>
         <h1>🚀 Rapport de Mise en Service Poste Neuf</h1>
-        <p><b>Nom du poste :</b> $newName | <b>Numéro de série :</b> $serial | <b>Date :</b> $(Get-Date -Format 'dd/MM/yyyy HH:mm')</p>
+        <p><b>Nom du poste :</b> $newNameHtml | <b>Numéro de série :</b> $serialHtml | <b>Date :</b> $(Get-Date -Format 'dd/MM/yyyy HH:mm')</p>
         <span class='badge'>Prêt pour déploiement utilisateur</span>
         <table>
             <thead><tr><th>Étape</th><th>Statut</th><th>Détails</th></tr></thead>

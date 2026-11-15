@@ -19,17 +19,20 @@ param(
     [string]$HypervisorPlatform = "Auto",
     [string]$ClusterEndpoint = "",
     [int]$SnapshotMaxAgeHours = 72,
+    [switch]$Simulate,
     [switch]$OpenReport
 )
 if (-not $PSBoundParameters.ContainsKey('OpenReport')) { $OpenReport = $true }
 
-Clear-Host
+if ([Environment]::UserInteractive) {
+    try { Clear-Host } catch { Write-Verbose "Clear-Host ignored: $($_.Exception.Message)" }
+}
 Write-Host "================================================================================" -ForegroundColor Cyan
 Write-Host "   🖥️  AUDIT HYPERVISEURS & CLUSTERS HA (VMWARE & NUTANIX) — ESN-TOOLKIT" -ForegroundColor White
 Write-Host "       Contrôle Clusters, Datastores & Chasse aux Snapshots — Amine BERRADA" -ForegroundColor Gray
 Write-Host "================================================================================" -ForegroundColor Cyan
 $epInfo = if ($ClusterEndpoint) { " ($ClusterEndpoint)" } else { "" }
-Write-Host "  Plateforme : $HypervisorPlatform$epInfo | Règle Snapshots : Max $SnapshotMaxAgeHours heures`n" -ForegroundColor Yellow
+Write-Host "  Plateforme : $HypervisorPlatform$epInfo | Règle Snapshots : Max $SnapshotMaxAgeHours heures | Simulate : $Simulate`n" -ForegroundColor Yellow
 
 $virtResults = [System.Collections.Generic.List[PSCustomObject]]::new()
 
@@ -47,28 +50,65 @@ function Add-VirtCheck {
 
 # 1. CHASSE AUX SNAPSHOTS ORPHELINS (SNAPSHOT HUNTER)
 Write-Host "[1/4] Chasse aux snapshots orphelins (Impact performance I/O et verrouillage)..." -ForegroundColor Yellow
-# En production VMware, équivalent Get-VM | Get-Snapshot
-# Ici, simulation d'audit et détection
-Add-VirtCheck -Element "Audit Snapshots VM" -Value "0 snapshot orphelin" -Status "OPTIMAL" -Detail "Aucun snapshot antérieur à $SnapshotMaxAgeHours heures détecté (Performances I/O nominales)."
+$hyperVCmd = Get-Command Get-VM -Module Hyper-V -ErrorAction SilentlyContinue
+if ($Simulate) {
+    Add-VirtCheck -Element "Audit Snapshots VM" -Value "0 snapshot orphelin (Simulé)" -Status "OPTIMAL" -Detail "[SIMULATION] Aucun snapshot antérieur à $SnapshotMaxAgeHours heures."
+} elseif ($hyperVCmd -and ($HypervisorPlatform -in @("Hyper-V", "Auto"))) {
+    try {
+        $cutoff = (Get-Date).AddHours(-$SnapshotMaxAgeHours)
+        $oldSnaps = @(Get-VM -ErrorAction Stop | Get-VMSnapshot -ErrorAction SilentlyContinue | Where-Object { $_.CreationTime -lt $cutoff })
+        if ($oldSnaps.Count -gt 0) {
+            Add-VirtCheck -Element "Audit Snapshots Hyper-V" -Value "$($oldSnaps.Count) snapshot(s) ancien(s)" -Status "ATTENTION" -Detail "Snapshots antérieurs à $SnapshotMaxAgeHours h détectés : purge recommandée."
+        } else {
+            Add-VirtCheck -Element "Audit Snapshots Hyper-V" -Value "0 snapshot orphelin" -Status "OPTIMAL" -Detail "Aucun snapshot Hyper-V antérieur à $SnapshotMaxAgeHours heures."
+        }
+    } catch {
+        Add-VirtCheck -Element "Audit Snapshots Hyper-V" -Value "Non vérifié" -Status "ATTENTION" -Detail "Erreur requête Hyper-V : $($_.Exception.Message)"
+    }
+} else {
+    Add-VirtCheck -Element "Audit Snapshots ($HypervisorPlatform)" -Value "Non vérifié" -Status "ATTENTION" -Detail "Module hyperviseur ($HypervisorPlatform) absent ou non connecté (passer -Simulate pour démo)."
+}
 
 # 2. SATURATION DES DATASTORES & POOLS NUTANIX
 Write-Host "`n[2/4] Audit de capacité des Datastores et Containers de stockage..." -ForegroundColor Yellow
-$drives = Get-CimInstance Win32_LogicalDisk -Filter "DriveType=3"
+$drives = @(Get-CimInstance Win32_LogicalDisk -Filter "DriveType=3" -ErrorAction SilentlyContinue | Where-Object { $_.Size -gt 0 })
 foreach ($d in $drives) {
     $usedPct = [math]::Round((($d.Size - $d.FreeSpace) / $d.Size) * 100, 1)
     $freeGB  = [math]::Round($d.FreeSpace / 1GB, 1)
     $stat = if ($usedPct -gt 85) { "ATTENTION" } else { "OPTIMAL" }
-    Add-VirtCheck -Element "Datastore / Volume $($d.DeviceID)" -Value "$usedPct% utilisé ($freeGB Go libres)" -Status $stat -Detail "Capacité de stockage sous surveillance (Seuil critique 85%)."
+    Add-VirtCheck -Element "Volume local $($d.DeviceID)" -Value "$usedPct% utilisé ($freeGB Go libres)" -Status $stat -Detail "Capacité disque local mesurée (Seuil critique 85%)."
 }
 
 # 3. SURALLOCATION CPU ET RAM (OVERCOMMIT)
 Write-Host "`n[3/4] Analyse des ratios de consolidation (vCPU/pCPU & vRAM)..." -ForegroundColor Yellow
-Add-VirtCheck -Element "Ratio vCPU : pCPU" -Value "2.8 : 1" -Status "OPTIMAL" -Detail "Ratio sain pour charges de production (< 3:1 recommandé pour serveurs SQL/Web)."
-Add-VirtCheck -Element "Surallocation Mémoire (RAM)" -Value "100% alloué sans swap" -Status "OPTIMAL" -Detail "Aucun paging ou ballooning mémoire détecté sur les hyperviseurs."
+if ($Simulate) {
+    Add-VirtCheck -Element "Ratio vCPU : pCPU" -Value "2.8 : 1 (Simulé)" -Status "OPTIMAL" -Detail "[SIMULATION] Ratio nominal pour charges de production (< 3:1)."
+    Add-VirtCheck -Element "Surallocation Mémoire (RAM)" -Value "100% alloué sans swap (Simulé)" -Status "OPTIMAL" -Detail "[SIMULATION] Aucun ballooning mémoire simulé."
+} else {
+    $osMem = Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue
+    if ($osMem -and $osMem.TotalVisibleMemorySize -gt 0) {
+        $ramUsedPct = [math]::Round((($osMem.TotalVisibleMemorySize - $osMem.FreePhysicalMemory) / $osMem.TotalVisibleMemorySize) * 100, 1)
+        $ramStat = if ($ramUsedPct -gt 90) { "ATTENTION" } else { "OPTIMAL" }
+        Add-VirtCheck -Element "Mémoire Hôte Local" -Value "$ramUsedPct% utilisée" -Status $ramStat -Detail "Consommation RAM physique hôte mesurée (ratios cluster vCPU/pCPU non interrogés sans PowerCLI/Prism)."
+    } else {
+        Add-VirtCheck -Element "Ratios Cluster Overcommit" -Value "Non vérifié" -Status "ATTENTION" -Detail "Connexion PowerCLI / Prism Central requise pour mesurer les ratios cluster."
+    }
+}
 
 # 4. HAUTE DISPONIBILITE CLUSTER (HA / DRS / NUTANIX RF2)
 Write-Host "`n[4/4] Contrôle de la redondance et tolérance de panne..." -ForegroundColor Yellow
-Add-VirtCheck -Element "Haute Disponibilité (HA / RF2)" -Value "Active (Tolérance 1 nœud)" -Status "OPTIMAL" -Detail "Cluster capable d'absorber la perte d'un nœud physique sans coupure de service."
+if ($Simulate) {
+    Add-VirtCheck -Element "Haute Disponibilité (HA / RF2)" -Value "Active (Tolérance 1 nœud - Simulé)" -Status "OPTIMAL" -Detail "[SIMULATION] Cluster configuré pour tolérer la perte d'un nœud."
+} elseif (Get-Command Get-Cluster -ErrorAction SilentlyContinue) {
+    try {
+        $failoverCluster = Get-Cluster -ErrorAction Stop
+        Add-VirtCheck -Element "Cluster Failover ($($failoverCluster.Name))" -Value "Détecté" -Status "OPTIMAL" -Detail "Cluster Windows Failover détecté sur cet hôte."
+    } catch {
+        Add-VirtCheck -Element "Haute Disponibilité Cluster" -Value "Non vérifié" -Status "ATTENTION" -Detail "Aucun cluster HA/RF2 actif interrogé sur cet hôte."
+    }
+} else {
+    Add-VirtCheck -Element "Haute Disponibilité (HA / RF2)" -Value "Non vérifié" -Status "ATTENTION" -Detail "API Hyperviseur / FailoverCluster absente localement (non certifiable hors ligne)."
+}
 
 # 5. RAPPORT HTML
 Import-Module "$PSScriptRoot\Core\ESN-Core.psm1" -ErrorAction SilentlyContinue
@@ -76,10 +116,14 @@ $reportDir  = if (Get-Command Get-ESNToolkitRoot -ErrorAction SilentlyContinue) 
 $reportPath = Join-Path $reportDir "Hypervisor-Health-Report.html"
 if (-not (Test-Path $reportDir)) { New-Item $reportDir -ItemType Directory -Force | Out-Null }
 
-$rows = $virtResults | ForEach-Object {
+$rows = ($virtResults | ForEach-Object {
     $badge = if ($_.Statut -eq "OPTIMAL") { "#107c41" } elseif ($_.Statut -eq "ATTENTION") { "#d83b01" } else { "#a80000" }
-    "<tr><td><b>$($_.Composant)</b></td><td>$($_.Valeur)</td><td><span style='background:$badge;color:white;padding:3px 8px;border-radius:4px;font-weight:bold;'>$($_.Statut)</span></td><td>$($_.Observation)</td></tr>"
-} -join "`n"
+    $comp  = [System.Net.WebUtility]::HtmlEncode([string]$_.Composant)
+    $val   = [System.Net.WebUtility]::HtmlEncode([string]$_.Valeur)
+    $stat  = [System.Net.WebUtility]::HtmlEncode([string]$_.Statut)
+    $obs   = [System.Net.WebUtility]::HtmlEncode([string]$_.Observation)
+    "<tr><td><b>$comp</b></td><td>$val</td><td><span style='background:$badge;color:white;padding:3px 8px;border-radius:4px;font-weight:bold;'>$stat</span></td><td>$obs</td></tr>"
+}) -join "`n"
 
 $html = @"
 <!DOCTYPE html>

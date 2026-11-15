@@ -44,7 +44,7 @@ try {
     Write-Host "[*] Objectifs SLA      : RTO < ${MaxRtoHours}h | RPO < ${MaxRpoMinutes}min" -ForegroundColor Gray
     Write-Host ""
 
-    $ReportDir = if (-not [string]::IsNullOrWhiteSpace($OutputPath)) { $OutputPath } elseif (Get-Command Get-ESNReportRoot -ErrorAction SilentlyContinue) { Get-ESNReportRoot -SubFolder "DRP" } else { "$env:SystemDrive\ESN-Reports\DRP" }
+    $ReportDir = if (-not [string]::IsNullOrWhiteSpace($OutputPath)) { $OutputPath } elseif (Get-Command Get-ESNReportRoot -ErrorAction SilentlyContinue) { Get-ESNReportRoot -SubFolder "DRP" } else { Join-Path ([System.IO.Path]::GetTempPath()) (Join-Path "ESN-Toolkit" (Join-Path "Reports" "DRP")) }
     if (-not (Test-Path $ReportDir)) { New-Item -ItemType Directory -Path $ReportDir -Force | Out-Null }
     $Timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
     $HtmlReport = Join-Path $ReportDir "Dossier-PRA-Officiel-$Timestamp.html"

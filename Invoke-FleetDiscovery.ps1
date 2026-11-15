@@ -23,7 +23,9 @@ param(
 )
 if (-not $PSBoundParameters.ContainsKey('OpenReport')) { $OpenReport = $true }
 
-Clear-Host
+if ([Environment]::UserInteractive) {
+    try { Clear-Host } catch { Write-Verbose "Clear-Host ignored: $($_.Exception.Message)" }
+}
 Write-Host "================================================================================" -ForegroundColor Cyan
 Write-Host "   🌐  CARTOGRAPHIE RESEAU & AUDIT DU PARC (FLEET DISCOVERY) — ESN-TOOLKIT" -ForegroundColor White
 Write-Host "       Supervision et inventaire automatique des équipements du réseau" -ForegroundColor Gray

@@ -18,7 +18,9 @@ param(
 )
 if (-not $PSBoundParameters.ContainsKey('OpenReport')) { $OpenReport = $true }
 
-Clear-Host
+if ([Environment]::UserInteractive) {
+    try { Clear-Host } catch { Write-Verbose "Clear-Host ignored: $($_.Exception.Message)" }
+}
 Write-Host "================================================================================" -ForegroundColor Cyan
 Write-Host "   ☁️  AUDIT CLOUD HYBRIDE, MICROSOFT ENTRA ID & INTUNE — ESN-TOOLKIT" -ForegroundColor White
 Write-Host "       Contrôle Azure AD Connect, Intune MDM & Defender MDE — Amine BERRADA" -ForegroundColor Gray
@@ -104,10 +106,14 @@ foreach ($ep in $endpoints) {
 Import-Module "$PSScriptRoot\Core\ESN-Core.psm1" -ErrorAction SilentlyContinue
 $reportDir  = if (Get-Command Get-ESNToolkitRoot -ErrorAction SilentlyContinue) { Get-ESNToolkitRoot -SubFolder "Reports" -Ensure } else { Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/Reports" }
 $reportPath = Join-Path $reportDir "Cloud-Hybrid-Report-$($env:COMPUTERNAME).html"
-$rows = $cloudResults | ForEach-Object {
+$rows = ($cloudResults | ForEach-Object {
     $badge = if ($_.Statut -eq "CONFORME") { "#107c41" } elseif ($_.Statut -eq "WARN") { "#d83b01" } elseif ($_.Statut -eq "CRITIQUE") { "#a80000" } else { "#0078d4" }
-    "<tr><td><b>$($_.Composant)</b></td><td>$($_.Valeur)</td><td><span style='background:$badge;color:white;padding:3px 8px;border-radius:4px;font-weight:bold;'>$($_.Statut)</span></td><td>$($_.Observation)</td></tr>"
-} -join "`n"
+    $comp = [System.Net.WebUtility]::HtmlEncode([string]$_.Composant)
+    $val  = [System.Net.WebUtility]::HtmlEncode([string]$_.Valeur)
+    $stat = [System.Net.WebUtility]::HtmlEncode([string]$_.Statut)
+    $obs  = [System.Net.WebUtility]::HtmlEncode([string]$_.Observation)
+    "<tr><td><b>$comp</b></td><td>$val</td><td><span style='background:$badge;color:white;padding:3px 8px;border-radius:4px;font-weight:bold;'>$stat</span></td><td>$obs</td></tr>"
+}) -join "`n"
 
 $html = @"
 <!DOCTYPE html>

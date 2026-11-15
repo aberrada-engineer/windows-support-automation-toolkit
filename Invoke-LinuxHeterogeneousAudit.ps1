@@ -47,7 +47,7 @@ Write-Host ""
 $ReportDir = if (Get-Command Get-ESNReportRoot -ErrorAction SilentlyContinue) {
     Get-ESNReportRoot -SubFolder "Linux-Audit"
 } else {
-    $fallbackDir = "$env:SystemDrive\ESN-Reports\Linux-Audit"
+    $fallbackDir = Join-Path ([System.IO.Path]::GetTempPath()) (Join-Path "ESN-Toolkit" (Join-Path "Reports" "Linux-Audit"))
     if (-not (Test-Path $fallbackDir)) { New-Item -ItemType Directory -Path $fallbackDir -Force | Out-Null }
     $fallbackDir
 }

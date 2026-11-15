@@ -369,7 +369,7 @@ if ($hasOutputSchema) {
                 default{ "INFO"     }
             }
             [PSCustomObject]@{
-                id           = "$(($_.Category -replace ' ','') -replace '[^A-Z0-9]','' | Select-Object -First 3)-$(Get-Random -Max 999)"
+                id           = "$(($_.Category -replace ' ','') -replace '[^A-Z0-9]','' -replace '^(.{1,3}).*$','$1')-$(Get-Random -Max 999)"
                 domain       = ($_.Category -replace ' .*', '')
                 check        = $_.Check
                 severity     = $sev

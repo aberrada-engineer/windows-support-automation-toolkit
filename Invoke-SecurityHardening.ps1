@@ -23,7 +23,9 @@ param(
 )
 if (-not $PSBoundParameters.ContainsKey('OpenReport')) { $OpenReport = $true }
 
-Clear-Host
+if ([Environment]::UserInteractive) {
+    try { Clear-Host } catch { Write-Verbose "Clear-Host ignored: $($_.Exception.Message)" }
+}
 Write-Host "================================================================================" -ForegroundColor Red
 Write-Host "   🛡️  AUDIT DE DURCISSEMENT & CYBERSECURITE (ANSSI / CIS) — ESN-TOOLKIT" -ForegroundColor White
 Write-Host "       Contrôle de conformité et remédiation de surface d'attaque" -ForegroundColor Gray
@@ -157,10 +159,15 @@ Write-Host "====================================================================
 Import-Module "$PSScriptRoot\Core\ESN-Core.psm1" -ErrorAction SilentlyContinue
 $reportDir  = if (Get-Command Get-ESNToolkitRoot -ErrorAction SilentlyContinue) { Get-ESNToolkitRoot -SubFolder "Reports" -Ensure } else { Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/Reports" }
 $reportPath = Join-Path $reportDir "Security-Hardening-$env:COMPUTERNAME.html"
-$rows = $auditResults | ForEach-Object {
+$rows = ($auditResults | ForEach-Object {
     $badgeCol = if ($_.Statut -eq "CONFORME") { "#107c41" } elseif ($_.Statut -eq "CORRIGE") { "#ff8c00" } else { "#d83b01" }
-    "<tr><td><b>$($_.Regle)</b></td><td><span style='background:$badgeCol;color:white;padding:3px 8px;border-radius:10px;font-weight:bold;'>$($_.Statut)</span></td><td>$($_.Poids) pts</td><td>$($_.Description)</td><td>$($_.Action)</td></tr>"
-} -join "`n"
+    $regle = [System.Net.WebUtility]::HtmlEncode([string]$_.Regle)
+    $stat  = [System.Net.WebUtility]::HtmlEncode([string]$_.Statut)
+    $poids = [System.Net.WebUtility]::HtmlEncode([string]$_.Poids)
+    $desc  = [System.Net.WebUtility]::HtmlEncode([string]$_.Description)
+    $act   = [System.Net.WebUtility]::HtmlEncode([string]$_.Action)
+    "<tr><td><b>$regle</b></td><td><span style='background:$badgeCol;color:white;padding:3px 8px;border-radius:10px;font-weight:bold;'>$stat</span></td><td>$poids pts</td><td>$desc</td><td>$act</td></tr>"
+}) -join "`n"
 
 $html = @"
 <!DOCTYPE html>

@@ -39,7 +39,7 @@ try {
     Write-Host "[*] Session active: $userLabel" -ForegroundColor Gray
     Write-Host ""
 
-    $ReportDir = if (-not [string]::IsNullOrWhiteSpace($OutputPath)) { $OutputPath } elseif (Get-Command Get-ESNReportRoot -ErrorAction SilentlyContinue) { Get-ESNReportRoot -SubFolder "ZeroTrust" } else { "$env:SystemDrive\ESN-Reports\ZeroTrust" }
+    $ReportDir = if (-not [string]::IsNullOrWhiteSpace($OutputPath)) { $OutputPath } elseif (Get-Command Get-ESNReportRoot -ErrorAction SilentlyContinue) { Get-ESNReportRoot -SubFolder "ZeroTrust" } else { Join-Path ([System.IO.Path]::GetTempPath()) (Join-Path "ESN-Toolkit" (Join-Path "Reports" "ZeroTrust")) }
     if (-not (Test-Path $ReportDir)) { New-Item -ItemType Directory -Path $ReportDir -Force | Out-Null }
     $Timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
     $HtmlReport = Join-Path $ReportDir "ZeroTrust-Posture-$Timestamp.html"

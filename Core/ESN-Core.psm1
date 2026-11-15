@@ -31,7 +31,7 @@ function Get-ESNToolkitRoot {
 }
 
 $script:ESNConfig = @{
-    Version      = "3.9.0"
+    Version      = "4.0.0"
     LogRoot      = Get-ESNToolkitRoot -SubFolder "Logs"
     ReportRoot   = Get-ESNToolkitRoot -SubFolder "Reports"
     ZipRoot      = Get-ESNToolkitRoot -SubFolder "ZipIncidents"
@@ -217,16 +217,17 @@ function Export-ESNReport {
             "OK"    { "✅" } "WARN" { "⚠️" } "ERROR" { "❌" }
             "INFO"  { "ℹ️" } default { "⏭️" }
         }
-        $eTime = [System.Net.WebUtility]::HtmlEncode([string]$_.Time)
-        $eCat  = [System.Net.WebUtility]::HtmlEncode([string]$_.Category)
-        $eChk  = [System.Net.WebUtility]::HtmlEncode([string]$_.Check)
-        $eVal  = [System.Net.WebUtility]::HtmlEncode([string]$_.Value)
-        $eDet  = [System.Net.WebUtility]::HtmlEncode([string]$_.Details)
+        $eTime   = [System.Net.WebUtility]::HtmlEncode([string]$_.Time)
+        $eCat    = [System.Net.WebUtility]::HtmlEncode([string]$_.Category)
+        $eChk    = [System.Net.WebUtility]::HtmlEncode([string]$_.Check)
+        $eStatus = [System.Net.WebUtility]::HtmlEncode([string]$_.Status)
+        $eVal    = [System.Net.WebUtility]::HtmlEncode([string]$_.Value)
+        $eDet    = [System.Net.WebUtility]::HtmlEncode([string]$_.Details)
         "<tr style='background:$bg'>
           <td>$eTime</td>
           <td><strong>$eCat</strong></td>
           <td>$eChk</td>
-          <td>$icon&nbsp;<strong>$($_.Status)</strong></td>
+          <td>$icon&nbsp;<strong>$eStatus</strong></td>
           <td>$eVal</td>
           <td style='color:#555;font-size:.85em'>$eDet</td>
         </tr>"
@@ -243,13 +244,22 @@ function Export-ESNReport {
         (($script:Session.Warnings | ForEach-Object { "<li>$([System.Net.WebUtility]::HtmlEncode([string]$_))</li>" }) -join "") + "</ul></div>"
     } else { "" }
 
+    $eTitle   = [System.Net.WebUtility]::HtmlEncode([string]$Title)
+    $eSessId  = [System.Net.WebUtility]::HtmlEncode([string]$script:Session.Id)
+    $eScript  = [System.Net.WebUtility]::HtmlEncode([string]$script:Session.ScriptName)
+    $eOp      = [System.Net.WebUtility]::HtmlEncode([string]$env:USERNAME)
+    $eHost    = [System.Net.WebUtility]::HtmlEncode([string]$env:COMPUTERNAME)
+    $eDur     = [System.Net.WebUtility]::HtmlEncode([string]$duration)
+    $eLogFile = [System.Net.WebUtility]::HtmlEncode([string]$script:Session.LogFile)
+    $eOutPath = [System.Net.WebUtility]::HtmlEncode([string]$OutputPath)
+
     $html = @"
 <!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>$Title</title>
+  <title>$eTitle</title>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:'Segoe UI',Arial,sans-serif;background:#f4f6f9;color:#333;font-size:14px}
@@ -291,12 +301,12 @@ function Export-ESNReport {
 <body>
 
 <div class="header">
-  <h1>🖥️ $Title</h1>
+  <h1>🖥️ $eTitle</h1>
   <p>
-    Incident&nbsp;<strong>$($script:Session.Id)</strong>&nbsp;|&nbsp;
-    Opérateur&nbsp;<strong>$env:USERNAME</strong>&nbsp;|&nbsp;
+    Incident&nbsp;<strong>$eSessId</strong>&nbsp;|&nbsp;
+    Opérateur&nbsp;<strong>$eOp</strong>&nbsp;|&nbsp;
     $(Get-Date -Format 'dd/MM/yyyy HH:mm')&nbsp;|&nbsp;
-    Durée&nbsp;<strong>$duration</strong>
+    Durée&nbsp;<strong>$eDur</strong>
   </p>
 </div>
 
@@ -315,21 +325,21 @@ function Export-ESNReport {
     <div class="card"><div class="val" style="color:#ffc107">$cntWARN</div><div class="lbl">Avertissements</div></div>
     <div class="card"><div class="val" style="color:#dc3545">$cntERR</div><div class="lbl">Erreurs</div></div>
     <div class="card"><div class="val">$cntTOT</div><div class="lbl">Total checks</div></div>
-    <div class="card"><div class="val" style="font-size:1.4em">$duration</div><div class="lbl">Durée</div></div>
+    <div class="card"><div class="val" style="font-size:1.4em">$eDur</div><div class="lbl">Durée</div></div>
   </div>
 
   <!-- Métadonnées -->
   <div class="section">
     <h2>📋 Informations de session</h2>
     <div class="meta">
-      <div class="meta-item"><div class="key">ID Incident</div><div class="val2">$($script:Session.Id)</div></div>
-      <div class="meta-item"><div class="key">Script</div><div class="val2">$($script:Session.ScriptName)</div></div>
-      <div class="meta-item"><div class="key">Opérateur</div><div class="val2">$env:USERNAME</div></div>
-      <div class="meta-item"><div class="key">Poste opérateur</div><div class="val2">$env:COMPUTERNAME</div></div>
+      <div class="meta-item"><div class="key">ID Incident</div><div class="val2">$eSessId</div></div>
+      <div class="meta-item"><div class="key">Script</div><div class="val2">$eScript</div></div>
+      <div class="meta-item"><div class="key">Opérateur</div><div class="val2">$eOp</div></div>
+      <div class="meta-item"><div class="key">Poste opérateur</div><div class="val2">$eHost</div></div>
       <div class="meta-item"><div class="key">Démarrage</div><div class="val2">$(Get-Date $script:Session.StartTime -Format 'dd/MM/yyyy HH:mm:ss')</div></div>
       <div class="meta-item"><div class="key">Fin</div><div class="val2">$(Get-Date -Format 'dd/MM/yyyy HH:mm:ss')</div></div>
-      <div class="meta-item"><div class="key">Log</div><div class="val2" style="font-size:.8em;word-break:break-all">$($script:Session.LogFile)</div></div>
-      <div class="meta-item"><div class="key">Rapport</div><div class="val2" style="font-size:.8em;word-break:break-all">$OutputPath</div></div>
+      <div class="meta-item"><div class="key">Log</div><div class="val2" style="font-size:.8em;word-break:break-all">$eLogFile</div></div>
+      <div class="meta-item"><div class="key">Rapport</div><div class="val2" style="font-size:.8em;word-break:break-all">$eOutPath</div></div>
     </div>
   </div>
 

@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Invoke-IncidentLabSimulator.ps1 v3.9 - Simulateur d'Incidents & Chaos Engineering (AIOps / Netflix Chaos Monkey Windows).
+    Invoke-IncidentLabSimulator.ps1 v4.0 - Simulateur d'Incidents & Chaos Engineering (AIOps / Netflix Chaos Monkey Windows).
 
 .DESCRIPTION
     Permet d'injecter de manière contrôlée et réversible des anomalies critiques en laboratoire ou lors de
@@ -75,7 +75,7 @@ try {
     $selfHealVerified = $false
 
     Write-Host "==========================================================================" -ForegroundColor Cyan
-    Write-Host "   ESN-TOOLKIT CHAOS ENGINEERING & INCIDENT SIMULATOR v3.9                " -ForegroundColor Cyan
+    Write-Host "   ESN-TOOLKIT CHAOS ENGINEERING & INCIDENT SIMULATOR v4.0                " -ForegroundColor Cyan
     Write-Host "==========================================================================" -ForegroundColor Cyan
     Write-Host "[*] Scénario : $Scenario | Hôte : $hostLabel | Simulate : $Simulate" -ForegroundColor Yellow
 

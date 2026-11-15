@@ -1,7 +1,7 @@
 ﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
-    Invoke-RansomwareShield v3.9 - Procédure d'Isolement d'Urgence Cyber & KillSwitch.
+    Invoke-RansomwareShield v4.0 - Procédure d'Isolement d'Urgence Cyber & KillSwitch.
     Neutralise la propagation d'une attaque en quelques secondes et préserve les preuves.
 
 .DESCRIPTION
@@ -59,8 +59,11 @@ try {
     if ($IsolateHost -and $PSCmdlet.ShouldProcess($hostLabel, "Activation du KillSwitch pare-feu entrant/sortant")) {
         Write-Host "[1/3] ACTIVATION DU KILLSWITCH RESEAU..." -ForegroundColor Red
         if (-not $Simulate -and (Get-Command New-NetFirewallRule -ErrorAction SilentlyContinue)) {
-            New-NetFirewallRule -DisplayName "ESN-Emergency-Isolation" -Direction Inbound -Action Block -Profile Any -Enabled True -Force -ErrorAction SilentlyContinue | Out-Null
-            New-NetFirewallRule -DisplayName "ESN-Emergency-Isolation" -Direction Outbound -Action Block -Profile Any -Enabled True -Force -ErrorAction SilentlyContinue | Out-Null
+            if (Get-Command Get-NetFirewallRule -ErrorAction SilentlyContinue) {
+                Get-NetFirewallRule -DisplayName "ESN-Emergency-Isolation" -ErrorAction SilentlyContinue | Remove-NetFirewallRule -ErrorAction SilentlyContinue
+            }
+            New-NetFirewallRule -DisplayName "ESN-Emergency-Isolation" -Direction Inbound -Action Block -Profile Any -Enabled True -ErrorAction Stop | Out-Null
+            New-NetFirewallRule -DisplayName "ESN-Emergency-Isolation" -Direction Outbound -Action Block -Profile Any -Enabled True -ErrorAction Stop | Out-Null
             Get-NetAdapter | Where-Object { $_.PhysicalMediaType -eq "Native 802.11" } | Disable-NetAdapter -Confirm:$false -ErrorAction SilentlyContinue
         }
         if (Get-Command Write-ESNSiemAlert -ErrorAction SilentlyContinue) {

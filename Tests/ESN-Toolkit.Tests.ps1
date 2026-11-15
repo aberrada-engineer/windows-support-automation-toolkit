@@ -377,7 +377,90 @@ Describe "Invoke-IncidentAnalysis — Intégration" -Tag "Integration" {
     }
 }
 
+# ═══════════════════════════════════════════════════════
+# RÉGRESSION MIGRATION, INFRA & M365
+# ═══════════════════════════════════════════════════════
+
+Describe "ESN-Migration, Infra & M365 — Régression v4.0" -Tag "Integration" {
+
+    It "Invoke-UserStateCapture expose -IncludeSensitiveSecrets et Restore restaure Navigateurs/Favoris-IE + encode XSS" {
+        (Get-Command Invoke-UserStateCapture).Parameters.ContainsKey('IncludeSensitiveSecrets') | Should -Be $true
+        Initialize-ESNSession -ScriptName "test.ps1" -IncidentId "TEST-MIG-V4"
+        $tmpRoot = Join-Path ([System.IO.Path]::GetTempPath()) "ESN_Test_MigV4_$(Get-Random)"
+        try {
+            $dir = Invoke-UserStateCapture `
+                -SourceComputer $env:COMPUTERNAME `
+                -Username       $env:USERNAME `
+                -BackupRoot     $tmpRoot `
+                -Simulation
+
+            # Prépare un backup Navigateurs (Chrome/Edge/Firefox) + Favoris-IE (fichier unique) + anomalie XSS
+            $chromeDir = Join-Path $dir "Navigateurs\Chrome"
+            $edgeDir   = Join-Path $dir "Navigateurs\Edge"
+            $ffDir     = Join-Path $dir "Navigateurs\Firefox"
+            $favDir    = Join-Path $dir "Favoris-IE"
+            New-Item $chromeDir, $edgeDir, $ffDir, $favDir -ItemType Directory -Force | Out-Null
+            Set-Content (Join-Path $chromeDir "Bookmarks") "{}" -Encoding UTF8
+            Set-Content (Join-Path $edgeDir "Bookmarks") "{}" -Encoding UTF8
+            Set-Content (Join-Path $ffDir "places.sqlite") "sqlite" -Encoding UTF8
+            Set-Content (Join-Path $favDir "intranet.url") "[InternetShortcut]" -Encoding UTF8
+
+            $mfPath = Join-Path $dir "manifest.json"
+            $mfObj = Get-Content $mfPath -Raw | ConvertFrom-Json
+            $mfObj.Modules.Browsers = [PSCustomObject]@{ Requested = $true; Chrome = $true; Edge = $true; Firefox = $true }
+            $mfObj.Anomalies = @("<script>alert(9)</script>")
+            $mfObj | ConvertTo-Json -Depth 10 | Out-File $mfPath -Encoding UTF8 -Force
+
+            $restored = Invoke-UserStateRestore `
+                -BackupDir      $dir `
+                -TargetComputer $env:COMPUTERNAME `
+                -Username       $env:USERNAME `
+                -Simulation
+
+            $restored.ValidationResults.BrowsersOK | Should -Be $true
+            $restored.ValidationResults.DataCopied | Should -Be $true
+            Test-Path $restored.ReportPath | Should -Be $true
+            $rawHtml = Get-Content $restored.ReportPath -Raw
+            $rawHtml | Should -Not -Match "<script>alert\(9\)</script>"
+            $rawHtml | Should -Match "&lt;script&gt;alert\(9\)&lt;/script&gt;"
+        } finally {
+            Remove-Item $tmpRoot -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    It "ESN-Infra Test-ESNVeeamStatus gère l'absence de Veeam et un service unique mocké" {
+        $infraMod = Join-Path (Split-Path $PSScriptRoot -Parent) "Modules/Infra/ESN-Infra.psm1"
+        Import-Module $infraMod -Force
+        InModuleScope ESN-Infra {
+            Mock Get-Service { $null }
+            $rNone = Test-ESNVeeamStatus
+            $rNone.VeeamInstalled | Should -Be $false
+            $rNone.Status         | Should -Be "Not Applicable"
+
+            Mock Get-Service { [PSCustomObject]@{ Name = "VeeamBackupSvc"; Status = "Running" } }
+            Mock Get-WinEvent { @() }
+            $rOne = Test-ESNVeeamStatus
+            $rOne.VeeamInstalled  | Should -Be $true
+            $rOne.ServicesRunning | Should -Be $true
+            $rOne.RecentErrors24h | Should -Be 0
+        }
+    }
+
+    It "ESN-M365 Test-GraphAvailable et Invoke-M365Audit dégradent proprement sans Microsoft.Graph" {
+        $m365Mod = Join-Path (Split-Path $PSScriptRoot -Parent) "Modules/M365/ESN-M365.psm1"
+        Import-Module $m365Mod -Force
+        Initialize-ESNSession -ScriptName "test.ps1" -IncidentId "TEST-M365-WARN"
+        InModuleScope ESN-M365 {
+            Mock Get-Module { $null }
+            Test-GraphAvailable | Should -Be $false
+        }
+        { Invoke-M365Audit } | Should -Not -Throw
+        $warnRes = (Get-ESNSession).Results | Where-Object { $_.Category -eq "M365" -and $_.Status -eq "WARN" }
+        $warnRes | Should -Not -BeNullOrEmpty
+    }
+}
+
 AfterAll {
     # Nettoyage modules de test
-    Remove-Module ESN-Core, ESN-Network, ESN-Windows, ESN-AD, ESN-Migration -Force -ErrorAction SilentlyContinue
+    Remove-Module ESN-Core, ESN-Network, ESN-Windows, ESN-AD, ESN-Migration, ESN-Infra, ESN-M365 -Force -ErrorAction SilentlyContinue
 }

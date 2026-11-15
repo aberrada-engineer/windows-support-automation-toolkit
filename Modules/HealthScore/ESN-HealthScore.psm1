@@ -698,6 +698,8 @@ function _Export-ScoreReport {
     $gLabel     = Get-ScoreLabel $global.Score
     $gIcon      = Get-ScoreIcon  $global.Score
     $simBadge   = if ($Sim) { "<span class='badge-sim'>SIMULATION</span>" } else { "" }
+    $eComp      = [System.Net.WebUtility]::HtmlEncode([string]$Computer)
+    $eOp        = [System.Net.WebUtility]::HtmlEncode([string]$env:USERNAME)
 
     # Génération des gauges SVG pour chaque domaine
     function Make-Gauge {
@@ -727,7 +729,9 @@ function _Export-ScoreReport {
     function Make-DomainTable {
         [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseApprovedVerbs', '')]
         param($DomainScore, [string]$DomainName)
-        $color  = Get-ScoreColor $DomainScore.Score
+        $color    = Get-ScoreColor $DomainScore.Score
+        $eDomName = [System.Net.WebUtility]::HtmlEncode([string]$DomainName)
+        $eDomLbl  = [System.Net.WebUtility]::HtmlEncode([string]$DomainScore.Label)
         $rows   = ($DomainScore.Details | ForEach-Object {
             $bg   = switch ($_.Sev) { "ok"{"#d4edda"} "warn"{"#fff3cd"} "critical"{"#f8d7da"} default{"#f8f9fa"} }
             $icon = switch ($_.Sev) { "ok"{"✅"} "warn"{"⚠️"} "critical"{"❌"} default{"ℹ️"} }
@@ -736,19 +740,24 @@ function _Export-ScoreReport {
                 $bc  = if ($pct -ge 80) {"#28a745"} elseif ($pct -ge 50) {"#ffc107"} else {"#dc3545"}
                 "<div class='mini-bar'><div class='mini-fill' style='width:$pct%;background:$bc'></div></div><span class='pts'>$($_.Pts)/$($_.Max)</span>"
             } else { "" }
-            "<tr style='background:$bg'><td>$icon</td><td>$($_.Check)</td><td>$($_.Val)</td><td>$bar</td></tr>"
+            $eChk = [System.Net.WebUtility]::HtmlEncode([string]$_.Check)
+            $eVal = [System.Net.WebUtility]::HtmlEncode([string]$_.Val)
+            "<tr style='background:$bg'><td>$icon</td><td>$eChk</td><td>$eVal</td><td>$bar</td></tr>"
         }) -join "`n"
 
         $recRows = if (@($DomainScore.Recommendations).Count -gt 0) {
             "<div class='recs'><strong>💡 Recommandations :</strong><ul>" +
-            (($DomainScore.Recommendations | ForEach-Object { "<li>$_</li>" }) -join "") +
+            (($DomainScore.Recommendations | ForEach-Object {
+                $eRec = [System.Net.WebUtility]::HtmlEncode([string]$_)
+                "<li>$eRec</li>"
+            }) -join "") +
             "</ul></div>"
         } else { "<div class='recs ok-recs'>✅ Aucune recommandation — domaine sain</div>" }
 
         "<div class='domain-card'>
           <div class='domain-header' style='border-left:5px solid $color'>
-            <span class='domain-title'>$DomainName</span>
-            <span class='domain-score' style='color:$color'>$($DomainScore.Score)/100 — $($DomainScore.Label)</span>
+            <span class='domain-title'>$eDomName</span>
+            <span class='domain-score' style='color:$color'>$($DomainScore.Score)/100 — $eDomLbl</span>
           </div>
           <table class='check-table'>
             <tr><th></th><th>Vérification</th><th>Valeur</th><th>Points</th></tr>
@@ -769,9 +778,11 @@ function _Export-ScoreReport {
     $allRecs = @($allRecs | Sort-Object Priority)
 
     $recTableRows = ($allRecs | ForEach-Object {
-        $bg   = switch ($_.Priority) { 1{"#f8d7da"} 2{"#fff3cd"} default{"#e2f3fd"} }
-        $badge= switch ($_.Priority) { 1{"🔴 Critique"} 2{"🟡 Important"} default{"🔵 Info"} }
-        "<tr style='background:$bg'><td>$badge</td><td><strong>$($_.Domain)</strong></td><td>$($_.Rec)</td></tr>"
+        $bg      = switch ($_.Priority) { 1{"#f8d7da"} 2{"#fff3cd"} default{"#e2f3fd"} }
+        $badge   = switch ($_.Priority) { 1{"🔴 Critique"} 2{"🟡 Important"} default{"🔵 Info"} }
+        $eRecDom = [System.Net.WebUtility]::HtmlEncode([string]$_.Domain)
+        $eRecTxt = [System.Net.WebUtility]::HtmlEncode([string]$_.Rec)
+        "<tr style='background:$bg'><td>$badge</td><td><strong>$eRecDom</strong></td><td>$eRecTxt</td></tr>"
     }) -join "`n"
 
     $simNote = if ($Sim) { "<div class='sim-note'>⚠️ Mode SIMULATION — Les valeurs reflètent l'état réel mais aucune action n'a été effectuée.</div>" } else { "" }
@@ -782,7 +793,7 @@ function _Export-ScoreReport {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Score Santé Machine — $Computer</title>
+  <title>Score Santé Machine — $eComp</title>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f2f5;color:#333;font-size:14px}
@@ -849,8 +860,8 @@ function _Export-ScoreReport {
 <body>
 
 <div class="hdr">
-  <h1>💻 Score Santé Machine — $Computer $simBadge</h1>
-  <p>$(Get-Date -Format 'dd/MM/yyyy HH:mm') &nbsp;|&nbsp; Opérateur : $env:USERNAME &nbsp;|&nbsp; ESN-Toolkit v2.0</p>
+  <h1>💻 Score Santé Machine — $eComp $simBadge</h1>
+  <p>$(Get-Date -Format 'dd/MM/yyyy HH:mm') &nbsp;|&nbsp; Opérateur : $eOp &nbsp;|&nbsp; ESN-Toolkit v4.0</p>
 </div>
 
 <div class="container">
@@ -900,7 +911,7 @@ $(($script:Weights.Keys | ForEach-Object { "<span class='weight-tag'>$_ : $($scr
 </div>
 
 <div class="footer">
-  ESN-Toolkit v2.0 — Score Santé Machine — Généré le $(Get-Date -Format 'dd/MM/yyyy à HH:mm:ss')
+  ESN-Toolkit v4.0 — Score Santé Machine — Généré le $(Get-Date -Format 'dd/MM/yyyy à HH:mm:ss')
 </div>
 </body>
 </html>
@@ -1009,7 +1020,7 @@ function Invoke-HealthScore {
 
     # Rapport HTML
     if (-not $ExportPath) {
-        $rBase      = if (Get-Command Get-ESNToolkitRoot -ErrorAction SilentlyContinue) { Get-ESNToolkitRoot -SubFolder "Reports" } elseif ($env:ESN_TOOLKIT_ROOT) { Join-Path $env:ESN_TOOLKIT_ROOT "Reports" } elseif ($env:SystemDrive) { "$($env:SystemDrive)\ESN-Toolkit\Reports" } else { Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/Reports" }
+        $rBase      = if (Get-Command Get-ESNReportRoot -ErrorAction SilentlyContinue) { Get-ESNReportRoot } elseif (Get-Command Get-ESNToolkitRoot -ErrorAction SilentlyContinue) { Get-ESNToolkitRoot -SubFolder "Reports" -Ensure } elseif ($env:ESN_TOOLKIT_ROOT) { Join-Path $env:ESN_TOOLKIT_ROOT "Reports" } elseif ($env:SystemDrive) { "$($env:SystemDrive)\ESN-Toolkit\Reports" } else { Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/Reports" }
         $rDir       = Join-Path $rBase (Get-Date -Format 'yyyy-MM-dd')
         $ExportPath = Join-Path $rDir "HealthScore_${ComputerName}_$(Get-Date -Format 'HHmm').html"
     }
@@ -1022,7 +1033,8 @@ function Invoke-HealthScore {
     if ($OpenReport) { Start-Process $reportPath }
 
     # Retour objet structuré
-    $totalRecs = ($domainKeys | ForEach-Object { @($scores[$_].Recommendations).Count } | Measure-Object -Sum).Sum
+    $recMeasure = $domainKeys | ForEach-Object { @($scores[$_].Recommendations).Count } | Measure-Object -Sum
+    $totalRecs  = if ($recMeasure -and $recMeasure.PSObject.Properties['Sum'] -and $null -ne $recMeasure.Sum) { [int]$recMeasure.Sum } else { 0 }
     $result = [PSCustomObject]@{
         ComputerName     = $ComputerName
         Timestamp        = Get-Date

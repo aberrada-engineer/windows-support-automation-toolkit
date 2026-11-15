@@ -34,7 +34,9 @@ Write-Host "[*] Passerelle WAN Secours (IPsec) : $BackupGateway" -ForegroundColo
 Write-Host "[*] Sites distants analysés        : $($RemoteSiteIPs -join ', ')" -ForegroundColor Gray
 Write-Host ""
 
-$ReportDir = "$env:SystemDrive\ESN-Reports\WAN-Migration"
+$schemaScript = Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) "Core/ESN-OutputSchema.ps1"
+if (Test-Path $schemaScript) { . $schemaScript }
+$ReportDir = if (Get-Command Get-ESNReportRoot -ErrorAction SilentlyContinue) { Get-ESNReportRoot -SubFolder "WAN-Migration" } elseif ($env:ESN_TOOLKIT_ROOT) { Join-Path $env:ESN_TOOLKIT_ROOT "Reports/WAN-Migration" } else { Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/Reports/WAN-Migration" }
 if (-not (Test-Path $ReportDir)) { New-Item -ItemType Directory -Path $ReportDir -Force | Out-Null }
 $Timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $LogFile = "$ReportDir\WAN-Audit-$Timestamp.log"
@@ -54,21 +56,35 @@ function Write-WANLog {
 
 Write-WANLog "Démarrage de l'audit de performance et de bascule WAN (SimulateFailover=$SimulateFailover, ReportOnly=$ReportOnly)..." "INFO"
 
-# 1. Test MTU Path Discovery (Recherche de fragmentation)
+# 1. Test MTU Path Discovery (Recherche de fragmentation avec DF-bit et header 28 octets IP+ICMP)
 Write-WANLog "[1/4] Audit MTU Path Discovery (Vérification Don't Fragment DF-bit)..." "INFO"
-$TestMTUSizes = @(1500, 1492, 1460, 1400, 1360)
-$OptimalMTU = 1500
-
-foreach ($size in $TestMTUSizes) {
-    # ping -f -l <size>
-    $pingResult = ping.exe $PrimaryGateway -f -l $size -n 1 2>&1 | Out-String
-    if ($pingResult -match "taille d'élément de données trop volumineuse" -or $pingResult -match "Packet needs to be fragmented") {
-        Write-WANLog "Fragmentation requise pour MTU = $size octets sur le lien WAN." "WARN"
-    } else {
-        $OptimalMTU = $size
-        Write-WANLog "Taille MTU optimale validée sans fragmentation : $size octets." "SUCCESS"
-        break
+$TestPayloadSizes = @(1472, 1464, 1432, 1372, 1332)
+$OptimalMTU = "Non vérifié (cible injoignable)"
+$mtuPinger = [System.Net.NetworkInformation.Ping]::new()
+try {
+    $dfOpts = [System.Net.NetworkInformation.PingOptions]::new(64, $true)
+    foreach ($payload in $TestPayloadSizes) {
+        $mtuCandidate = $payload + 28
+        try {
+            $reply = $mtuPinger.Send($PrimaryGateway, 1000, ([byte[]]::new($payload)), $dfOpts)
+            if ($reply -and $reply.Status -eq [System.Net.NetworkInformation.IPStatus]::Success) {
+                $OptimalMTU = "$mtuCandidate Octets"
+                Write-WANLog "Taille MTU optimale validée sans fragmentation : $mtuCandidate octets (payload $payload)." "SUCCESS"
+                break
+            } elseif ($reply -and $reply.Status -eq [System.Net.NetworkInformation.IPStatus]::PacketTooBig) {
+                Write-WANLog "Fragmentation requise pour MTU = $mtuCandidate octets (PacketTooBig) sur $PrimaryGateway." "WARN"
+            } else {
+                $st = if ($reply) { $reply.Status } else { "NullReply" }
+                Write-WANLog "Sonde MTU $mtuCandidate sur $PrimaryGateway sans réponse ICMP ($st)." "WARN"
+                break
+            }
+        } catch {
+            Write-WANLog "Erreur sonde MTU vers $PrimaryGateway : $($_.Exception.Message)" "WARN"
+            break
+        }
     }
+} finally {
+    $mtuPinger.Dispose()
 }
 
 # 2. Mesure Latence, Gigue et Perte de Paquets vers les sites distants
@@ -149,8 +165,14 @@ $HtmlReport = "$ReportDir\PV-Recette-Bascule-WAN.html"
 
 $SiteRowsHtml = ($SiteResults | ForEach-Object {
     $badgeClass = if ($_.SLAStatus -eq "CONFORME SLA") { "status-ok" } else { "status-warn" }
-    "<tr><td>$($_.SiteIP)</td><td>$($_.AvgLatency) ms</td><td>$($_.PacketLoss)</td><td class='$badgeClass'>$($_.SLAStatus)</td></tr>"
+    $sip  = [System.Net.WebUtility]::HtmlEncode([string]$_.SiteIP)
+    $lat  = [System.Net.WebUtility]::HtmlEncode([string]$_.AvgLatency)
+    $loss = [System.Net.WebUtility]::HtmlEncode([string]$_.PacketLoss)
+    $sla  = [System.Net.WebUtility]::HtmlEncode([string]$_.SLAStatus)
+    "<tr><td>$sip</td><td>$lat ms</td><td>$loss</td><td class='$badgeClass'>$sla</td></tr>"
 }) -join "`n"
+$mtuHtml = [System.Net.WebUtility]::HtmlEncode([string]$OptimalMTU)
+$gwHtml  = [System.Net.WebUtility]::HtmlEncode([string]$PrimaryGateway)
 
 $HtmlContent = @"
 <!DOCTYPE html>
@@ -183,11 +205,11 @@ $HtmlContent = @"
         <div class="grid">
             <div class="card">
                 <div class="card-title">MTU Optimale Validée</div>
-                <div class="card-value">$OptimalMTU Octets</div>
+                <div class="card-value">$mtuHtml</div>
             </div>
             <div class="card">
                 <div class="card-title">Passerelle Primaire</div>
-                <div class="card-value">$PrimaryGateway</div>
+                <div class="card-value">$gwHtml</div>
             </div>
             <div class="card">
                 <div class="card-title">Port PRA Veeam</div>

@@ -5,6 +5,14 @@ Format : [Version] — Date — Description
 
 ---
 
+## [4.0.0] — 2026-11-15 — Durcissement Production, StrictMode WinPS 5.1/7+, Remédiation & CI Étendue
+
+### Correctifs & Fiabilisation Enterprise
+- **Remédiation & Résilience (`Modules/Remediation/ESN-Remediation.psm1`)** : Correction des SDDL complètes (`BITS` / `wuauserv`), garde `$coreLoaded` et protection `StrictMode` (`Outlook`, `Network` multi-langue / socket TTL).
+- **Contrat de données & Encodage XSS (`Core/ESN-Core.psm1`, `Core/ESN-OutputSchema.ps1`, `Core/ESN-ReportBuilder.ps1`, `Modules/HealthScore/ESN-HealthScore.psm1`, `Invoke-CopilDashboardGenerator.ps1`)** : Support complet du statut `SKIP`, gardes `.Sum`/`.Average`, encodage `[System.Net.WebUtility]::HtmlEncode` anti-XSS et résolution dynamique des rapports via `Get-ESNReportRoot`.
+- **Compatibilité WinPS 5.1 / PS 7+ & Exécution Headless** : Remplacement des paramètres PS 7-only (`-TimeoutSeconds`), gardes `@(...)` avant `.Count` / `.Sum` (`ESN-AD`, `ESN-M365`, `ESN-Windows`, `Invoke-P1EmergencyTriage`), et protection `Clear-Host` sous `[Environment]::UserInteractive` sur l'ensemble des scripts et de la console.
+- **Alignement Tests Pester & Dashboards (`Tests/`, `index.html`, `Presentation/`, `WebDashboard/`)** : Renforcement des tests fonctionnels Pester v5 (zéro faux-vert, validation `-WhatIf` et encodage XSS) et alignement documentaire complet **v4.0**.
+
 ## [3.9.0] — 2026-11-14 — Portabilité Enterprise, Hygiène SecOps & CI Étendue
 
 ### Correctifs & Durcissement
@@ -148,8 +156,12 @@ Phase d'industrialisation sans refonte architecture.
 - [ ] Alerte Teams webhook dans ESN-Remediation
 - [ ] Remédiation : reset profil Teams v2 (MSIX)
 
-### [4.0.0] — Prévu
-- [ ] Dashboard HTML temps réel multi-serveurs
-- [ ] Module PRTG integration (API REST)
-- [ ] Runbook interactif P1/P2 guidé
-- [ ] Support PowerShell 7 (ForEach-Object -Parallel)
+### [4.0.0] — Livré
+- [x] Durcissement complet WinPS 5.1 / PS 7+ (`Set-StrictMode`), remédiation SDDL et encodage HTML anti-XSS
+- [x] Pipeline CI multi-versions PowerShell (AST, PSScriptAnalyzer, Pester v5)
+- [x] Support PowerShell 7 & parallélisation RunspacePool (`Invoke-HighSpeedParallelAuditor.ps1`)
+- [x] Connecteur REST API GLPI / ServiceNow (`Invoke-ITSMConnector.ps1`)
+
+### [4.1.0] — Prévu
+- [ ] Module PRTG integration (API REST avancée)
+- [ ] Détection comportementale d'anomalies locale (AIOps ML)

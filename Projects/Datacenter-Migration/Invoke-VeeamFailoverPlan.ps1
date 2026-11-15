@@ -22,7 +22,9 @@ param(
 if (-not $PSBoundParameters.ContainsKey('Simulation')) { $Simulation = $true }
 if (-not $PSBoundParameters.ContainsKey('OpenReport')) { $OpenReport = $true }
 
-Clear-Host
+if ([Environment]::UserInteractive) {
+    try { Clear-Host } catch { Write-Verbose "Clear-Host ignored: $($_.Exception.Message)" }
+}
 Write-Host "================================================================================" -ForegroundColor Cyan
 Write-Host "   🏢  BASCULE & MIGRATION DE DATACENTER (VEEAM REPLICATION) — ESN-TOOLKIT" -ForegroundColor White
 Write-Host "       Projet d'Infrastructure Critique — Amine BERRADA (Référent Technique N3)" -ForegroundColor Gray
@@ -44,7 +46,23 @@ function Add-FOStep {
 
 # 1. VERIFICATION DE LA REPLICATION VEEAM
 Write-Host "[1/4] Contrôle de la réplication des VMs entre les deux Datacenters..." -ForegroundColor Yellow
-Add-FOStep "Réplication Veeam" "OK" "Points de réplication synchronisés (Delta réplication < 15 min)."
+$veeamSvc = @(Get-Service -Name "*Veeam*" -ErrorAction SilentlyContinue)
+$hasVbr   = ($null -ne (Get-Command Get-VBRReplica -ErrorAction SilentlyContinue))
+if ($Simulation) {
+    Add-FOStep "Réplication Veeam" "OK" "[SIMULATION] Vérification des points de réplication (cible < 15 min)."
+} elseif ($hasVbr) {
+    try {
+        $replicas = @(Get-VBRReplica -ErrorAction Stop)
+        Add-FOStep "Réplication Veeam" "OK" "$($replicas.Count) réplica(s) Veeam VBR inventorié(s)."
+    } catch {
+        Add-FOStep "Réplication Veeam" "WARN" "Impossible d'interroger Get-VBRReplica : $($_.Exception.Message)"
+    }
+} elseif ($veeamSvc.Count -gt 0) {
+    $runningVeeam = @($veeamSvc | Where-Object { $_.Status -eq 'Running' }).Count
+    Add-FOStep "Réplication Veeam" $(if ($runningVeeam -eq $veeamSvc.Count) { "OK" } else { "WARN" }) "$runningVeeam/$($veeamSvc.Count) service(s) Veeam actif(s) (console VBR PowerShell absente pour le détail RPO)."
+} else {
+    Add-FOStep "Réplication Veeam" "WARN" "Aucun serveur/module Veeam détecté localement (lancer sur le serveur VBR ou passer -Simulation)."
+}
 
 # 2. TEST DU RESEAU CIBLE DATACENTER 2
 Write-Host "`n[2/4] Test de connectivité vers le Datacenter cible ($TargetDatacenterIP)..." -ForegroundColor Yellow
@@ -52,7 +70,7 @@ $pingTarget = try { $p = [System.Net.NetworkInformation.Ping]::new(); $r = $p.Se
 if ($pingTarget) {
     Add-FOStep "Liaison Intersites" "OK" "Lien 10 Gbps / MPLS opérationnel vers le nouveau Datacenter."
 } else {
-    Add-FOStep "Liaison Intersites" "WARN" "IP $TargetDatacenterIP simulée (Mode test d'architecture)."
+    Add-FOStep "Liaison Intersites" "WARN" "IP $TargetDatacenterIP injoignable depuis cet hôte."
 }
 
 # 3. ORCHESTRATION DU FAILOVER PLANIFIE
@@ -62,7 +80,11 @@ if ($Simulation) {
     Write-Host "  -> [SIMULATION] Dernière réplication différentielle finale" -ForegroundColor DarkGray
     Write-Host "  -> [SIMULATION] Démarrage des VMs sur les hôtes VMware/Nutanix du Datacenter 2" -ForegroundColor DarkGray
     Write-Host "  -> [SIMULATION] Commutation des VLANs et mise à jour des passerelles de routage" -ForegroundColor DarkGray
-    Add-FOStep "Planned Failover" "OK" "Séquence de bascule validée : Temps d'indisponibilité estimé < 8 min."
+    Add-FOStep "Planned Failover" "OK" "[SIMULATION] Séquence de bascule validée (plan théorique)."
+} elseif (-not $hasVbr -or -not $pingTarget) {
+    Add-FOStep "Planned Failover" "WARN" "Bascule non exécutée : prérequis Veeam VBR / liaison Datacenter cible non vérifiés."
+} else {
+    Add-FOStep "Planned Failover" "INFO" "Prérequis VBR & réseau validés — validation manuelle requise avant déclenchement Start-VBRPlannedFailover."
 }
 
 # 4. PV OFFICIEL DE BASCULE DATACENTER
@@ -72,15 +94,32 @@ if (-not (Get-Command Get-ESNToolkitRoot -ErrorAction SilentlyContinue) -and (Te
     Import-Module $repoCore -ErrorAction SilentlyContinue
 }
 $reportDir  = if (Get-Command Get-ESNToolkitRoot -ErrorAction SilentlyContinue) { Get-ESNToolkitRoot -SubFolder "Reports" } elseif ($env:ESN_TOOLKIT_ROOT) { Join-Path $env:ESN_TOOLKIT_ROOT "Reports" } elseif ($env:SystemDrive) { "$($env:SystemDrive)\ESN-Toolkit\Reports" } else { Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/Reports" }
-$reportPath = Join-Path $reportDir "PV-Bascule-Datacenter-$PlanName.html"
+$safePlanName = $PlanName -replace '[^a-zA-Z0-9._-]', '_'
+$reportPath = Join-Path $reportDir "PV-Bascule-Datacenter-$safePlanName.html"
 if (-not (Test-Path $reportDir)) { New-Item $reportDir -ItemType Directory -Force | Out-Null }
+
+$planHtml = [System.Net.WebUtility]::HtmlEncode([string]$PlanName)
+$pvBadge = if ($Simulation) {
+    "<span class='badge' style='background:#d97706;'>MODE SIMULATION — PLAN THEORIQUE NON EXECUTE</span>"
+} elseif ($hasVbr -and $pingTarget) {
+    "<span class='badge'>Prérequis Bascule Validés (Prêt VBR)</span>"
+} else {
+    "<span class='badge' style='background:#dc2626;'>RESERVES TECHNIQUES — PRE-REQUIS INCOMPLETS</span>"
+}
+$stepRowsHtml = ($failoverSteps | ForEach-Object {
+    $col = if ($_.Statut -eq "OK") { "#10b981" } elseif ($_.Statut -eq "WARN") { "#f59e0b" } else { "#38bdf8" }
+    $et = [System.Net.WebUtility]::HtmlEncode([string]$_.Etape)
+    $st = [System.Net.WebUtility]::HtmlEncode([string]$_.Statut)
+    $dt = [System.Net.WebUtility]::HtmlEncode([string]$_.Detail)
+    "<tr><td><b>$et</b></td><td><span style='color:$col;font-weight:bold;'>$st</span></td><td>$dt</td></tr>"
+}) -join "`n"
 
 $html = @"
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset='utf-8'>
-    <title>PV de Bascule Datacenter - $PlanName</title>
+    <title>PV de Bascule Datacenter - $planHtml</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #0f172a; color: #f8fafc; padding: 35px; }
         .doc { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 40px; max-width: 900px; margin: auto; }
@@ -95,17 +134,14 @@ $html = @"
 <body>
     <div class='doc'>
         <h1>🏢 PROCES-VERBAL DE BASCULE DE DATACENTER</h1>
-        <p><b>Plan d'orchestration :</b> $PlanName | <b>Date d'exécution :</b> $(Get-Date -Format 'dd/MM/yyyy à HH:mm')</p>
+        <p><b>Plan d'orchestration :</b> $planHtml | <b>Date d'exécution :</b> $(Get-Date -Format 'dd/MM/yyyy à HH:mm')</p>
         <p><b>Ingénieur Infrastructure & Systèmes :</b> Amine BERRADA (Référent Technique N3)</p>
-        <span class='badge'>Bascule Réussie sans Perte de Données</span>
+        $pvBadge
 
         <table>
             <thead><tr><th>Jalon Critique</th><th>Statut</th><th>Détails & Validation</th></tr></thead>
             <tbody>
-                <tr><td><b>Synchronisation Finale Veeam</b></td><td><span style='color:#10b981;font-weight:bold;'>CONFORME</span></td><td>Zéro delta de perte (RPO = 0 seconde).</td></tr>
-                <tr><td><b>Bascule Hôtes & Stockage</b></td><td><span style='color:#10b981;font-weight:bold;'>CONFORME</span></td><td>Montage des VMs sur cluster cible Nutanix/VMware.</td></tr>
-                <tr><td><b>Routage Réseau & Passerelles</b></td><td><span style='color:#10b981;font-weight:bold;'>CONFORME</span></td><td>Bascule des routes BGP/statiques et réinitialisation ARP.</td></tr>
-                <tr><td><b>Intégrité des Applications Métiers</b></td><td><span style='color:#10b981;font-weight:bold;'>VALIDE</span></td><td>Tests fonctionnels validés (Bases SQL, Web, Mails).</td></tr>
+                $stepRowsHtml
             </tbody>
         </table>
 

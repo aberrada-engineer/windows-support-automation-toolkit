@@ -100,6 +100,7 @@ process {
                 $exists = Test-Path -Path $RepositoryPath
                 $checks = @(
                     [PSCustomObject]@{ Control = "Repository Path Accessible (Local)"; Passed = $exists; Detail = if ($exists) { "Path accessible: $RepositoryPath (provide -SshUser for full remote XFS/lsattr audit)" } else { "Path not found: $RepositoryPath (use -Simulate for offline demo)" } }
+                    [PSCustomObject]@{ Control = "Remote SSH XFS / chattr +i Verification"; Passed = $false; Detail = "SSH credentials (-SshUser) and OpenSSH client required to certify XFS reflink and +i immutability remotely." }
                 )
             }
             $repoRetention = $ImmutabilityDays

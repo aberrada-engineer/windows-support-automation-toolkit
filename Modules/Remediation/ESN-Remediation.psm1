@@ -295,7 +295,9 @@ $script:Catalog = [ordered]@{
         Detect        = {
             # Détection : mode hors-ligne, OST > 25 Go, add-ins bloqués
             $outlookReg = "HKCU:\Software\Microsoft\Office\16.0\Outlook"
-            $offlineMode = (Get-ItemProperty $outlookReg -Name "Work Offline" -EA SilentlyContinue)."Work Offline"
+            $outlookItem = Get-ItemProperty -Path $outlookReg -Name "Work Offline" -ErrorAction SilentlyContinue
+            $offlineProp = if ($null -ne $outlookItem) { $outlookItem.PSObject.Properties["Work Offline"] } else { $null }
+            $offlineMode = if ($null -ne $offlineProp) { $offlineProp.Value } else { $null }
 
             $ostPath = Join-Path $env:LOCALAPPDATA "Microsoft\Outlook"
             $ostSize = if (Test-Path $ostPath) {
@@ -581,10 +583,10 @@ $script:Catalog = [ordered]@{
                 $steps += "catroot2 renommé en .bak"
             }
 
-            # 4. Reset BITS et WU via sc
+            # 4. Reset BITS et WU via sc (SDDL officiels Microsoft Learn)
             if (-not $sim) {
-                sc.exe sdset BITS   "D:(A;;CCLCSWRPWPDTLOCRRC;;;SY)..." 2>&1 | Out-Null
-                sc.exe sdset wuauserv "D:(A;;CCLCSWRPWPDTLOCRRC;;;SY)..." 2>&1 | Out-Null
+                sc.exe sdset BITS "D:(A;CI;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;SY)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCLCSWLOCRRC;;;IU)(A;;CCLCSWLOCRRC;;;SU)" 2>&1 | Out-Null
+                sc.exe sdset wuauserv "D:(A;;CCLCSWRPLORC;;;AU)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;SY)" 2>&1 | Out-Null
             }
 
             # 5. Réenregistrer les DLL WU
@@ -894,7 +896,7 @@ function Invoke-Remediation {
             RLog "  Détail : $($remResult.Detail)"  "DEBUG"
 
             # Log dans ESN-Core si disponible
-            if ($coreLoaded) {
+            if (Get-Command Add-ESNResult -ErrorAction SilentlyContinue) {
                 Add-ESNResult "Remédiation" $rem.Name $st $remResult.After $remResult.Detail
             }
 
@@ -983,15 +985,22 @@ function _Export-RemediationReport {
 
         $reboot = if ($_.RebootRequired) { "⚠️ Redémarrage requis" } else { "" }
 
+        $idHtml     = [System.Net.WebUtility]::HtmlEncode([string]$_.Id)
+        $nameHtml   = [System.Net.WebUtility]::HtmlEncode([string]$_.Name)
+        $statHtml   = [System.Net.WebUtility]::HtmlEncode([string]$statut)
+        $beforeHtml = [System.Net.WebUtility]::HtmlEncode([string]$_.Before)
+        $afterHtml  = [System.Net.WebUtility]::HtmlEncode([string]$_.After)
+        $detailHtml = [System.Net.WebUtility]::HtmlEncode([string]$_.Detail)
+        $rebootHtml = [System.Net.WebUtility]::HtmlEncode([string]$reboot)
         "<tr style='background:$bg'>
           <td>$icon</td>
-          <td><strong>$($_.Id)</strong></td>
-          <td>$($_.Name)</td>
-          <td><strong>$statut</strong></td>
-          <td>$($_.Before)</td>
-          <td>$($_.After)</td>
-          <td style='font-size:.82em;color:#555'>$($_.Detail)</td>
-          <td style='color:#e67e22;font-weight:600'>$reboot</td>
+          <td><strong>$idHtml</strong></td>
+          <td>$nameHtml</td>
+          <td><strong>$statHtml</strong></td>
+          <td>$beforeHtml</td>
+          <td>$afterHtml</td>
+          <td style='font-size:.82em;color:#555'>$detailHtml</td>
+          <td style='color:#e67e22;font-weight:600'>$rebootHtml</td>
         </tr>"
     }) -join "`n"
 
@@ -1004,7 +1013,7 @@ function _Export-RemediationReport {
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <title>Rapport Remédiation — $Computer</title>
+  <title>Rapport Remédiation — $([System.Net.WebUtility]::HtmlEncode([string]$Computer))</title>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:'Segoe UI',Arial,sans-serif;background:#f4f6f9;color:#333;font-size:14px}
@@ -1030,7 +1039,7 @@ function _Export-RemediationReport {
 </head>
 <body>
 <div class="hdr">
-  <h1>🔧 Rapport de Remédiation — $Computer $simBadge</h1>
+  <h1>🔧 Rapport de Remédiation — $([System.Net.WebUtility]::HtmlEncode([string]$Computer)) $simBadge</h1>
   <p>Date : $(Get-Date -Format 'dd/MM/yyyy HH:mm') &nbsp;|&nbsp; Opérateur : $env:USERNAME</p>
 </div>
 <div class="container">
@@ -1059,7 +1068,7 @@ function _Export-RemediationReport {
     </table>
   </div>
 </div>
-<div class="footer">ESN-Toolkit v1.0.0 — Remédiation — $(Get-Date -Format 'dd/MM/yyyy HH:mm:ss') — $env:USERNAME</div>
+<div class="footer">ESN-Toolkit v4.0 — Remédiation — $(Get-Date -Format 'dd/MM/yyyy HH:mm:ss') — $([System.Net.WebUtility]::HtmlEncode([string]$env:USERNAME))</div>
 </body>
 </html>
 "@ | Out-File -FilePath $OutputPath -Encoding UTF8 -Force

@@ -39,7 +39,9 @@ Write-Host "[*] Système d'exploitation: $TargetOS" -ForegroundColor Gray
 Write-Host "[*] Unité d'organisation : $OuPath" -ForegroundColor Gray
 Write-Host ""
 
-$ReportDir = "$env:SystemDrive\ESN-Reports\MDT-Industrialization"
+$schemaScript = Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) "Core/ESN-OutputSchema.ps1"
+if (Test-Path $schemaScript) { . $schemaScript }
+$ReportDir = if (Get-Command Get-ESNReportRoot -ErrorAction SilentlyContinue) { Get-ESNReportRoot -SubFolder "MDT-Industrialization" } elseif ($env:ESN_TOOLKIT_ROOT) { Join-Path $env:ESN_TOOLKIT_ROOT "Reports/MDT-Industrialization" } else { Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/Reports/MDT-Industrialization" }
 if (-not (Test-Path $ReportDir)) { New-Item -ItemType Directory -Path $ReportDir -Force | Out-Null }
 $Timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $LogFile = "$ReportDir\MDT-Industrialization-$Timestamp.log"
@@ -90,15 +92,19 @@ $DriverStructure = @(
 
 foreach ($dir in $DriverStructure) {
     if (-not (Test-Path $dir)) {
-        New-Item -ItemType Directory -Path $dir -Force | Out-Null
-        Write-MDTLog "Dossier pilote créé : $dir" "SUCCESS"
+        if (-not $ReportOnly) {
+            New-Item -ItemType Directory -Path $dir -Force | Out-Null
+            Write-MDTLog "Dossier pilote créé : $dir" "SUCCESS"
+        } else {
+            Write-MDTLog "[REPORT-ONLY] Dossier pilote absent (non créé) : $dir" "INFO"
+        }
     }
 }
 
 # 3. Génération des fichiers CustomSettings.ini et Bootstrap.ini durcis
 Write-MDTLog "[3/5] Génération des templates de configuration Zero-Touch / LiteTouch..." "INFO"
 $ControlDir = "$DeploymentSharePath\Control"
-if (-not (Test-Path $ControlDir)) { New-Item -ItemType Directory -Path $ControlDir -Force | Out-Null }
+if (-not $ReportOnly -and -not (Test-Path $ControlDir)) { New-Item -ItemType Directory -Path $ControlDir -Force | Out-Null }
 
 $CustomSettingsContent = @"
 [Settings]
@@ -108,7 +114,7 @@ Properties=MyCustomProperty
 [Default]
 OSInstall=Y
 SkipAdminPassword=YES
-AdminPassword=ComplexLapsInitP@ssw0rd!
+AdminPassword=<CONFIGURE_LAPS_OR_SECRET_AT_DEPLOY>
 SkipApplications=YES
 SkipAppsOnUpgrade=YES
 SkipBDDWelcome=YES
@@ -121,7 +127,7 @@ JoinDomain=$DomainName
 MachineObjectOU=$OuPath
 DomainAdmin=svc-mdt-join
 DomainAdminDomain=$DomainName
-DomainAdminPassword=EncryptedPassPlaceholder!
+DomainAdminPassword=<CONFIGURE_JOIN_CREDENTIALS_IN_VAULT>
 SkipUserData=YES
 UserDataLocation=NONE
 SkipPackageDisplay=YES
@@ -153,8 +159,12 @@ DriverGroup001=Windows 10 x64\HP\HP ProBook 450 G8
 "@
 
 $CustomSettingsPath = "$ControlDir\CustomSettings.ini"
-Set-Content -Path $CustomSettingsPath -Value $CustomSettingsContent -Encoding UTF8
-Write-MDTLog "Fichier généré : $CustomSettingsPath" "SUCCESS"
+if (-not $ReportOnly) {
+    Set-Content -Path $CustomSettingsPath -Value $CustomSettingsContent -Encoding UTF8
+    Write-MDTLog "Fichier généré : $CustomSettingsPath" "SUCCESS"
+} else {
+    Write-MDTLog "[REPORT-ONLY] Génération CustomSettings.ini ignorée : $CustomSettingsPath" "INFO"
+}
 
 $BootstrapContent = @"
 [Settings]
@@ -165,18 +175,22 @@ DeployRoot=$DeploymentSharePath
 SkipBDDWelcome=YES
 UserDomain=$DomainName
 UserID=svc-mdt-read
-UserPassword=PlaceholderPassword!
+UserPassword=<CONFIGURE_READ_CREDENTIALS_IN_VAULT>
 KeyboardLocale=040c:0000040c
 "@
 
 $BootstrapPath = "$ControlDir\Bootstrap.ini"
-Set-Content -Path $BootstrapPath -Value $BootstrapContent -Encoding UTF8
-Write-MDTLog "Fichier généré : $BootstrapPath" "SUCCESS"
+if (-not $ReportOnly) {
+    Set-Content -Path $BootstrapPath -Value $BootstrapContent -Encoding UTF8
+    Write-MDTLog "Fichier généré : $BootstrapPath" "SUCCESS"
+} else {
+    Write-MDTLog "[REPORT-ONLY] Génération Bootstrap.ini ignorée : $BootstrapPath" "INFO"
+}
 
 # 4. Séquence de tâches & scripts post-déploiement automatisés
 Write-MDTLog "[4/5] Injection des scripts de post-configuration (Bloatware, LAPS, BitLocker, EDR)..." "INFO"
 $ScriptsDir = "$DeploymentSharePath\Scripts\CustomPostInstall"
-if (-not (Test-Path $ScriptsDir)) { New-Item -ItemType Directory -Path $ScriptsDir -Force | Out-Null }
+if (-not $ReportOnly -and -not (Test-Path $ScriptsDir)) { New-Item -ItemType Directory -Path $ScriptsDir -Force | Out-Null }
 
 $PostInstallScript = @"
 <#
@@ -195,7 +209,9 @@ Get-AppxPackage -AllUsers *Spotify* | Remove-AppxPackage -AllUsers -ErrorAction 
 Write-Output '[MDT Post-Install] Activation BitLocker TPM 2.0...'
 if ((Get-Tpm).TpmPresent) {
     Enable-BitLocker -MountPoint 'C:' -EncryptionMethod XtsAes256 -UsedSpaceOnly -TpmProtector -ErrorAction SilentlyContinue
-    Backup-BitLockerKeyProtector -MountPoint 'C:' -KeyProtectorId (Get-BitLockerVolume -MountPoint 'C:').KeyProtector[0].KeyProtectorId -ErrorAction SilentlyContinue
+    Add-BitLockerKeyProtector -MountPoint 'C:' -RecoveryPasswordProtector -ErrorAction SilentlyContinue
+    `$recProt = (Get-BitLockerVolume -MountPoint 'C:').KeyProtector | Where-Object { `$_.KeyProtectorType -eq 'RecoveryPassword' } | Select-Object -First 1
+    if (`$recProt) { Backup-BitLockerKeyProtector -MountPoint 'C:' -KeyProtectorId `$recProt.KeyProtectorId -ErrorAction SilentlyContinue }
 }
 
 Write-Output '[MDT Post-Install] Vérification intégration Windows LAPS...'
@@ -203,8 +219,12 @@ gpupdate /force /wait:0
 "@
 
 $PostInstallPath = "$ScriptsDir\Invoke-MDTPostConfiguration.ps1"
-Set-Content -Path $PostInstallPath -Value $PostInstallScript -Encoding UTF8
-Write-MDTLog "Script post-déploiement créé : $PostInstallPath" "SUCCESS"
+if (-not $ReportOnly) {
+    Set-Content -Path $PostInstallPath -Value $PostInstallScript -Encoding UTF8
+    Write-MDTLog "Script post-déploiement créé : $PostInstallPath" "SUCCESS"
+} else {
+    Write-MDTLog "[REPORT-ONLY] Génération script post-install ignorée : $PostInstallPath" "INFO"
+}
 
 # 5. Rapport de conformité industriel
 Write-MDTLog "[5/5] Génération du rapport d'industrialisation MDT..." "INFO"

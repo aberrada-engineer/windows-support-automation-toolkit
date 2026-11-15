@@ -25,7 +25,9 @@ if ([string]::IsNullOrWhiteSpace($OutputDir)) {
     $OutputDir = if (Get-Command Get-ESNToolkitRoot -ErrorAction SilentlyContinue) { Get-ESNToolkitRoot -SubFolder "GLPI_Inventory" -Ensure } else { Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/GLPI_Inventory" }
 }
 
-Clear-Host
+if ([Environment]::UserInteractive) {
+    try { Clear-Host } catch { Write-Verbose "Clear-Host ignored: $($_.Exception.Message)" }
+}
 Write-Host "================================================================================" -ForegroundColor Cyan
 Write-Host "   📦  COLLECTEUR D'INVENTAIRE MATERIEL & LOGICIEL (GLPI) — ESN-TOOLKIT" -ForegroundColor White
 Write-Host "       Gestion de Parc Informatique Automatisée — Amine BERRADA" -ForegroundColor Gray
@@ -112,9 +114,12 @@ if ($GLPIApiUrl -and $GLPIUserToken) {
 
 # FICHE D'INVENTAIRE HTML
 $reportPath = Join-Path $OutputDir "Fiche-Inventaire-$env:COMPUTERNAME.html"
-$appRows = $uniqueApps | Select-Object -First 25 | ForEach-Object {
-    "<tr><td><b>$($_.Nom)</b></td><td>$($_.Version)</td><td>$($_.Editeur)</td></tr>"
-} -join "`n"
+$appRows = ($uniqueApps | Select-Object -First 25 | ForEach-Object {
+    $nom = [System.Net.WebUtility]::HtmlEncode([string]$_.Nom)
+    $ver = [System.Net.WebUtility]::HtmlEncode([string]$_.Version)
+    $ed  = [System.Net.WebUtility]::HtmlEncode([string]$_.Editeur)
+    "<tr><td><b>$nom</b></td><td>$ver</td><td>$ed</td></tr>"
+}) -join "`n"
 
 $html = @"
 <!DOCTYPE html>

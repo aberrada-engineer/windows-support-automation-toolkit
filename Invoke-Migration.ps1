@@ -117,11 +117,11 @@ if ($Action -eq "Restore") {
     if (-not $BackupDir) {
         # Proposer un sélecteur interactif si non fourni
         Write-ESNLog "Aucun -BackupDir spécifié — recherche des captures disponibles..." "INFO"
-        $available = Get-ChildItem $BackupRoot -Directory -EA SilentlyContinue |
+        $available = @(Get-ChildItem $BackupRoot -Directory -EA SilentlyContinue |
                      Where-Object { Test-Path (Join-Path $_.FullName "manifest.json") } |
-                     Sort-Object LastWriteTime -Descending
+                     Sort-Object LastWriteTime -Descending)
 
-        if (-not $available) {
+        if ($available.Count -eq 0) {
             Write-Host "[ERREUR] Aucune capture trouvée dans $BackupRoot" -ForegroundColor Red
             exit 1
         }

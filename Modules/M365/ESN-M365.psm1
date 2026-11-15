@@ -65,22 +65,22 @@ function Invoke-M365Audit {
     try {
         # ── Utilisateurs ──────────────────────────────
         Write-ESNLog "Récupération utilisateurs M365..." "INFO"
-        $users = Get-MgUser -All -Property `
+        $users = @(Get-MgUser -All -Property `
             DisplayName,UserPrincipalName,AccountEnabled,UserType,
             AssignedLicenses,CreatedDateTime,SignInActivity -ErrorAction Stop |
             Select-Object DisplayName, UserPrincipalName, AccountEnabled, UserType,
-                @{N='LicCount';E={ $_.AssignedLicenses.Count }},
-                @{N='LastSignIn';E={ $_.SignInActivity.LastSignInDateTime }},
-                CreatedDateTime
+                @{N='LicCount';E={ if ($null -ne $_.AssignedLicenses) { @($_.AssignedLicenses).Count } else { 0 } }},
+                @{N='LastSignIn';E={ if ($null -ne $_.SignInActivity) { $_.SignInActivity.LastSignInDateTime } else { $null } }},
+                CreatedDateTime)
 
         $total    = $users.Count
-        $enabled  = ($users | Where-Object AccountEnabled).Count
+        $enabled  = @($users | Where-Object AccountEnabled).Count
         $disabled = $total - $enabled
-        $guests   = ($users | Where-Object UserType -eq 'Guest').Count
-        $noLic    = ($users | Where-Object { $_.AccountEnabled -and $_.LicCount -eq 0 -and $_.UserType -eq 'Member' }).Count
+        $guests   = @($users | Where-Object UserType -eq 'Guest').Count
+        $noLic    = @($users | Where-Object { $_.AccountEnabled -and $_.LicCount -eq 0 -and $_.UserType -eq 'Member' }).Count
 
         $cutoff  = (Get-Date).AddDays(-$InactiveDays)
-        $inactive = ($users | Where-Object {
+        $inactive = @($users | Where-Object {
             $_.AccountEnabled -and $_.UserType -eq 'Member' -and
             ($null -eq $_.LastSignIn -or [datetime]$_.LastSignIn -lt $cutoff)
         }).Count
@@ -97,7 +97,7 @@ function Invoke-M365Audit {
 
         # ── Licences (SKUs) ───────────────────────────
         Write-ESNLog "Récupération licences..." "INFO"
-        $skus = Get-MgSubscribedSku -ErrorAction SilentlyContinue
+        $skus = @(Get-MgSubscribedSku -ErrorAction SilentlyContinue)
         foreach ($sku in $skus) {
             $achetees  = $sku.PrepaidUnits.Enabled
             $consommees= $sku.ConsumedUnits
@@ -112,10 +112,10 @@ function Invoke-M365Audit {
         # ── MFA (méthodes d'auth) ─────────────────────
         try {
             Write-ESNLog "Vérification MFA..." "INFO"
-            $authMethods = Get-MgReportAuthenticationMethodUserRegistrationDetail -All `
-                -ErrorAction Stop | Select-Object -First 500
+            $authMethods = @(Get-MgReportAuthenticationMethodUserRegistrationDetail -All `
+                -ErrorAction Stop | Select-Object -First 500)
 
-            $mfaRegistered = ($authMethods | Where-Object IsMfaRegistered).Count
+            $mfaRegistered = @($authMethods | Where-Object IsMfaRegistered).Count
             $total2        = $authMethods.Count
             $pctMFA        = if ($total2 -gt 0) { [math]::Round($mfaRegistered/$total2*100,1) } else { 0 }
             $mfaSt         = if ($pctMFA -lt 70) { "ERROR" } elseif ($pctMFA -lt 90) { "WARN" } else { "OK" }

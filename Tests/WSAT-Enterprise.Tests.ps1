@@ -54,11 +54,38 @@ Describe "5 Elite Automation Modules (Functional Simulate Mode)" {
         $res.ComplianceStatus | Should -Be "CERTIFIED_IMMUTABLE"
     }
 
-    It "Invoke-CopilDashboardGenerator.ps1 produces standalone HTML5 SVG dashboard" {
+    It "Invoke-CopilDashboardGenerator.ps1 produces standalone HTML5 SVG dashboard and HtmlEncodes inputs" {
         $dashFile = Join-Path $script:TmpOut "copil-test.html"
-        & (Join-Path $script:RootDir "Invoke-CopilDashboardGenerator.ps1") -OutputFile $dashFile | Out-Null
+        $res = & (Join-Path $script:RootDir "Invoke-CopilDashboardGenerator.ps1") `
+            -ClientName "<script>alert(1)</script>" `
+            -PeriodLabel "<b>Q4</b>" `
+            -OutputFile $dashFile
         Test-Path $dashFile | Should -BeTrue
-        (Get-Content $dashFile -Raw) | Should -Match "<svg"
+        $raw = Get-Content $dashFile -Raw
+        $raw | Should -Match "<svg"
+        $raw | Should -Not -Match "<script>alert\(1\)</script>"
+        $raw | Should -Match "&lt;script&gt;alert\(1\)&lt;/script&gt;"
+        $raw | Should -Match "&lt;b&gt;Q4&lt;/b&gt;"
+        $res.ClientName | Should -Be "<script>alert(1)</script>"
+    }
+
+    It "Invoke-CopilDashboardGenerator.ps1 respects -WhatIf and defaults under Get-ESNReportRoot" {
+        $prevRoot = $env:ESN_TOOLKIT_ROOT
+        $env:ESN_TOOLKIT_ROOT = Join-Path $script:TmpOut "copil-root"
+        try {
+            $whatIfTarget = Join-Path $script:TmpOut "copil-whatif-missing/dash.html"
+            & (Join-Path $script:RootDir "Invoke-CopilDashboardGenerator.ps1") -OutputFile $whatIfTarget -WhatIf | Out-Null
+            Test-Path $whatIfTarget | Should -BeFalse
+            Test-Path (Split-Path $whatIfTarget -Parent) | Should -BeFalse
+
+            $resDef = & (Join-Path $script:RootDir "Invoke-CopilDashboardGenerator.ps1")
+            $expectedDir = Get-ESNReportRoot
+            $resDef.DashboardPath | Should -Be (Join-Path $expectedDir "COPIL-Executive-Dashboard.html")
+            Test-Path $resDef.DashboardPath | Should -BeTrue
+        }
+        finally {
+            $env:ESN_TOOLKIT_ROOT = $prevRoot
+        }
     }
 }
 
@@ -211,6 +238,7 @@ Describe "PS 5.1 Compatibility, Security Hardening & Live Guards" {
         $res.ClusterName | Should -Be "NTNX-MOCK-01"
         $res.NodesCount | Should -Be 3
         $res.PeakClusterIOPS | Should -Be 18500
+        $res.StorageRunwayDays | Should -BeNullOrEmpty
         Test-Path (Join-Path $script:TmpOut "NutanixHealth_NTNX-MOCK-01.json") | Should -BeTrue
     }
 
@@ -229,31 +257,189 @@ Describe "PS 5.1 Compatibility, Security Hardening & Live Guards" {
         ($res.Findings | Where-Object { $_.MITRETechnique -eq 'T1558.003' }).SourceWorkstation | Should -Contain '10.99.99.50'
     }
 
-    It "Get-ESNToolkitRoot supports -Ensure after dot-sourcing Core/ESN-OutputSchema.ps1" {
+    It "Get-ESNToolkitRoot avoids creating non-ensured folders while Get-ESNReportRoot ensures creation" {
         Import-Module (Join-Path $script:RootDir "Core/ESN-Core.psm1") -Force
         . (Join-Path $script:RootDir "Core/ESN-OutputSchema.ps1")
-        $dir = Get-ESNToolkitRoot -SubFolder "Reports" -Ensure
-        $dir | Should -Not -BeNullOrEmpty
-        Test-Path $dir | Should -BeTrue
+        $prevRoot = $env:ESN_TOOLKIT_ROOT
+        $env:ESN_TOOLKIT_ROOT = Join-Path $script:TmpOut "RootBehavior"
+        try {
+            $nonEnsured = Get-ESNToolkitRoot -SubFolder "ShouldNotExist_$(Get-Random)"
+            Test-Path $nonEnsured | Should -BeFalse
+
+            $dir = Get-ESNToolkitRoot -SubFolder "Reports" -Ensure
+            $dir | Should -Not -BeNullOrEmpty
+            Test-Path $dir | Should -BeTrue
+
+            $repDir = Get-ESNReportRoot -SubFolder "Ensured_$(Get-Random)"
+            Test-Path $repDir | Should -BeTrue
+        } finally {
+            if ($null -eq $prevRoot) { Remove-Item Env:\ESN_TOOLKIT_ROOT -ErrorAction SilentlyContinue } else { $env:ESN_TOOLKIT_ROOT = $prevRoot }
+        }
     }
 
-    It "Build-ESNReport encodes XSS payloads and uses direct sibling CSS selector" {
+    It "New-ESNDomainResult handles SKIP and empty/INFO checks under StrictMode" {
+        . (Join-Path $script:RootDir "Core/ESN-OutputSchema.ps1")
+        $skipCheck = New-ESNCheck -Domain "Network" -Check "VPN Tunnel" -Severity "SKIP" -Value "N/A"
+        $convSkip  = ConvertTo-ESNCheck ([PSCustomObject]@{ Category = "Network"; Check = "V"; Status = "SKIP"; Value = "N/A"; Details = "D" })
+        $convSkip.severity | Should -Be "SKIP"
+
+        $dom = New-ESNDomainResult -Domain "Network" -Checks @($skipCheck)
+        $dom.score        | Should -Be 100
+        $dom.label        | Should -Be "Excellent"
+        $dom.total_impact | Should -Be 0
+    }
+
+    It "Build-ESNReport encodes XSS payloads across metadata, remediation and JSON" {
+        . (Join-Path $script:RootDir "Core/ESN-OutputSchema.ps1")
         . (Join-Path $script:RootDir "Core/ESN-ReportBuilder.ps1")
         $chkXss = New-ESNCheck -Domain "Security" -Check "<script>alert(1)</script>" -Severity "CRITICAL" -Value "<img src=x onerror=alert(2)>" -Detail "Test XSS" -ScoreImpact 25
         $sess = [PSCustomObject]@{
             StartTime = (Get-Date).AddMinutes(-1)
             Results   = @($chkXss)
             Score     = 75
-            Errors    = @()
+            Errors    = @("<script>alert(13)</script>")
             Warnings  = @()
         }
+        $rem = @([PSCustomObject]@{
+            Id = "<script>alert(14)</script>"; Name = "RemXSS"; Detected = $true; Applied = $true; Success = $true; Before = "<b1>"; After = "<a2>"
+        })
         $outHtml = Join-Path $script:TmpOut "xss-report.html"
-        $written = Build-ESNReport -SessionData $sess -ComputerName "TEST-XSS" -IncidentId "INC-XSS" -OutputPath $outHtml
+        $written = Build-ESNReport -SessionData $sess -ComputerName "<script>alert(10)</script>" -IncidentId "<script>alert(11)</script>" -RemediationData $rem -OutputPath $outHtml
         $rawHtml = Get-Content $written -Raw
         $rawHtml | Should -Match "#sec-checks:checked ~ #body-checks"
-        $rawHtml | Should -Not -Match "<script>alert\(1\)</script>"
+        $rawHtml | Should -Not -Match "<script>alert\((1|2|10|11|13|14)\)</script>"
         $rawHtml | Should -Match "&lt;script&gt;alert\(1\)&lt;/script&gt;"
+        $rawHtml | Should -Match "&lt;script&gt;alert\(10\)&lt;/script&gt;"
+        $rawHtml | Should -Match "&lt;script&gt;alert\(11\)&lt;/script&gt;"
+        $rawHtml | Should -Match "&lt;script&gt;alert\(13\)&lt;/script&gt;"
+        $rawHtml | Should -Match "&lt;script&gt;alert\(14\)&lt;/script&gt;"
         $rawHtml | Should -Match "25 pts"
+    }
+
+    It "ESN-GUI.ps1 button parameters match invoked target script declarations via AST" {
+        $guiPath = Join-Path $script:RootDir "ESN-GUI.ps1"
+        $tokens = $null; $errs = $null
+        $guiAst = [System.Management.Automation.Language.Parser]::ParseFile($guiPath, [ref]$tokens, [ref]$errs)
+        $tokens.Count | Should -BeGreaterThan 0
+        $errs.Count | Should -Be 0
+
+        $strNodes = $guiAst.FindAll({
+            param($n)
+            $n -is [System.Management.Automation.Language.StringConstantExpressionAst] -or
+            $n -is [System.Management.Automation.Language.ExpandableStringExpressionAst]
+        }, $true)
+
+        $checked = 0
+        foreach ($node in $strNodes) {
+            if ($node.Extent.Text -match '\$ScriptDir\\([A-Za-z0-9_\\.-]+\.ps1)["'']?(.*)$') {
+                $relPath = $Matches[1] -replace '\\', '/'
+                $tail    = $Matches[2]
+                $targetFile = Join-Path $script:RootDir $relPath
+                Test-Path $targetFile | Should -BeTrue
+                $checked++
+
+                $tTokens = $null; $tErrs = $null
+                $tAst = [System.Management.Automation.Language.Parser]::ParseFile($targetFile, [ref]$tTokens, [ref]$tErrs)
+                $null = $tTokens
+                $tErrs.Count | Should -Be 0
+                $declared = @()
+                if ($tAst.ParamBlock) {
+                    $declared = @($tAst.ParamBlock.Parameters | ForEach-Object { $_.Name.VariablePath.UserPath })
+                }
+
+                $argMatches = [regex]::Matches($tail, '(?:^|\s)-([A-Za-z][A-Za-z0-9_]*)')
+                foreach ($m in $argMatches) {
+                    $pName = $m.Groups[1].Value
+                    $declared | Should -Contain $pName
+                }
+            }
+        }
+        $checked | Should -BeGreaterThan 20
+    }
+
+    It "Invoke-RansomwareShield.ps1 avoids -Force on New-NetFirewallRule and runs -IsolateHost cleanly" {
+        $shieldPath = Join-Path $script:RootDir "Invoke-RansomwareShield.ps1"
+        $sTokens = $null; $sErrs = $null
+        $sAst = [System.Management.Automation.Language.Parser]::ParseFile($shieldPath, [ref]$sTokens, [ref]$sErrs)
+        $null = $sTokens
+        $sErrs.Count | Should -Be 0
+        $fwCmds = $sAst.FindAll({
+            param($n)
+            $n -is [System.Management.Automation.Language.CommandAst] -and $n.GetCommandName() -eq 'New-NetFirewallRule'
+        }, $true)
+        $fwCmds.Count | Should -BeGreaterOrEqual 2
+        foreach ($cmd in $fwCmds) {
+            $paramNames = @($cmd.CommandElements | Where-Object { $_ -is [System.Management.Automation.Language.CommandParameterAst] } | ForEach-Object { $_.ParameterName })
+            $paramNames | Should -Not -Contain 'Force'
+        }
+
+        if (Get-Command New-NetFirewallRule -ErrorAction SilentlyContinue) {
+            $script:fwCalls = 0
+            Mock Get-NetFirewallRule { $null }
+            Mock Remove-NetFirewallRule { }
+            Mock New-NetFirewallRule { $script:fwCalls++ }
+            if (Get-Command Get-NetAdapter -ErrorAction SilentlyContinue) {
+                Mock Get-NetAdapter { @() }
+                Mock Disable-NetAdapter { }
+            }
+            { & $shieldPath -IsolateHost -CollectForensics:$false -OutputPath $script:TmpOut -Confirm:$false } | Should -Not -Throw
+            $script:fwCalls | Should -BeGreaterOrEqual 2
+        }
+        { & $shieldPath -IsolateHost -Simulate -WhatIf -OutputPath $script:TmpOut } | Should -Not -Throw
+    }
+
+    It "All Projects/* and safe-mode root scripts parse cleanly without plaintext passwords and run in safe modes" {
+        $allScripts = @(
+            "Invoke-ZeroTouchProvisioning.ps1",
+            "Invoke-HypervisorAudit.ps1",
+            "Invoke-DRTest.ps1",
+            "Invoke-COPILReportGenerator.ps1",
+            "Projects/MDT-Deployment/Invoke-MDTIndustrialization.ps1",
+            "Projects/WAN-MPLS-Refonte/Invoke-WANMigrationPlan.ps1",
+            "Projects/AD-Migration/Invoke-ADDomainMigration.ps1",
+            "Projects/Datacenter-Migration/Invoke-VeeamFailoverPlan.ps1",
+            "Projects/EDR-Deployment/Invoke-EDRMassRollout.ps1",
+            "Projects/Windows-LAPS/Deploy-WindowsLAPS.ps1",
+            "Projects/Network-Aruba/New-ArubaSwitchConfig.ps1"
+        )
+        foreach ($rel in $allScripts) {
+            $full = Join-Path $script:RootDir $rel
+            Test-Path $full | Should -BeTrue
+            $tk = $null; $er = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile($full, [ref]$tk, [ref]$er)
+            $null = $tk
+            $er.Count | Should -Be 0
+            $raw = Get-Content $full -Raw
+            $raw | Should -Not -Match 'AdminPassword\s*=\s*[^<\r\n]|P@ssw0rd|Admin123|Password123'
+        }
+
+        $prevRoot = $env:ESN_TOOLKIT_ROOT
+        $env:ESN_TOOLKIT_ROOT = Join-Path $script:TmpOut "SafeModeRuns"
+        try {
+            $isAdmin = $false
+            try {
+                $id = [Security.Principal.WindowsIdentity]::GetCurrent()
+                $isAdmin = ([Security.Principal.WindowsPrincipal]::new($id)).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+            } catch {
+                $isAdmin = $false
+            }
+
+            { & (Join-Path $script:RootDir "Invoke-COPILReportGenerator.ps1") -Simulate -OpenInBrowser:$false } | Should -Not -Throw
+            { & (Join-Path $script:RootDir "Projects/MDT-Deployment/Invoke-MDTIndustrialization.ps1") -DeploymentSharePath (Join-Path $script:TmpOut "MDT") -ReportOnly } | Should -Not -Throw
+            { & (Join-Path $script:RootDir "Projects/WAN-MPLS-Refonte/Invoke-WANMigrationPlan.ps1") -PrimaryGateway "127.0.0.1" -BackupGateway "127.0.0.1" -RemoteSiteIPs @("127.0.0.1") -ReportOnly } | Should -Not -Throw
+
+            if ($isAdmin) {
+                { & (Join-Path $script:RootDir "Invoke-ZeroTouchProvisioning.ps1") -Simulation -SkipSoftwareInstall -WhatIf } | Should -Not -Throw
+                { & (Join-Path $script:RootDir "Invoke-HypervisorAudit.ps1") -Simulate -OpenReport:$false } | Should -Not -Throw
+                { & (Join-Path $script:RootDir "Invoke-DRTest.ps1") -Simulate -OpenReport:$false } | Should -Not -Throw
+                { & (Join-Path $script:RootDir "Projects/AD-Migration/Invoke-ADDomainMigration.ps1") -OutputDirectory (Join-Path $script:TmpOut "AD_Mig") -ExportAclOnly } | Should -Not -Throw
+                { & (Join-Path $script:RootDir "Projects/Datacenter-Migration/Invoke-VeeamFailoverPlan.ps1") -TargetDatacenterIP "127.0.0.1" -Simulation -OpenReport:$false } | Should -Not -Throw
+                { & (Join-Path $script:RootDir "Projects/EDR-Deployment/Invoke-EDRMassRollout.ps1") -Simulation } | Should -Not -Throw
+                { & (Join-Path $script:RootDir "Projects/Windows-LAPS/Deploy-WindowsLAPS.ps1") -AuditOnly } | Should -Not -Throw
+            }
+        } finally {
+            if ($null -eq $prevRoot) { Remove-Item Env:\ESN_TOOLKIT_ROOT -ErrorAction SilentlyContinue } else { $env:ESN_TOOLKIT_ROOT = $prevRoot }
+        }
     }
 
     It "New-ESNRandomPassword uses CSPRNG without static Aa1! suffix and Ping helpers work on localhost" {

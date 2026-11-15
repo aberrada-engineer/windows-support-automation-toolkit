@@ -56,15 +56,24 @@ param(
     [int]$ManualL3Escalations = 28,
 
     [Parameter(Mandatory = $false)]
-    [string]$OutputFile = (Join-Path $PSScriptRoot "Reports/COPIL-Executive-Dashboard.html")
+    [string]$OutputFile = ""
 )
 
 process {
     try {
-        $parentDir = Split-Path -Path $OutputFile -Parent
-        if (-not [string]::IsNullOrWhiteSpace($parentDir) -and -not (Test-Path -Path $parentDir)) {
-            New-Item -Path $parentDir -ItemType Directory -Force | Out-Null
+        if ([string]::IsNullOrWhiteSpace($OutputFile)) {
+            $reportDir = if (Get-Command Get-ESNReportRoot -ErrorAction SilentlyContinue) {
+                Get-ESNReportRoot
+            } elseif (-not [string]::IsNullOrWhiteSpace($env:ESN_TOOLKIT_ROOT)) {
+                Join-Path $env:ESN_TOOLKIT_ROOT "Reports"
+            } else {
+                Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/Reports"
+            }
+            $OutputFile = Join-Path $reportDir "COPIL-Executive-Dashboard.html"
         }
+
+        $safeClientName  = [System.Net.WebUtility]::HtmlEncode($ClientName)
+        $safePeriodLabel = [System.Net.WebUtility]::HtmlEncode($PeriodLabel)
 
         $totalIncidents = [Math]::Max(1, ($SelfHealedIncidents + $ManualL3Escalations))
         $autoRatePct = [Math]::Round(($SelfHealedIncidents / $totalIncidents) * 100, 1)
@@ -76,7 +85,7 @@ process {
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>COPIL / COTECH Executive Dashboard — $ClientName</title>
+<title>COPIL / COTECH Executive Dashboard — $safeClientName</title>
 <style>
   :root {
     --bg: #0b1120;
@@ -110,7 +119,7 @@ process {
   <div class="header">
     <div>
       <h1>Executive IT Steering Dashboard (COPIL / COTECH)</h1>
-      <div class="meta">Scope: <strong>$ClientName</strong> &bull; Period: <strong>$PeriodLabel</strong></div>
+      <div class="meta">Scope: <strong>$safeClientName</strong> &bull; Period: <strong>$safePeriodLabel</strong></div>
     </div>
     <div class="meta">Generated: $generatedAt<br/>Lead: Amine BERRADA (L3 Technical Lead)</div>
   </div>
@@ -174,6 +183,10 @@ process {
 "@
 
         if ($PSCmdlet.ShouldProcess($OutputFile, "Write standalone HTML5 COPIL/COTECH Dashboard")) {
+            $parentDir = Split-Path -Path $OutputFile -Parent
+            if (-not [string]::IsNullOrWhiteSpace($parentDir) -and -not (Test-Path -Path $parentDir)) {
+                New-Item -Path $parentDir -ItemType Directory -Force | Out-Null
+            }
             Set-Content -Path $OutputFile -Value $htmlContent -Encoding UTF8
         }
 

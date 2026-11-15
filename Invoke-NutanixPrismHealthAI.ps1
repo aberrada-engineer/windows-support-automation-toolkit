@@ -59,7 +59,10 @@ param(
     [string]$OutputPath = (Join-Path $PSScriptRoot "Reports"),
 
     [Parameter(Mandatory = $false)]
-    [switch]$Simulate
+    [switch]$Simulate,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$AllowUntrustedCert
 )
 
 begin {
@@ -93,8 +96,11 @@ begin {
             TimeoutSec  = 15
             ErrorAction = 'Stop'
         }
-        if ($PSVersionTable.PSVersion.Major -ge 6) {
-            $invokeParams['SkipCertificateCheck'] = $true
+        if ($AllowUntrustedCert) {
+            Write-Warning "TLS certificate validation disabled via -AllowUntrustedCert for $Endpoint"
+            if ($PSVersionTable.PSVersion.Major -ge 6) {
+                $invokeParams['SkipCertificateCheck'] = $true
+            }
         }
         if ($null -ne $Body) {
             $invokeParams['Body']        = ($Body | ConvertTo-Json -Depth 6 -Compress)
@@ -111,7 +117,7 @@ begin {
             [double]$CeilingPct = 85.0
         )
         if ($CurrentUsedPct -ge $CeilingPct) { return 0 }
-        if ($DailyGrowthRatePct -le 0.001) { return 365 }
+        if ($DailyGrowthRatePct -le 0.001) { return $null }
         return [int][Math]::Round(($CeilingPct - $CurrentUsedPct) / $DailyGrowthRatePct, 0)
     }
 }
@@ -207,11 +213,12 @@ process {
 
         $runwayDays85 = Get-LinearRunwayDays -CurrentUsedPct $clusterData.StorageUsedPct -DailyGrowthRatePct $clusterData.DailyGrowthPct -CeilingPct 85.0
         $maxLatency   = [Math]::Max($clusterData.AvgReadLatencyMs, $clusterData.AvgWriteLatencyMs)
+        $runwayDisplay = if ($null -ne $runwayDays85) { "$runwayDays85 Days" } else { "N/A (no growth telemetry)" }
 
         $recommendations = [System.Collections.Generic.List[string]]::new()
         $severity = "OK"
 
-        if ($runwayDays85 -le $RunwayWarningDays) {
+        if ($null -ne $runwayDays85 -and $runwayDays85 -le $RunwayWarningDays) {
             $severity = "WARNING"
             $recommendations.Add("Storage runway until 85% threshold is $runwayDays85 days (<= $RunwayWarningDays days). Plan storage node expansion or container cleanup.")
         }
@@ -220,7 +227,8 @@ process {
             $recommendations.Add("Controller average I/O latency ($maxLatency ms) exceeds SLA threshold ($LatencyWarningMs ms). Inspect Stargate queues and CVM SSD tier.")
         }
         if ($recommendations.Count -eq 0) {
-            $recommendations.Add("Cluster $($clusterData.ClusterName) is operating within nominal HCI SLA parameters ($runwayDays85 days storage runway).")
+            $runwayNote = if ($null -ne $runwayDays85) { "$runwayDays85 days storage runway" } else { "growth trend telemetry required for capacity runway projection" }
+            $recommendations.Add("Cluster $($clusterData.ClusterName) is operating within nominal HCI SLA parameters ($runwayNote).")
         }
 
         $reportObject = [PSCustomObject]@{
@@ -276,7 +284,7 @@ th { color: #94a3b8; }
   <p>Generated: $(ConvertTo-HtmlSafe $timestamp) | AOS: $(ConvertTo-HtmlSafe $clusterData.AOSVersion) | Hypervisor: $(ConvertTo-HtmlSafe $clusterData.Hypervisor) | Status: <strong>$(ConvertTo-HtmlSafe $severity)</strong></p>
   <div class="kpi-grid">
     <div class="kpi"><div>Storage Used</div><div class="val">$($clusterData.StorageUsedPct)% ($($clusterData.StorageUsedTiB) / $($clusterData.StorageCapacityTiB) TiB)</div></div>
-    <div class="kpi"><div>Runway (85% Cap)</div><div class="val">$runwayDays85 Days</div></div>
+    <div class="kpi"><div>Runway (85% Cap)</div><div class="val">$(ConvertTo-HtmlSafe $runwayDisplay)</div></div>
     <div class="kpi"><div>Peak Cluster IOPS</div><div class="val">$($clusterData.PeakClusterIOPS)</div></div>
     <div class="kpi"><div>R/W Latency</div><div class="val">$($clusterData.AvgReadLatencyMs) / $($clusterData.AvgWriteLatencyMs) ms</div></div>
   </div>

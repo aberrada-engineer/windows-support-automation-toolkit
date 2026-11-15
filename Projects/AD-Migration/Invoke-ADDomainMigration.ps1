@@ -32,7 +32,9 @@ if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
     $OutputDirectory = if (Get-Command Get-ESNToolkitRoot -ErrorAction SilentlyContinue) { Get-ESNToolkitRoot -SubFolder "AD_Migration_Project" } elseif ($env:ESN_TOOLKIT_ROOT) { Join-Path $env:ESN_TOOLKIT_ROOT "AD_Migration_Project" } elseif ($env:SystemDrive) { "$($env:SystemDrive)\ESN-Toolkit\AD_Migration_Project" } else { Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/AD_Migration_Project" }
 }
 
-Clear-Host
+if ([Environment]::UserInteractive) {
+    try { Clear-Host } catch { Write-Verbose "Clear-Host ignored: $($_.Exception.Message)" }
+}
 Write-Host "================================================================================" -ForegroundColor Cyan
 Write-Host "   🏢  MIGRATION INTER-DOMAINES ACTIVE DIRECTORY — ESN-TOOLKIT PROJECTS" -ForegroundColor White
 Write-Host "       Projet d'Ingénierie Réalisé en Autonomie — Amine BERRADA" -ForegroundColor Gray
@@ -89,13 +91,14 @@ if ($adModule) {
 
 # 3. SCRIPT DE BASCULE DE POSTE SANS PERTE DE PROFIL (PROFILE TRANSLATION)
 Write-Host "`n[3/4] Génération du script de migration de poste et profil utilisateur..." -ForegroundColor Yellow
+$safeTargetDomain = if ($TargetDomain -match '^[a-zA-Z0-9.-]+$') { $TargetDomain } else { throw "Nom de domaine cible invalide : $TargetDomain" }
 $profileSwitchScript = @"
 @echo off
 :: ============================================================================
-:: Bascule du poste vers le nouveau domaine $TargetDomain
+:: Bascule du poste vers le nouveau domaine $safeTargetDomain
 :: Conserve le profil local sans créer de dossier TEMP ou .nouveau_domaine
 :: ============================================================================
-set NEW_DOMAIN=$TargetDomain
+set NEW_DOMAIN=$safeTargetDomain
 
 echo Jonction au domaine %NEW_DOMAIN%...
 powershell -Command "Add-Computer -DomainName '%NEW_DOMAIN%' -Restart -Force"
@@ -107,6 +110,8 @@ Write-Host "  [OK] Script de bascule de poste prêt : $scriptFile" -ForegroundCo
 # 4. RAPPORT DE PROJET DE MIGRATION INTER-DOMAINES
 Write-Host "`n[4/4] Génération de la fiche projet d'ingénierie..." -ForegroundColor Yellow
 $reportPath = Join-Path $OutputDirectory "Dossier-Projet-Migration-AD.html"
+$srcHtml = [System.Net.WebUtility]::HtmlEncode([string]$SourceDomain)
+$dstHtml = [System.Net.WebUtility]::HtmlEncode([string]$TargetDomain)
 
 $html = @"
 <!DOCTYPE html>
@@ -133,7 +138,7 @@ $html = @"
         <div class='steps'>
             <div class='step-item'>
                 <div class='step-title'>Étape 1 : Établissement de la relation d'approbation (Trust)</div>
-                Création d'une approbation bidirectionnelle de forêt (Forest Trust) entre $SourceDomain et $TargetDomain pour permettre la résolution croisée des identités.
+                Création d'une approbation bidirectionnelle de forêt (Forest Trust) entre $srcHtml et $dstHtml pour permettre la résolution croisée des identités.
             </div>
             <div class='step-item'>
                 <div class='step-title'>Étape 2 : Migration des comptes avec SID History</div>

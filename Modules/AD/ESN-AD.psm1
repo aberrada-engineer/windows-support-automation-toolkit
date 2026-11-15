@@ -44,8 +44,9 @@ function Invoke-ADAudit {
     }
 
     # ── Domain Controllers ───────────────────────────
-    $dcs = Get-ADDomainController -Filter *
-    Add-ESNResult "AD" "Domain Controllers" "INFO" "$($dcs.Count) DC(s)" ($dcs.Name -join ', ')
+    $dcs = @(Get-ADDomainController -Filter *)
+    $dcNames = @($dcs | ForEach-Object { $_.Name }) -join ', '
+    Add-ESNResult "AD" "Domain Controllers" "INFO" "$($dcs.Count) DC(s)" $dcNames
 
     foreach ($dc in $dcs) {
         $ping = Test-Connection $dc.Name -Count 1 -Quiet -EA SilentlyContinue
@@ -67,18 +68,18 @@ function Invoke-ADAudit {
     }
 
     # ── Utilisateurs ─────────────────────────────────
-    $allUsers = Get-ADUser -Filter * -Properties Enabled, LockedOut, PasswordExpired,
-        PasswordNeverExpires, PasswordLastSet, LastLogonDate, BadLogonCount
+    $allUsers = @(Get-ADUser -Filter * -Properties Enabled, LockedOut, PasswordExpired,
+        PasswordNeverExpires, PasswordLastSet, LastLogonDate, BadLogonCount)
 
     $total      = $allUsers.Count
-    $enabled    = ($allUsers | Where-Object Enabled).Count
+    $enabled    = @($allUsers | Where-Object Enabled).Count
     $disabled   = $total - $enabled
-    $locked     = ($allUsers | Where-Object LockedOut).Count
-    $pwdExpired = ($allUsers | Where-Object { $_.PasswordExpired -and $_.Enabled }).Count
-    $pwdNever   = ($allUsers | Where-Object { $_.PasswordNeverExpires -and $_.Enabled }).Count
+    $locked     = @($allUsers | Where-Object LockedOut).Count
+    $pwdExpired = @($allUsers | Where-Object { $_.PasswordExpired -and $_.Enabled }).Count
+    $pwdNever   = @($allUsers | Where-Object { $_.PasswordNeverExpires -and $_.Enabled }).Count
 
     $cutoff  = (Get-Date).AddDays(-$InactiveDays)
-    $inactive = ($allUsers | Where-Object {
+    $inactive = @($allUsers | Where-Object {
         $_.Enabled -and ($null -eq $_.LastLogonDate -or $_.LastLogonDate -lt $cutoff)
     }).Count
 
@@ -95,22 +96,25 @@ function Invoke-ADAudit {
         -ScoreImpact $(if($inactive -gt 50){5}else{0})
 
     # ── Domain Admins ────────────────────────────────
-    $da = Get-ADGroupMember 'Domain Admins' -Recursive -EA SilentlyContinue |
-          Where-Object objectClass -eq user
+    $da = @(Get-ADGroupMember 'Domain Admins' -Recursive -EA SilentlyContinue |
+          Where-Object objectClass -eq user)
     $daSt = if ($da.Count -gt 5) { "WARN" } else { "OK" }
-    Add-ESNResult "AD" "Domain Admins" $daSt "$($da.Count) membre(s)" ($da.Name -join ', ') `
+    $daNames = @($da | ForEach-Object { $_.Name }) -join ', '
+    Add-ESNResult "AD" "Domain Admins" $daSt "$($da.Count) membre(s)" $daNames `
         -ScoreImpact $(if($da.Count -gt 10){10}elseif($da.Count -gt 5){5}else{0})
 
     # ── KRBTGT âge ──────────────────────────────────
-    $krb = Get-ADUser krbtgt -Properties PasswordLastSet
-    $krbDays = [math]::Round(((Get-Date) - $krb.PasswordLastSet).TotalDays, 0)
-    $krbSt   = if ($krbDays -gt 180) { "WARN" } else { "OK" }
-    Add-ESNResult "AD" "Compte KRBTGT" $krbSt "MDP changé il y a $krbDays jours" "" `
-        -ScoreImpact $(if($krbDays -gt 365){10}elseif($krbDays -gt 180){5}else{0})
+    $krb = Get-ADUser krbtgt -Properties PasswordLastSet -EA SilentlyContinue
+    if ($krb -and $krb.PasswordLastSet) {
+        $krbDays = [math]::Round(((Get-Date) - $krb.PasswordLastSet).TotalDays, 0)
+        $krbSt   = if ($krbDays -gt 180) { "WARN" } else { "OK" }
+        Add-ESNResult "AD" "Compte KRBTGT" $krbSt "MDP changé il y a $krbDays jours" "" `
+            -ScoreImpact $(if($krbDays -gt 365){10}elseif($krbDays -gt 180){5}else{0})
+    }
 
     # ── GPO ─────────────────────────────────────────
     try {
-        $gpos = Get-GPO -All -EA Stop
+        $gpos = @(Get-GPO -All -EA Stop)
         Add-ESNResult "AD" "GPOs" "INFO" "$($gpos.Count) GPO(s)" ""
     } catch {
         Add-ESNResult "AD" "GPOs" "WARN" "Module GroupPolicy non disponible" ""

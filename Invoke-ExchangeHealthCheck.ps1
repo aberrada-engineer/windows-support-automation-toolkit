@@ -20,7 +20,9 @@ param(
 )
 if (-not $PSBoundParameters.ContainsKey('OpenReport')) { $OpenReport = $true }
 
-Clear-Host
+if ([Environment]::UserInteractive) {
+    try { Clear-Host } catch { Write-Verbose "Clear-Host ignored: $($_.Exception.Message)" }
+}
 Write-Host "================================================================================" -ForegroundColor Cyan
 Write-Host "   ✉️  AUDIT MICROSOFT EXCHANGE (HYBRIDE & ON-PREMISE) — ESN-TOOLKIT" -ForegroundColor White
 Write-Host "       Contrôle Flux SMTP, Services, Files & Sécurité Messagerie — Amine BERRADA" -ForegroundColor Gray
@@ -106,10 +108,14 @@ $reportDir  = if (Get-Command Get-ESNToolkitRoot -ErrorAction SilentlyContinue) 
 $reportPath = Join-Path $reportDir "Exchange-Health-Report.html"
 if (-not (Test-Path $reportDir)) { New-Item $reportDir -ItemType Directory -Force | Out-Null }
 
-$rows = $mailResults | ForEach-Object {
+$rows = ($mailResults | ForEach-Object {
     $badge = if ($_.Statut -eq "OK") { "#107c41" } elseif ($_.Statut -eq "WARN") { "#d83b01" } else { "#a80000" }
-    "<tr><td><b>$($_.Composant)</b></td><td>$($_.Valeur)</td><td><span style='background:$badge;color:white;padding:3px 8px;border-radius:4px;font-weight:bold;'>$($_.Statut)</span></td><td>$($_.Observation)</td></tr>"
-} -join "`n"
+    $comp = [System.Net.WebUtility]::HtmlEncode([string]$_.Composant)
+    $val  = [System.Net.WebUtility]::HtmlEncode([string]$_.Valeur)
+    $stat = [System.Net.WebUtility]::HtmlEncode([string]$_.Statut)
+    $obs  = [System.Net.WebUtility]::HtmlEncode([string]$_.Observation)
+    "<tr><td><b>$comp</b></td><td>$val</td><td><span style='background:$badge;color:white;padding:3px 8px;border-radius:4px;font-weight:bold;'>$stat</span></td><td>$obs</td></tr>"
+}) -join "`n"
 
 $html = @"
 <!DOCTYPE html>

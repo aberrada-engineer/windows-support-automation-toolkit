@@ -22,7 +22,9 @@ param(
 )
 if (-not $PSBoundParameters.ContainsKey('OpenReport')) { $OpenReport = $true }
 
-Clear-Host
+if ([Environment]::UserInteractive) {
+    try { Clear-Host } catch { Write-Verbose "Clear-Host ignored: $($_.Exception.Message)" }
+}
 Write-Host "================================================================================" -ForegroundColor Cyan
 Write-Host "   🏢  AUDIT D'HYGIENE & SECURITE ACTIVE DIRECTORY — ESN-TOOLKIT" -ForegroundColor White
 Write-Host "       Contrôle des privilèges et assainissement de l'annuaire — Amine BERRADA" -ForegroundColor Gray

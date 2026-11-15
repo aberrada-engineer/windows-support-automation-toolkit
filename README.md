@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🖥️ ESN-Toolkit & AIOps Platform v3.9 (WSAT Enterprise)
+# 🖥️ ESN-Toolkit & AIOps Platform v4.0 (WSAT Enterprise)
 
 ### Autonomous Workstation, Infrastructure, Chaos Engineering & Cloud Operations Platform
 
@@ -11,7 +11,7 @@ virtualisation (VMware / Nutanix), SecOps Zero-Trust, Chaos Engineering et 7 pro
 
 [![ESN-Toolkit CI](https://github.com/aberrada-engineer/windows-support-automation-toolkit/actions/workflows/ci.yml/badge.svg)](https://github.com/aberrada-engineer/windows-support-automation-toolkit/actions/workflows/ci.yml)
 ![Pester](https://img.shields.io/badge/Pester_Tests-100%25_Pass-success?style=flat-square)
-![Version](https://img.shields.io/badge/version-3.9.0-blue?style=flat-square)
+![Version](https://img.shields.io/badge/version-4.0.0-blue?style=flat-square)
 ![PowerShell](https://img.shields.io/badge/PowerShell-5.1%2B%20%7C%207%2B-5391FE?style=flat-square&logo=powershell&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11%20%7C%20Server%202016--2022-0078D4?style=flat-square&logo=windows&logoColor=white)
 ![Security](https://img.shields.io/badge/Compliance-Zero--Trust%20%2F%20ANSSI%20%2F%20CIS-red?style=flat-square)
@@ -36,7 +36,7 @@ virtualisation (VMware / Nutanix), SecOps Zero-Trust, Chaos Engineering et 7 pro
 
 ## 🎯 À propos
 
-**ESN-Toolkit v3.9** est une plateforme d'ingénierie et d'automatisation des opérations informatiques (**AIOps**) conçue pour couvrir l'intégralité du spectre opérationnel d'une DSI ou d'une ESN :
+**ESN-Toolkit v4.0** est une plateforme d'ingénierie et d'automatisation des opérations informatiques (**AIOps**) conçue pour couvrir l'intégralité du spectre opérationnel d'une DSI ou d'une ESN :
 du **support poste de travail (N1/N2)**, à **l'administration système et maintien en conditions opérationnelles (N2/N3)**, jusqu'au **pilotage de projets d'infrastructure critiques (N3 / Architecte)**.
 
 Conçue sur le retour d'expérience de plus de **200 infrastructures multi-clients infogérées** et d'environnements critiques (notamment grands comptes horlogers et luxe genevois tels que *Porsche, TAG Heuer, Hublot*), cette boîte à outils garantit une autonomie opérationnelle maximale.

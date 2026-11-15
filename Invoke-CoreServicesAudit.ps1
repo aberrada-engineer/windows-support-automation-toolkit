@@ -19,7 +19,9 @@ param(
 )
 if (-not $PSBoundParameters.ContainsKey('OpenReport')) { $OpenReport = $true }
 
-Clear-Host
+if ([Environment]::UserInteractive) {
+    try { Clear-Host } catch { Write-Verbose "Clear-Host ignored: $($_.Exception.Message)" }
+}
 Write-Host "================================================================================" -ForegroundColor Cyan
 Write-Host "   🏢  AUDIT SERVICES D'INFRASTRUCTURE CRITIQUES (DHCP, DNS, PKI, WSUS)" -ForegroundColor White
 Write-Host "       Contrôle Étendues, Certificats SSL & MCO Serveurs — Amine BERRADA" -ForegroundColor Gray
@@ -90,10 +92,14 @@ $reportDir  = if (Get-Command Get-ESNToolkitRoot -ErrorAction SilentlyContinue) 
 $reportPath = Join-Path $reportDir "Core-Services-Report.html"
 if (-not (Test-Path $reportDir)) { New-Item $reportDir -ItemType Directory -Force | Out-Null }
 
-$rows = $coreResults | ForEach-Object {
+$rows = ($coreResults | ForEach-Object {
     $badge = if ($_.Statut -eq "OK") { "#107c41" } elseif ($_.Statut -eq "WARN") { "#d83b01" } else { "#a80000" }
-    "<tr><td><b>$($_.Composant)</b></td><td>$($_.Valeur)</td><td><span style='background:$badge;color:white;padding:3px 8px;border-radius:4px;font-weight:bold;'>$($_.Statut)</span></td><td>$($_.Observation)</td></tr>"
-} -join "`n"
+    $comp = [System.Net.WebUtility]::HtmlEncode([string]$_.Composant)
+    $val  = [System.Net.WebUtility]::HtmlEncode([string]$_.Valeur)
+    $stat = [System.Net.WebUtility]::HtmlEncode([string]$_.Statut)
+    $obs  = [System.Net.WebUtility]::HtmlEncode([string]$_.Observation)
+    "<tr><td><b>$comp</b></td><td>$val</td><td><span style='background:$badge;color:white;padding:3px 8px;border-radius:4px;font-weight:bold;'>$stat</span></td><td>$obs</td></tr>"
+}) -join "`n"
 
 $html = @"
 <!DOCTYPE html>

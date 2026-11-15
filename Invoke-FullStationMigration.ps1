@@ -27,7 +27,9 @@ if ([string]::IsNullOrWhiteSpace($DefaultBackupPath)) {
 Import-Module "$ScriptDir\Modules\Migration\ESN-Migration.psm1" -Force
 
 function Show-Header {
-    Clear-Host
+    if ([Environment]::UserInteractive) {
+        try { Clear-Host } catch { Write-Verbose "Clear-Host ignored: $($_.Exception.Message)" }
+    }
     Write-Host "================================================================================" -ForegroundColor Cyan
     Write-Host "   🚚  ASSISTANT DE MIGRATION DE POSTE DE A A Z — ESN-TOOLKIT v3.0" -ForegroundColor White
     Write-Host "       Sauvegarde & Restauration Intégrale de Profils — Amine BERRADA" -ForegroundColor Gray

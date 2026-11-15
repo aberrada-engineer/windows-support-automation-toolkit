@@ -20,7 +20,9 @@ param(
     [switch]$AuditOnly
 )
 
-Clear-Host
+if ([Environment]::UserInteractive) {
+    try { Clear-Host } catch { Write-Verbose "Clear-Host ignored: $($_.Exception.Message)" }
+}
 Write-Host "================================================================================" -ForegroundColor Red
 Write-Host "   🛡️  SECURISATION POST-AUDIT & DEPLOIEMENT WINDOWS LAPS — ESN-TOOLKIT" -ForegroundColor White
 Write-Host "       Remédiation de Failles & Éradication du Pass-the-Hash — Amine BERRADA" -ForegroundColor Gray
@@ -52,8 +54,9 @@ if (-not $AuditOnly) {
 
 # 2. AUDIT DE CONFORMITE DU POSTE
 Write-Host "`n[2/3] Audit de l'état de conformité LAPS..." -ForegroundColor Yellow
-$backupDir = (Get-ItemProperty $lapsRegPath -Name "BackupDirectory" -ErrorAction SilentlyContinue).BackupDirectory
-$pwdLen    = (Get-ItemProperty $lapsRegPath -Name "PasswordLength" -ErrorAction SilentlyContinue).PasswordLength
+$lapsItem  = Get-ItemProperty -Path $lapsRegPath -ErrorAction SilentlyContinue
+$backupDir = if ($null -ne $lapsItem -and $lapsItem.PSObject.Properties['BackupDirectory']) { $lapsItem.BackupDirectory } else { $null }
+$pwdLen    = if ($null -ne $lapsItem -and $lapsItem.PSObject.Properties['PasswordLength']) { $lapsItem.PasswordLength } else { 0 }
 
 $isCompliant = ($backupDir -in @(1, 2) -and $pwdLen -ge 14)
 $status = if ($isCompliant) { "CONFORME" } else { "NON CONFORME" }

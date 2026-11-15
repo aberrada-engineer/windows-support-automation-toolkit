@@ -1,7 +1,7 @@
 ﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
-    ESN-SelfHealing v3.9 - Moteur d'Auto-Réparation et de Résilience Autonome.
+    ESN-SelfHealing v4.0 - Moteur d'Auto-Réparation et de Résilience Autonome.
     Opère en continu ou par tâche planifiée pour remplacer l'intervention humaine N1/N2.
 
 .DESCRIPTION

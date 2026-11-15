@@ -90,26 +90,35 @@ function _MIG-HtmlReport {
         $bg = if ($st -eq "OK")   { "#d4edda" }
               elseif ($st -eq "Non demandé") { "#f8f9fa" }
               else { "#f8d7da" }
-        "<tr style='background:$bg'><td style='padding:7px 12px;font-size:13px'>$($_.Key)</td><td style='padding:7px 12px;font-size:13px;font-weight:700'>$st</td></tr>"
+        $keyHtml = [System.Net.WebUtility]::HtmlEncode([string]$_.Key)
+        $stHtml  = [System.Net.WebUtility]::HtmlEncode([string]$st)
+        "<tr style='background:$bg'><td style='padding:7px 12px;font-size:13px'>$keyHtml</td><td style='padding:7px 12px;font-size:13px;font-weight:700'>$stHtml</td></tr>"
     }) -join ""
 
     $anoHtml = if ($Manifest.Anomalies -and $Manifest.Anomalies.Count -gt 0) {
         "<div style='background:#fff3cd;border-radius:8px;padding:14px 18px;margin:10px 0'>
           <strong style='color:#856404'>Anomalies détectées ($($Manifest.Anomalies.Count))</strong>
           <ul style='margin:8px 0 0 18px'>" +
-        ($Manifest.Anomalies | ForEach-Object { "<li style='font-size:13px;margin:4px 0'>$_</li>" }) -join "" +
+        (($Manifest.Anomalies | ForEach-Object { "<li style='font-size:13px;margin:4px 0'>$([System.Net.WebUtility]::HtmlEncode([string]$_))</li>" }) -join "") +
         "</ul></div>"
     } else { "<p style='color:#155724;font-size:13px;padding:8px'>&#10003; Aucune anomalie</p>" }
 
     $actHtml = if ($Manifest.PostMigrationActions -and $Manifest.PostMigrationActions.Count -gt 0) {
         "<ol style='padding-left:20px'>" +
-        ($Manifest.PostMigrationActions | ForEach-Object { "<li style='font-size:13px;margin:5px 0'>$_</li>" }) -join "" +
+        (($Manifest.PostMigrationActions | ForEach-Object { "<li style='font-size:13px;margin:5px 0'>$([System.Net.WebUtility]::HtmlEncode([string]$_))</li>" }) -join "") +
         "</ol>"
     } else { "" }
 
+    $uHtml   = [System.Net.WebUtility]::HtmlEncode([string]$Manifest.Username)
+    $srcHtml = [System.Net.WebUtility]::HtmlEncode([string]$Manifest.SourceComputer)
+    $dstHtml = if ($null -ne $Manifest.TargetComputer -and $Manifest.TargetComputer -ne '') { [System.Net.WebUtility]::HtmlEncode([string]$Manifest.TargetComputer) } else { 'Non défini' }
+    $opHtml  = [System.Net.WebUtility]::HtmlEncode([string]$Manifest.Operator)
+    $dtHtml  = [System.Net.WebUtility]::HtmlEncode([string]$Manifest.CaptureDate)
+    $bkHtml  = [System.Net.WebUtility]::HtmlEncode([string]$Manifest.BackupDir)
+
     @"
 <!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
-<title>Migration — $($Manifest.Username)</title>
+<title>Migration — $uHtml</title>
 <style>*{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f2f5;color:#333;font-size:14px}
 .hdr{background:linear-gradient(135deg,#0d1b2a,#1b3a5c);color:#fff;padding:26px 36px}
@@ -131,23 +140,23 @@ th{background:#0078d4;color:#fff;padding:8px 12px;text-align:left;font-size:12px
 .footer{text-align:center;padding:16px;color:#aaa;font-size:11px}</style>
 </head><body>
 <div class="hdr">
-<h1>Migration Poste Utilisateur — $($Manifest.Username)</h1>
-<p>$($Manifest.SourceComputer) &rarr; $(if ($null -ne $Manifest.TargetComputer -and $Manifest.TargetComputer -ne '') { $Manifest.TargetComputer } else { 'Non défini' }) &nbsp;|&nbsp; Opérateur : $($Manifest.Operator) &nbsp;|&nbsp; $(Get-Date -Format 'dd/MM/yyyy HH:mm')</p>
+<h1>Migration Poste Utilisateur — $uHtml</h1>
+<p>$srcHtml &rarr; $dstHtml &nbsp;|&nbsp; Opérateur : $opHtml &nbsp;|&nbsp; $(Get-Date -Format 'dd/MM/yyyy HH:mm')</p>
 </div>
 <div class="box"><div class="score"><div class="num">$Score</div><div style="color:#999;font-size:.8em">/100</div><div class="lbl">$sl</div></div></div>
 <div class="box"><h2>Informations</h2>
 <div class="meta">
-<div class="mi"><div class="k">Utilisateur</div><div class="v">$($Manifest.Username)</div></div>
-<div class="mi"><div class="k">Poste source</div><div class="v">$($Manifest.SourceComputer)</div></div>
-<div class="mi"><div class="k">Poste cible</div><div class="v">$(if ($null -ne $Manifest.TargetComputer -and $Manifest.TargetComputer -ne '') { $Manifest.TargetComputer } else { 'N/A' })</div></div>
-<div class="mi"><div class="k">Date capture</div><div class="v">$($Manifest.CaptureDate)</div></div>
+<div class="mi"><div class="k">Utilisateur</div><div class="v">$uHtml</div></div>
+<div class="mi"><div class="k">Poste source</div><div class="v">$srcHtml</div></div>
+<div class="mi"><div class="k">Poste cible</div><div class="v">$(if ($null -ne $Manifest.TargetComputer -and $Manifest.TargetComputer -ne '') { $dstHtml } else { 'N/A' })</div></div>
+<div class="mi"><div class="k">Date capture</div><div class="v">$dtHtml</div></div>
 <div class="mi"><div class="k">Volume migré</div><div class="v">$($Manifest.SizeMB) Mo</div></div>
-<div class="mi"><div class="k">Dossier backup</div><div class="v" style="font-size:11px;word-break:break-all">$($Manifest.BackupDir)</div></div>
+<div class="mi"><div class="k">Dossier backup</div><div class="v" style="font-size:11px;word-break:break-all">$bkHtml</div></div>
 </div></div>
 <div class="box"><h2>Validation</h2><table><tr><th>Composant</th><th>Statut</th></tr>$rows</table></div>
 <div class="box"><h2>Anomalies</h2>$anoHtml</div>
 $(if($actHtml){"<div class='box'><h2>Actions post-migration</h2>$actHtml</div>"})
-<div class="footer">ESN-Toolkit v3.0 — Migration Report — $(Get-Date -Format 'dd/MM/yyyy HH:mm:ss')</div>
+<div class="footer">ESN-Toolkit v4.0 — Migration Report — $(Get-Date -Format 'dd/MM/yyyy HH:mm:ss')</div>
 </body></html>
 "@ | Out-File $OutPath -Encoding UTF8 -Force
 }
@@ -184,6 +193,7 @@ function Invoke-UserStateCapture {
         [switch]$IncludePrinters,
         [switch]$IncludeNetDrives,
         [switch]$All,
+        [switch]$IncludeSensitiveSecrets,
         [switch]$Simulation
     )
 
@@ -320,12 +330,15 @@ function Invoke-UserStateCapture {
     $captureStats.Browsers = @{ Requested=$IncludeBrowsers.IsPresent; Chrome=$false; Edge=$false; Firefox=$false }
     if ($IncludeBrowsers) {
         $navDst = Join-Path $backupDir "Navigateurs"
+        $browserCredNote = $false
         # Chrome
         $chromeSrc = Join-Path $sourcePath "AppData\Local\Google\Chrome\User Data\Default"
         if (Test-Path $chromeSrc) {
             $cDst = Join-Path $navDst "Chrome"
             New-Item $cDst -ItemType Directory -Force | Out-Null
-            foreach ($item in @("Bookmarks","Preferences","Extensions","Login Data","Web Data","Shortcuts")) {
+            $chromeItems = @("Bookmarks","Preferences","Extensions","Web Data","Shortcuts")
+            if ($IncludeSensitiveSecrets) { $chromeItems += "Login Data" } elseif (Test-Path (Join-Path $chromeSrc "Login Data")) { $browserCredNote = $true }
+            foreach ($item in $chromeItems) {
                 $s = Join-Path $chromeSrc $item
                 if (Test-Path $s) {
                     if (-not $Simulation) { Copy-Item $s $cDst -Recurse -Force -EA SilentlyContinue }
@@ -340,7 +353,9 @@ function Invoke-UserStateCapture {
         if (Test-Path $edgeSrc) {
             $eDst = Join-Path $navDst "Edge"
             New-Item $eDst -ItemType Directory -Force | Out-Null
-            foreach ($item in @("Bookmarks","Preferences","Favorites","Login Data","Extensions")) {
+            $edgeItems = @("Bookmarks","Preferences","Favorites","Extensions")
+            if ($IncludeSensitiveSecrets) { $edgeItems += "Login Data" } elseif (Test-Path (Join-Path $edgeSrc "Login Data")) { $browserCredNote = $true }
+            foreach ($item in $edgeItems) {
                 $s = Join-Path $edgeSrc $item
                 if (Test-Path $s) {
                     if (-not $Simulation) { Copy-Item $s $eDst -Recurse -Force -EA SilentlyContinue }
@@ -356,7 +371,9 @@ function Invoke-UserStateCapture {
         if ($ffProf) {
             $fDst = Join-Path $navDst "Firefox"
             New-Item $fDst -ItemType Directory -Force | Out-Null
-            foreach ($item in @("places.sqlite","key4.db","logins.json","prefs.js","extensions","bookmarkbackups")) {
+            $ffItems = @("places.sqlite","prefs.js","extensions","bookmarkbackups")
+            if ($IncludeSensitiveSecrets) { $ffItems += @("key4.db","logins.json") } elseif ((Test-Path (Join-Path $ffProf.FullName "key4.db")) -or (Test-Path (Join-Path $ffProf.FullName "logins.json"))) { $browserCredNote = $true }
+            foreach ($item in $ffItems) {
                 $s = Join-Path $ffProf.FullName $item
                 if (Test-Path $s) {
                     if (-not $Simulation) { Copy-Item $s $fDst -Recurse -Force -EA SilentlyContinue }
@@ -365,6 +382,9 @@ function Invoke-UserStateCapture {
             $captureStats.Browsers.Firefox = $true
             L "Firefox copié ($($ffProf.Name))" "OK"
         }
+        if ($browserCredNote) {
+            L "Mots de passe navigateurs non copiés par défaut (passer -IncludeSensitiveSecrets pour inclure Login Data / key4.db)" "INFO"
+        }
     }
 
     # ── 4. IMPRIMANTES ────────────────────────────────────────
@@ -372,10 +392,13 @@ function Invoke-UserStateCapture {
     if ($IncludePrinters) {
         $printDst = Join-Path $backupDir "Imprimantes"
         New-Item $printDst -ItemType Directory -Force | Out-Null
-        $printers = Invoke-Command -ComputerName $SourceComputer -ScriptBlock {
-            Get-Printer | Select-Object Name, DriverName, PortName, Shared, ShareName,
-                @{N='IsNetwork';E={ $_.PortName -like 'IP_*' -or $_.PortName -like '\\*' }}
-        } -ErrorAction SilentlyContinue
+        $printerSb = {
+            if (Get-Command Get-Printer -ErrorAction SilentlyContinue) {
+                Get-Printer | Select-Object Name, DriverName, PortName, Shared, ShareName,
+                    @{N='IsNetwork';E={ $_.PortName -like 'IP_*' -or $_.PortName -like '\\*' }}
+            }
+        }
+        $printers = if ($isLocal) { & $printerSb } else { Invoke-Command -ComputerName $SourceComputer -ScriptBlock $printerSb -ErrorAction SilentlyContinue }
 
         if ($printers) {
             $printers | Export-Csv (Join-Path $printDst "printers.csv") -NoTypeInformation -Encoding UTF8
@@ -406,14 +429,28 @@ function Invoke-UserStateCapture {
     if ($IncludeNetDrives) {
         $netDst = Join-Path $backupDir "LecteursReseau"
         New-Item $netDst -ItemType Directory -Force | Out-Null
-        $drives = Invoke-Command -ComputerName $SourceComputer -ScriptBlock {
-            if (Test-Path "HKCU:\Network") {
-                Get-ChildItem "HKCU:\Network" | ForEach-Object {
-                    $p = Get-ItemProperty $_.PSPath
-                    [PSCustomObject]@{ Lettre=$_.PSChildName; UNC=$p.RemotePath }
+        $targetUser = $Username
+        $drivesSb = {
+            param([string]$TargetAccount)
+            $netRegPath = "HKCU:\Network"
+            if ($TargetAccount -and $TargetAccount -ne $env:USERNAME) {
+                try {
+                    $sid = ([System.Security.Principal.NTAccount]$TargetAccount).Translate([System.Security.Principal.SecurityIdentifier]).Value
+                    if ($sid -and (Test-Path "Registry::HKEY_USERS\$sid\Network")) {
+                        $netRegPath = "Registry::HKEY_USERS\$sid\Network"
+                    }
+                } catch { Write-Verbose "SID non résolu pour ${TargetAccount}: $_" }
+            }
+            if (Test-Path $netRegPath) {
+                Get-ChildItem $netRegPath | ForEach-Object {
+                    $p = Get-ItemProperty $_.PSPath -ErrorAction SilentlyContinue
+                    if ($p -and $p.PSObject.Properties['RemotePath']) {
+                        [PSCustomObject]@{ Lettre=$_.PSChildName; UNC=$p.RemotePath }
+                    }
                 }
             }
-        } -ErrorAction SilentlyContinue
+        }
+        $drives = if ($isLocal) { & $drivesSb $targetUser } else { Invoke-Command -ComputerName $SourceComputer -ScriptBlock $drivesSb -ArgumentList $targetUser -ErrorAction SilentlyContinue }
 
         if ($drives) {
             @($drives) | Export-Csv (Join-Path $netDst "drives.csv") -NoTypeInformation -Encoding UTF8
@@ -431,7 +468,11 @@ function Invoke-UserStateCapture {
     $wifiDst = Join-Path $backupDir "WiFi"
     New-Item $wifiDst -ItemType Directory -Force | Out-Null
     if (-not $Simulation) {
-        netsh wlan export profile folder="$wifiDst" key=clear 2>&1 | Out-Null
+        if ($IncludeSensitiveSecrets) {
+            netsh wlan export profile folder="$wifiDst" key=clear 2>&1 | Out-Null
+        } else {
+            netsh wlan export profile folder="$wifiDst" 2>&1 | Out-Null
+        }
         $wifiFiles = Get-ChildItem $wifiDst -Filter "*.xml" -ErrorAction SilentlyContinue
         if ($wifiFiles) {
             $wifiRestoreCmds = @("@echo off", "echo Restauration des profils Wi-Fi...")
@@ -440,7 +481,7 @@ function Invoke-UserStateCapture {
             }
             $wifiRestoreCmds += "echo [OK] Profils Wi-Fi restaures."
             $wifiRestoreCmds | Out-File (Join-Path $wifiDst "Restore-WiFi.bat") -Encoding ASCII
-            L "$(@($wifiFiles).Count) profil(s) Wi-Fi exporte(s)" "OK"
+            L "$(@($wifiFiles).Count) profil(s) Wi-Fi exporte(s)$(if (-not $IncludeSensitiveSecrets) { ' (cles PSK protegees — sans key=clear)' })" "OK"
         }
     }
 
@@ -469,9 +510,13 @@ function Invoke-UserStateCapture {
     # ── 8. CLÉS SSH & CONFIGURATION SYSTÈME ───────────────────
     $sshSrc = Join-Path $sourcePath ".ssh"
     if (Test-Path $sshSrc) {
-        $sshDst = Join-Path $backupDir "SSH_Keys"
-        if (-not $Simulation) { robocopy $sshSrc $sshDst /E /COPY:DAT /NP /NFL /NDL 2>&1 | Out-Null }
-        L "Cles SSH (.ssh) sauvegardees" "OK"
+        if ($IncludeSensitiveSecrets) {
+            $sshDst = Join-Path $backupDir "SSH_Keys"
+            if (-not $Simulation) { robocopy $sshSrc $sshDst /E /COPY:DAT /NP /NFL /NDL 2>&1 | Out-Null }
+            L "Cles SSH (.ssh) sauvegardees (-IncludeSensitiveSecrets)" "OK"
+        } else {
+            L "Cles SSH (.ssh) detectees — non exportees par defaut (passer -IncludeSensitiveSecrets)" "INFO"
+        }
     }
     $gitConfig = Join-Path $sourcePath ".gitconfig"
     if (Test-Path $gitConfig) {
@@ -627,6 +672,7 @@ function Invoke-UserStateRestore {
         "Images"          = "Pictures"
         "Musique"         = "Music"
         "Videos"          = "Videos"
+        "Favoris-IE"      = "Favorites"
     }
 
     $ok = 0; $fail = 0
@@ -670,6 +716,56 @@ function Invoke-UserStateRestore {
             $valResults.OutlookOK = $true
         } else {
             $anomalies.Add("Outlook : dossier de backup absent dans $BackupDir")
+        }
+    }
+
+    # ── 2b. NAVIGATEURS ───────────────────────────────────────
+    $bMod = if ($manifest.Modules.PSObject.Properties['Browsers']) { $manifest.Modules.Browsers } else { $null }
+    $browsersEnabled = ($bMod -eq $true) -or ($null -ne $bMod -and $bMod -isnot [bool] -and $bMod.PSObject.Properties['Requested'] -and $bMod.Requested) -or ($bMod -is [hashtable] -and $bMod.ContainsKey('Requested') -and $bMod['Requested'])
+    if ($browsersEnabled) {
+        $valResults.BrowsersOK = $false
+        $navBackup = Join-Path $BackupDir "Navigateurs"
+        if (Test-Path $navBackup) {
+            $restoredBrowser = $false
+            $browserTargets = @(
+                @{ Name = "Chrome";  Rel = "AppData\Local\Google\Chrome\User Data\Default" },
+                @{ Name = "Edge";    Rel = "AppData\Local\Microsoft\Edge\User Data\Default" }
+            )
+            foreach ($bt in $browserTargets) {
+                $bSrc = Join-Path $navBackup $bt.Name
+                if (Test-Path $bSrc) {
+                    $bDst = Join-Path $targetProfile $bt.Rel
+                    if (-not $Simulation) {
+                        New-Item $bDst -ItemType Directory -Force | Out-Null
+                        Get-ChildItem -Path $bSrc -Force -EA SilentlyContinue | ForEach-Object {
+                            Copy-Item -Path $_.FullName -Destination $bDst -Recurse -Force -EA SilentlyContinue
+                        }
+                    }
+                    Write-Host "  [OK] $($bt.Name) restauré" -ForegroundColor Green
+                    $restoredBrowser = $true
+                }
+            }
+            $ffSrc = Join-Path $navBackup "Firefox"
+            if (Test-Path $ffSrc) {
+                $ffRoot = Join-Path $targetProfile "AppData\Roaming\Mozilla\Firefox\Profiles"
+                $ffExisting = Get-ChildItem -Path $ffRoot -Directory -EA SilentlyContinue | Select-Object -First 1
+                $ffDst = if ($ffExisting) { $ffExisting.FullName } else { Join-Path $ffRoot "default-release" }
+                if (-not $Simulation) {
+                    New-Item $ffDst -ItemType Directory -Force | Out-Null
+                    Get-ChildItem -Path $ffSrc -Force -EA SilentlyContinue | ForEach-Object {
+                        Copy-Item -Path $_.FullName -Destination $ffDst -Recurse -Force -EA SilentlyContinue
+                    }
+                }
+                Write-Host "  [OK] Firefox restauré" -ForegroundColor Green
+                $restoredBrowser = $true
+            }
+            if ($restoredBrowser) {
+                $valResults.BrowsersOK = $true
+            } else {
+                $anomalies.Add("Navigateurs : aucun profil Chrome/Edge/Firefox présent dans $navBackup")
+            }
+        } else {
+            $anomalies.Add("Navigateurs : dossier de backup absent dans $BackupDir")
         }
     }
 

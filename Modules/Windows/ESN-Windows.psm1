@@ -93,8 +93,8 @@ function Invoke-WindowsDiag {
             $searcher = $wu.CreateUpdateSearcher()
             $searcher.Online = $false
             $res      = $searcher.Search("IsInstalled=0 and Type='Software'")
-            $out.WU_Pending  = $res.Updates.Count
-            $out.WU_Critical = ($res.Updates | Where-Object { $_.MsrcSeverity -eq 'Critical' }).Count
+            $out.WU_Pending  = if ($null -ne $res -and $null -ne $res.Updates) { $res.Updates.Count } else { 0 }
+            $out.WU_Critical = if ($null -ne $res -and $null -ne $res.Updates) { @($res.Updates | Where-Object { $_.MsrcSeverity -eq 'Critical' }).Count } else { 0 }
         } catch {
             $out.WU_Pending  = -1
             $out.WU_Critical = -1
@@ -103,8 +103,11 @@ function Invoke-WindowsDiag {
         # ── Temp & crash ────────────────────────────────
         $out.CrashDumps = @(Get-ChildItem 'C:\Windows\Minidump' -Filter '*.dmp' -EA SilentlyContinue).Count
         $out.TempSizeMB = try {
-            [math]::Round((Get-ChildItem $env:TEMP -File -Recurse -EA SilentlyContinue |
-                Measure-Object Length -Sum).Sum / 1MB, 0)
+            $tempMeasure = Get-ChildItem $env:TEMP -File -Recurse -EA SilentlyContinue |
+                Measure-Object Length -Sum
+            if ($tempMeasure -and $tempMeasure.PSObject.Properties['Sum'] -and $null -ne $tempMeasure.Sum) {
+                [math]::Round([double]$tempMeasure.Sum / 1MB, 0)
+            } else { 0 }
         } catch { 0 }
 
         # ── BitLocker ───────────────────────────────────

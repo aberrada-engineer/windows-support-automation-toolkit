@@ -33,20 +33,32 @@ Write-Host "[*] Machine locale : $env:COMPUTERNAME" -ForegroundColor Gray
 Write-Host "[*] Date du scan   : $(Get-Date -Format 'dd/MM/yyyy HH:mm')" -ForegroundColor Gray
 Write-Host ""
 
-$ReportDir = "$env:SystemDrive\ESN-Reports\WSUS"
+$schemaScript = Join-Path $PSScriptRoot "Core/ESN-OutputSchema.ps1"
+if (Test-Path $schemaScript) { . $schemaScript }
+
+$ReportDir = if (Get-Command Get-ESNReportRoot -ErrorAction SilentlyContinue) { Get-ESNReportRoot -SubFolder "WSUS" } elseif ($env:ESN_TOOLKIT_ROOT) { Join-Path $env:ESN_TOOLKIT_ROOT "Reports/WSUS" } else { Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/Reports/WSUS" }
 if (-not (Test-Path $ReportDir)) { New-Item -ItemType Directory -Path $ReportDir -Force | Out-Null }
 $Timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
-$HtmlReport = "$ReportDir\WSUS-Compliance-$Timestamp.html"
+$HtmlReport = Join-Path $ReportDir "WSUS-Compliance-$Timestamp.html"
+
+function Get-RegValueSafe {
+    param([string]$Path, [string]$Name)
+    $item = Get-ItemProperty -Path $Path -Name $Name -ErrorAction SilentlyContinue
+    if ($null -eq $item) { return $null }
+    $prop = $item.PSObject.Properties[$Name]
+    if ($null -eq $prop) { return $null }
+    return $prop.Value
+}
 
 # 1. Audit de la configuration registre WSUS
 Write-Host "[1/4] Audit de la configuration registre WSUS d'entreprise..." -ForegroundColor White
 $WuRegPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate"
 $AuRegPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU"
 
-$ConfiguredWsus = (Get-ItemProperty -Path $WuRegPath -Name "WUServer" -ErrorAction SilentlyContinue).WUServer
-$ConfiguredStatus = (Get-ItemProperty -Path $WuRegPath -Name "WUStatusServer" -ErrorAction SilentlyContinue).WUStatusServer
-$UseWus = (Get-ItemProperty -Path $AuRegPath -Name "UseWUServer" -ErrorAction SilentlyContinue).UseWUServer
-$AuOptions = (Get-ItemProperty -Path $AuRegPath -Name "AUOptions" -ErrorAction SilentlyContinue).AUOptions
+$ConfiguredWsus   = Get-RegValueSafe -Path $WuRegPath -Name "WUServer"
+$ConfiguredStatus = Get-RegValueSafe -Path $WuRegPath -Name "WUStatusServer"
+$UseWus           = Get-RegValueSafe -Path $AuRegPath -Name "UseWUServer"
+$AuOptions        = Get-RegValueSafe -Path $AuRegPath -Name "AUOptions"
 
 $AuDesc = switch ($AuOptions) {
     1 { "Désactivé" }
@@ -68,8 +80,20 @@ $WsusAccessible = $false
 if ($WsusTarget -match "https?://([^:/]+):?(\d+)?") {
     $wsusHost = $Matches[1]
     $wsusPort = if ($Matches[2]) { [int]$Matches[2] } else { 8530 }
-    $test = Test-NetConnection -ComputerName $wsusHost -Port $wsusPort -WarningAction SilentlyContinue
-    $WsusAccessible = $test.TcpTestSucceeded
+    if (Get-Command Test-NetConnection -ErrorAction SilentlyContinue) {
+        $test = Test-NetConnection -ComputerName $wsusHost -Port $wsusPort -WarningAction SilentlyContinue
+        $WsusAccessible = ($null -ne $test -and [bool]$test.TcpTestSucceeded)
+    } else {
+        try {
+            $tcpClient = [System.Net.Sockets.TcpClient]::new()
+            $ar = $tcpClient.BeginConnect($wsusHost, $wsusPort, $null, $null)
+            $WsusAccessible = $ar.AsyncWaitHandle.WaitOne(1500, $false)
+            if ($WsusAccessible) { $tcpClient.EndConnect($ar) }
+            $tcpClient.Close()
+        } catch {
+            $WsusAccessible = $false
+        }
+    }
     Write-Host "  -> Port WSUS $wsusPort sur $wsusHost : $(if ($WsusAccessible) {'OUVERT'} else {'FERMÉ / HORS LIGNE'})" -ForegroundColor $(if ($WsusAccessible) {'Green'} else {'Yellow'})
 }
 
@@ -102,9 +126,21 @@ if ($ForceSync) {
 
 # 5. Inventaire des derniers Hotfixes installés
 $Hotfixes = Get-CimInstance -ClassName Win32_QuickFixEngineering -ErrorAction SilentlyContinue | Sort-Object InstalledOn -Descending | Select-Object -First 5
-$HotfixRows = ($Hotfixes | ForEach-Object {
-    "<tr><td>$($_.HotFixID)</td><td>$($_.Description)</td><td>$($_.InstalledOn)</td><td><span style='color:#4ade80;'>Installé</span></td></tr>"
-}) -join "`n"
+$HotfixRows = if ($Hotfixes) {
+    (@($Hotfixes) | ForEach-Object {
+        $kb   = [System.Net.WebUtility]::HtmlEncode([string]$_.HotFixID)
+        $desc = [System.Net.WebUtility]::HtmlEncode([string]$_.Description)
+        $dt   = [System.Net.WebUtility]::HtmlEncode([string]$_.InstalledOn)
+        "<tr><td>$kb</td><td>$desc</td><td>$dt</td><td><span style='color:#4ade80;'>Installé</span></td></tr>"
+    }) -join "`n"
+} else {
+    "<tr><td colspan='4' style='color:#94a3b8;'>Aucun correctif récent détecté via Win32_QuickFixEngineering</td></tr>"
+}
+
+$compHtml   = [System.Net.WebUtility]::HtmlEncode([string]$env:COMPUTERNAME)
+$wsusHtml   = [System.Net.WebUtility]::HtmlEncode([string]$WsusTarget)
+$auOptHtml  = [System.Net.WebUtility]::HtmlEncode([string]$AuOptions)
+$auDescHtml = [System.Net.WebUtility]::HtmlEncode([string]$AuDesc)
 
 # 6. Génération du Rapport HTML WSUS
 $HtmlContent = @"
@@ -112,7 +148,7 @@ $HtmlContent = @"
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Conformité WSUS & Patch Management - $env:COMPUTERNAME</title>
+    <title>Conformité WSUS & Patch Management - $compHtml</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #0f172a; color: #f8fafc; margin: 0; padding: 28px; }
         .container { max-width: 950px; margin: auto; background-color: #1e293b; border-radius: 10px; padding: 32px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
@@ -133,12 +169,12 @@ $HtmlContent = @"
 <body>
     <div class="container">
         <h1>Conformité Patch Management & Client WSUS <span class="badge">Audit Terminé</span></h1>
-        <p style="color: #94a3b8;">État de déploiement des correctifs de sécurité, politique GPO et synchronisation WSUS pour l'hôte <strong>$env:COMPUTERNAME</strong>.</p>
+        <p style="color: #94a3b8;">État de déploiement des correctifs de sécurité, politique GPO et synchronisation WSUS pour l'hôte <strong>$compHtml</strong>.</p>
         
         <div class="grid">
             <div class="card">
                 <div class="card-title">Serveur WSUS Cible</div>
-                <div class="card-value" style="font-size: 14px;">$WsusTarget</div>
+                <div class="card-value" style="font-size: 14px;">$wsusHtml</div>
                 <div style="font-size: 11px; color: #94a3b8; margin-top: 4px;">Port 8530 / 8531</div>
             </div>
             <div class="card">
@@ -148,8 +184,8 @@ $HtmlContent = @"
             </div>
             <div class="card">
                 <div class="card-title">Mode GPO AUOptions</div>
-                <div class="card-value" style="font-size: 15px;">Option $AuOptions</div>
-                <div style="font-size: 11px; color: #94a3b8; margin-top: 4px;">$AuDesc</div>
+                <div class="card-value" style="font-size: 15px;">Option $auOptHtml</div>
+                <div style="font-size: 11px; color: #94a3b8; margin-top: 4px;">$auDescHtml</div>
             </div>
         </div>
 

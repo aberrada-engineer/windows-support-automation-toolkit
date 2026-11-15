@@ -104,7 +104,7 @@ function Build-ESNReport {
 
     # Score global (priorité à HealthScore, sinon session ESN-Core)
     $globalScore = if ($HealthData) { $HealthData.Global.Score } else { [int](Get-ESNProp $SessionData @("Score","global_score") 0) }
-    $globalLabel = if ($globalScore -ge 80) {"Bon"} elseif ($globalScore -ge 60) {"Dégradé"} elseif ($globalScore -ge 40) {"Mauvais"} else {"Critique"}
+    $globalLabel = if ($globalScore -ge 90) {"Excellent"} elseif ($globalScore -ge 80) {"Bon"} elseif ($globalScore -ge 60) {"Dégradé"} elseif ($globalScore -ge 40) {"Mauvais"} else {"Critique"}
     $globalColor = if ($globalScore -ge 80) {"#28a745"} elseif ($globalScore -ge 60) {"#ffc107"} elseif ($globalScore -ge 40) {"#fd7e14"} else {"#dc3545"}
 
     # Machine info depuis les résultats
@@ -142,9 +142,9 @@ function Build-ESNReport {
     function Make-SeverityBadge {
         [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseApprovedVerbs', '')]
         param([string]$Status)
-        $bg   = switch ($Status) { "OK"{"#d4edda"} "WARN"{"#fff3cd"} "WARNING"{"#fff3cd"} "ERROR"{"#f8d7da"} "CRITICAL"{"#f8d7da"} "INFO"{"#e2f3fd"} default{"#f8f9fa"} }
-        $tc   = switch ($Status) { "OK"{"#155724"} "WARN"{"#856404"} "WARNING"{"#856404"} "ERROR"{"#721c24"} "CRITICAL"{"#721c24"} "INFO"{"#0c5460"} default{"#333"} }
-        $lbl  = switch ($Status) { "WARN"{"WARNING"} "ERROR"{"CRITICAL"} default{$Status} }
+        $bg   = switch ($Status) { "OK"{"#d4edda"} "WARN"{"#fff3cd"} "WARNING"{"#fff3cd"} "ERROR"{"#f8d7da"} "CRITICAL"{"#f8d7da"} "INFO"{"#e2f3fd"} "SKIP"{"#f8f9fa"} default{"#f8f9fa"} }
+        $tc   = switch ($Status) { "OK"{"#155724"} "WARN"{"#856404"} "WARNING"{"#856404"} "ERROR"{"#721c24"} "CRITICAL"{"#721c24"} "INFO"{"#0c5460"} "SKIP"{"#6c757d"} default{"#333"} }
+        $lbl  = [System.Net.WebUtility]::HtmlEncode([string](switch ($Status) { "WARN"{"WARNING"} "ERROR"{"CRITICAL"} default{$Status} }))
         return "<span style='background:$bg;color:$tc;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700'>$lbl</span>"
     }
 
@@ -236,7 +236,8 @@ function Build-ESNReport {
         (($recErrors | ForEach-Object {
             $isCrit = $_ -like "*CRITIQUE*" -or $_ -like "*CRITICAL*"
             $col    = if ($isCrit) { "#721c24" } else { "#856404" }
-            "<li style='margin:6px 0;color:$col;font-size:13px'>$_</li>"
+            $eRec   = [System.Net.WebUtility]::HtmlEncode([string]$_)
+            "<li style='margin:6px 0;color:$col;font-size:13px'>$eRec</li>"
         }) -join "") + "</ul>"
     } else {
         "<p style='color:#155724;font-weight:600'>&#10003; Aucune recommandation — poste en bonne santé</p>"
@@ -255,12 +256,16 @@ function Build-ESNReport {
                       elseif ($_.Applied -and $_.Success) { "#cce5ff" }
                       elseif ($_.Applied)            { "#f8d7da" }
                       else                           { "#fff3cd" }
+            $eId     = [System.Net.WebUtility]::HtmlEncode([string]$_.Id)
+            $eName   = [System.Net.WebUtility]::HtmlEncode([string]$_.Name)
+            $eBefore = [System.Net.WebUtility]::HtmlEncode([string]$_.Before)
+            $eAfter  = [System.Net.WebUtility]::HtmlEncode([string]$_.After)
             "<tr style='background:$bg'>
-              <td style='padding:6px 10px;font-size:12px'><strong>$($_.Id)</strong></td>
-              <td style='padding:6px 10px;font-size:12px'>$($_.Name)</td>
+              <td style='padding:6px 10px;font-size:12px'><strong>$eId</strong></td>
+              <td style='padding:6px 10px;font-size:12px'>$eName</td>
               <td style='padding:6px 10px;font-size:12px'>$status</td>
-              <td style='padding:6px 10px;font-size:11px'>$($_.Before)</td>
-              <td style='padding:6px 10px;font-size:11px'>$($_.After)</td>
+              <td style='padding:6px 10px;font-size:11px'>$eBefore</td>
+              <td style='padding:6px 10px;font-size:11px'>$eAfter</td>
             </tr>"
         }) -join "`n"
     }
@@ -294,11 +299,18 @@ function Build-ESNReport {
     $kbHtml = if ($matchedPatterns.Count -gt 0) {
         ($matchedPatterns | ForEach-Object {
             $sevCol = if ($_.severity -eq "CRITICAL") { "#dc3545" } else { "#856404" }
-            $steps  = ($_.remediation_steps | ForEach-Object { "<li style='margin:4px 0;font-size:12px'>$_</li>" }) -join ""
-            $cmd    = if ($_.powershell_fix) { "<div style='background:#1e1e1e;color:#dcdcdc;padding:10px;border-radius:6px;margin-top:8px;font-family:monospace;font-size:11px'>PS> $($_.powershell_fix)</div>" } else { "" }
+            $steps  = ($_.remediation_steps | ForEach-Object {
+                $eStep = [System.Net.WebUtility]::HtmlEncode([string]$_)
+                "<li style='margin:4px 0;font-size:12px'>$eStep</li>"
+            }) -join ""
+            $eFix   = if ($_.powershell_fix) { [System.Net.WebUtility]::HtmlEncode([string]$_.powershell_fix) } else { "" }
+            $cmd    = if ($eFix) { "<div style='background:#1e1e1e;color:#dcdcdc;padding:10px;border-radius:6px;margin-top:8px;font-family:monospace;font-size:11px'>PS> $eFix</div>" } else { "" }
+            $ePatId = [System.Net.WebUtility]::HtmlEncode([string]$_.id)
+            $eSymp  = [System.Net.WebUtility]::HtmlEncode([string]$_.symptom)
+            $eCause = [System.Net.WebUtility]::HtmlEncode([string]$_.likely_cause)
             "<div style='background:#f8f9fa;border-left:4px solid $sevCol;border-radius:0 8px 8px 0;padding:12px 16px;margin:8px 0'>
-              <div style='font-weight:700;font-size:13px;color:$sevCol'>[$($_.id)] $($_.symptom)</div>
-              <div style='font-size:12px;color:#555;margin:4px 0'><strong>Cause probable :</strong> $($_.likely_cause)</div>
+              <div style='font-weight:700;font-size:13px;color:$sevCol'>[$ePatId] $eSymp</div>
+              <div style='font-size:12px;color:#555;margin:4px 0'><strong>Cause probable :</strong> $eCause</div>
               <ul style='margin:6px 0 0 18px'>$steps</ul>
               $cmd
             </div>"
@@ -333,6 +345,18 @@ function Build-ESNReport {
         checks_error = $cntErr
     } | ConvertTo-Json -Compress
 
+    $domRaw = if ($machineDom) { $machineDom } elseif ($env:USERDNSDOMAIN) { $env:USERDNSDOMAIN } else { "Workgroup" }
+    $eIncId = [System.Net.WebUtility]::HtmlEncode([string]$IncidentId)
+    $eComp  = [System.Net.WebUtility]::HtmlEncode([string]$ComputerName)
+    $eOp    = [System.Net.WebUtility]::HtmlEncode([string]$env:USERNAME)
+    $eDur   = [System.Net.WebUtility]::HtmlEncode([string]$duration)
+    $eOS    = [System.Net.WebUtility]::HtmlEncode([string](if ($machineOS)  { $machineOS }  else { "N/A" }))
+    $eRAM   = [System.Net.WebUtility]::HtmlEncode([string](if ($machineRAM) { $machineRAM } else { "N/A" }))
+    $eCPU   = [System.Net.WebUtility]::HtmlEncode([string](if ($machineCPU) { $machineCPU } else { "N/A" }))
+    $eUp    = [System.Net.WebUtility]::HtmlEncode([string](if ($machineUp)  { $machineUp }  else { "N/A" }))
+    $eDom   = [System.Net.WebUtility]::HtmlEncode([string]$domRaw)
+    $eJson  = [System.Net.WebUtility]::HtmlEncode([string]$jsonPayload)
+
     # ── Construction HTML ─────────────────────────────────────
     $html = @"
 <!DOCTYPE html>
@@ -340,7 +364,7 @@ function Build-ESNReport {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Rapport ESN — $IncidentId — $ComputerName</title>
+  <title>Rapport ESN — $eIncId — $eComp</title>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f2f5;color:#333;font-size:14px}
@@ -372,12 +396,12 @@ function Build-ESNReport {
 
 <!-- HEADER -->
 <div class="hdr">
-  <h1>&#128187; Rapport Analyse ESN — $IncidentId</h1>
+  <h1>&#128187; Rapport Analyse ESN — $eIncId</h1>
   <p>
-    Poste&nbsp;<strong>$ComputerName</strong>&nbsp;|&nbsp;
-    Op&eacute;rateur&nbsp;<strong>$env:USERNAME</strong>&nbsp;|&nbsp;
+    Poste&nbsp;<strong>$eComp</strong>&nbsp;|&nbsp;
+    Op&eacute;rateur&nbsp;<strong>$eOp</strong>&nbsp;|&nbsp;
     $(Get-Date -Format 'dd/MM/yyyy HH:mm')&nbsp;|&nbsp;
-    Dur&eacute;e&nbsp;<strong>$duration</strong>
+    Dur&eacute;e&nbsp;<strong>$eDur</strong>
   </p>
 </div>
 
@@ -417,15 +441,15 @@ function Build-ESNReport {
 <div class="card">
   <h2>&#128187; Informations Machine</h2>
   <div class="meta-grid">
-    <div class="meta-item"><div class="key">Nom du poste</div><div class="val">$ComputerName</div></div>
-    <div class="meta-item"><div class="key">Syst&egrave;me d'exploitation</div><div class="val">$(if($machineOS){$machineOS}else{"N/A"})</div></div>
-    <div class="meta-item"><div class="key">RAM</div><div class="val">$(if($machineRAM){$machineRAM}else{"N/A"})</div></div>
-    <div class="meta-item"><div class="key">CPU</div><div class="val">$(if($machineCPU){$machineCPU}else{"N/A"})</div></div>
-    <div class="meta-item"><div class="key">Uptime</div><div class="val">$(if($machineUp){$machineUp}else{"N/A"})</div></div>
-    <div class="meta-item"><div class="key">Domaine</div><div class="val">$(if($machineDom){$machineDom}elseif($env:USERDNSDOMAIN){$env:USERDNSDOMAIN}else{"Workgroup"})</div></div>
-    <div class="meta-item"><div class="key">Op&eacute;rateur</div><div class="val">$env:USERNAME</div></div>
-    <div class="meta-item"><div class="key">ID Incident</div><div class="val">$IncidentId</div></div>
-    <div class="meta-item"><div class="key">Dur&eacute;e analyse</div><div class="val">$duration</div></div>
+    <div class="meta-item"><div class="key">Nom du poste</div><div class="val">$eComp</div></div>
+    <div class="meta-item"><div class="key">Syst&egrave;me d'exploitation</div><div class="val">$eOS</div></div>
+    <div class="meta-item"><div class="key">RAM</div><div class="val">$eRAM</div></div>
+    <div class="meta-item"><div class="key">CPU</div><div class="val">$eCPU</div></div>
+    <div class="meta-item"><div class="key">Uptime</div><div class="val">$eUp</div></div>
+    <div class="meta-item"><div class="key">Domaine</div><div class="val">$eDom</div></div>
+    <div class="meta-item"><div class="key">Op&eacute;rateur</div><div class="val">$eOp</div></div>
+    <div class="meta-item"><div class="key">ID Incident</div><div class="val">$eIncId</div></div>
+    <div class="meta-item"><div class="key">Dur&eacute;e analyse</div><div class="val">$eDur</div></div>
     <div class="meta-item"><div class="key">Date rapport</div><div class="val">$(Get-Date -Format 'dd/MM/yyyy HH:mm:ss')</div></div>
   </div>
 </div>
@@ -464,13 +488,13 @@ $(Make-Collapsible "checks" "&#128203; D&eacute;tail de tous les checks" "$cntTo
 <div class="card">
   <h2>&#123;&#125; Export JSON</h2>
   <div style="background:#1e1e1e;color:#dcdcdc;padding:12px;border-radius:6px;
-    font-family:monospace;font-size:11px;word-break:break-all">$jsonPayload</div>
+    font-family:monospace;font-size:11px;word-break:break-all">$eJson</div>
 </div>
 
 </div><!-- /container -->
 
 <div class="footer">
-  ESN-Toolkit v3.0 — Build-ESNReport — G&eacute;n&eacute;r&eacute; le $(Get-Date -Format 'dd/MM/yyyy &agrave; HH:mm:ss') — $env:USERNAME
+  ESN-Toolkit v4.0 — Build-ESNReport — G&eacute;n&eacute;r&eacute; le $(Get-Date -Format 'dd/MM/yyyy &agrave; HH:mm:ss') — $eOp
 </div>
 </body>
 </html>

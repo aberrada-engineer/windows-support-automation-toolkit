@@ -19,7 +19,9 @@ param(
 )
 if (-not $PSBoundParameters.ContainsKey('OpenReport')) { $OpenReport = $true }
 
-Clear-Host
+if ([Environment]::UserInteractive) {
+    try { Clear-Host } catch { Write-Verbose "Clear-Host ignored: $($_.Exception.Message)" }
+}
 Write-Host "================================================================================" -ForegroundColor Cyan
 Write-Host "   🔮  ANALYSE PREDICTIVE & AIOPS 2.0 (ANTICIPATION DES PANNES) — ESN-TOOLKIT" -ForegroundColor White
 Write-Host "       Extrapolation de saturation, usure SSD & Post-Mortem — Amine BERRADA" -ForegroundColor Gray
@@ -107,10 +109,15 @@ Write-Host "`n [OK] Fiche d'incident RCA (GLPI / Jira) générée : $rcaPath" -F
 
 # 4. RAPPORT HTML
 $reportPath = Join-Path $repDir "Predictive-Health-Report.html"
-$rows = $predictions | ForEach-Object {
+$rows = ($predictions | ForEach-Object {
     $badge = if ($_.Statut -eq "OPTIMAL") { "#107c41" } elseif ($_.Statut -eq "AVERTISSEMENT") { "#d83b01" } else { "#a80000" }
-    "<tr><td><b>$($_.Domaine)</b></td><td>$($_.Diagnostic)</td><td>$($_.Prediction)</td><td><span style='background:$badge;color:white;padding:3px 8px;border-radius:4px;font-weight:bold;'>$($_.Statut)</span></td><td>$($_.Preconisation)</td></tr>"
-} -join "`n"
+    $dom  = [System.Net.WebUtility]::HtmlEncode([string]$_.Domaine)
+    $diag = [System.Net.WebUtility]::HtmlEncode([string]$_.Diagnostic)
+    $pred = [System.Net.WebUtility]::HtmlEncode([string]$_.Prediction)
+    $stat = [System.Net.WebUtility]::HtmlEncode([string]$_.Statut)
+    $prec = [System.Net.WebUtility]::HtmlEncode([string]$_.Preconisation)
+    "<tr><td><b>$dom</b></td><td>$diag</td><td>$pred</td><td><span style='background:$badge;color:white;padding:3px 8px;border-radius:4px;font-weight:bold;'>$stat</span></td><td>$prec</td></tr>"
+}) -join "`n"
 
 $html = @"
 <!DOCTYPE html>

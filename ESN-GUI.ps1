@@ -1,7 +1,7 @@
 ﻿#Requires -RunAsAdministrator
 <#
 .SYNOPSIS
-    ESN-Toolkit v3.9 - Interface Graphique Officielle (GUI Windows Forms).
+    ESN-Toolkit v4.0 - Interface Graphique Officielle (GUI Windows Forms).
     Plateforme d'administration, de dépannage automatisé, de MCO et de projets d'infrastructure.
     Développé pour Amine BERRADA — Administrateur Systèmes & Réseaux / Référent Technique N3.
 #>
@@ -51,7 +51,7 @@ function Start-ESNModuleProcess {
 # 1. FENÊTRE PRINCIPALE
 # ─────────────────────────────────────────────
 $form = New-Object System.Windows.Forms.Form
-$form.Text = "ESN-Toolkit v3.9 — Plateforme AIOps, MCO & Projets d'Infrastructure"
+$form.Text = "ESN-Toolkit v4.0 — Plateforme AIOps, MCO & Projets d'Infrastructure"
 $form.Size = New-Object System.Drawing.Size(960, 800)
 $form.StartPosition = "CenterScreen"
 $form.BackColor = [System.Drawing.Color]::FromArgb(245, 247, 250)
@@ -68,7 +68,7 @@ $headerPanel.Height = 85
 $headerPanel.BackColor = [System.Drawing.Color]::FromArgb(24, 43, 73) # Bleu Marine Navy
 
 $titleLabel = New-Object System.Windows.Forms.Label
-$titleLabel.Text = "🖥️ ESN-TOOLKIT v3.9 — Workstation, Infrastructure & Cloud AIOps"
+$titleLabel.Text = "🖥️ ESN-TOOLKIT v4.0 — Workstation, Infrastructure & Cloud AIOps"
 $titleLabel.ForeColor = [System.Drawing.Color]::White
 $titleLabel.Font = New-Object System.Drawing.Font("Segoe UI", 13, [System.Drawing.FontStyle]::Bold)
 $titleLabel.Location = New-Object System.Drawing.Point(20, 15)
@@ -141,7 +141,7 @@ $tab1.Controls.Add((Create-ModernButton -Text "🔍 Mode Simulation (Zéro modif
 
 $tab1.Controls.Add((Create-ModernButton -Text "📂 Ouvrir Dernier Rapport HTML" -X 20 -Y 85 -Width 270 -Height 45 -BgColor ([System.Drawing.Color]::FromArgb(43, 87, 154)) -Action {
     $repDir = if ($env:ESN_TOOLKIT_ROOT) { Join-Path $env:ESN_TOOLKIT_ROOT "Reports" } elseif ($env:SystemDrive) { "$($env:SystemDrive)\ESN-Toolkit\Reports" } else { Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/Reports" }
-    $latest = Get-ChildItem (Join-Path $repDir "*.html"), "$env:SystemDrive\ESN-Reports\*\*.html" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    $latest = Get-ChildItem (Join-Path $repDir "*.html"), (Join-Path $repDir "*\*.html"), "$env:SystemDrive\ESN-Reports\*\*.html" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
     if ($latest) { Start-Process $latest.FullName; Append-Log "Rapport ouvert : $($latest.FullName)" "Green" }
     else { Append-Log "Aucun rapport trouvé." "Yellow" }
 }))
@@ -302,8 +302,8 @@ $tab5.Controls.Add((Create-ModernButton -Text "🤖 Activer Gardien Self-Healing
 }))
 
 $tab5.Controls.Add((Create-ModernButton -Text "🚀 Zero-Touch Provisioning (Poste Neuf)" -X 310 -Y 20 -Width 270 -Height 45 -BgColor ([System.Drawing.Color]::FromArgb(0, 120, 212)) -Action {
-    Append-Log "Lancement de la préparation de poste neuf..." "Cyan"
-    Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-ZeroTouchProvisioning.ps1`""
+    Append-Log "Lancement de la préparation de poste neuf (mode simulation sécurisé)..." "Cyan"
+    Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Invoke-ZeroTouchProvisioning.ps1`" -Simulation -SkipSoftwareInstall"
 }))
 
 $tab5.Controls.Add((Create-ModernButton -Text "🛡️ Audit & Durcissement ANSSI" -X 600 -Y 20 -Width 270 -Height 45 -BgColor ([System.Drawing.Color]::FromArgb(180, 40, 40)) -Action {
@@ -344,13 +344,13 @@ $tab6.Text = "💼 Projets Référents & COPIL"
 $tab6.BackColor = [System.Drawing.Color]::White
 
 $tab6.Controls.Add((Create-ModernButton -Text "🔄 Migration Inter-Domaines AD" -X 20 -Y 12 -Width 270 -Height 38 -BgColor ([System.Drawing.Color]::FromArgb(40, 70, 120)) -Action {
-    Append-Log "Simulation / Exécution Migration Inter-Domaines AD..." "Cyan"
-    Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Projects\AD-Migration\Invoke-ADDomainMigration.ps1`" -ReportOnly"
+    Append-Log "Audit préalable / Export ACL Migration Inter-Domaines AD..." "Cyan"
+    Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Projects\AD-Migration\Invoke-ADDomainMigration.ps1`" -ExportAclOnly"
 }))
 
 $tab6.Controls.Add((Create-ModernButton -Text "🛡️ Rollout EDR Massif (+200 Postes)" -X 310 -Y 12 -Width 270 -Height 38 -BgColor ([System.Drawing.Color]::FromArgb(150, 40, 40)) -Action {
-    Append-Log "Déploiement industrialisé EDR SentinelOne..." "Red"
-    Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Projects\EDR-Deployment\Invoke-EDRMassRollout.ps1`" -ReportOnly"
+    Append-Log "Simulation déploiement industrialisé EDR SentinelOne..." "Red"
+    Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Projects\EDR-Deployment\Invoke-EDRMassRollout.ps1`" -Simulation"
 }))
 
 $tab6.Controls.Add((Create-ModernButton -Text "🔌 Config Switchs Aruba CX" -X 600 -Y 12 -Width 270 -Height 38 -BgColor ([System.Drawing.Color]::FromArgb(216, 90, 0)) -Action {
@@ -359,13 +359,13 @@ $tab6.Controls.Add((Create-ModernButton -Text "🔌 Config Switchs Aruba CX" -X 
 }))
 
 $tab6.Controls.Add((Create-ModernButton -Text "🔐 Déploiement Windows LAPS" -X 20 -Y 56 -Width 270 -Height 38 -BgColor ([System.Drawing.Color]::FromArgb(0, 100, 100)) -Action {
-    Append-Log "Audit & Déploiement Windows LAPS (Anti-Pass-the-Hash)..." "Cyan"
-    Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Projects\Windows-LAPS\Deploy-WindowsLAPS.ps1`" -ReportOnly"
+    Append-Log "Audit Windows LAPS (Anti-Pass-the-Hash)..." "Cyan"
+    Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Projects\Windows-LAPS\Deploy-WindowsLAPS.ps1`" -AuditOnly"
 }))
 
 $tab6.Controls.Add((Create-ModernButton -Text "🏢 Bascule Datacenter Veeam (PRA)" -X 310 -Y 56 -Width 270 -Height 38 -BgColor ([System.Drawing.Color]::FromArgb(16, 124, 65)) -Action {
-    Append-Log "Orchestration Failover Plan Veeam Datacenter..." "Green"
-    Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Projects\Datacenter-Migration\Invoke-VeeamFailoverPlan.ps1`" -DryRun"
+    Append-Log "Simulation Failover Plan Veeam Datacenter..." "Green"
+    Start-ESNModuleProcess -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptDir\Projects\Datacenter-Migration\Invoke-VeeamFailoverPlan.ps1`" -Simulation"
 }))
 
 $tab6.Controls.Add((Create-ModernButton -Text "🖥️ Industrialisation MDT (Parc 200+)" -X 600 -Y 56 -Width 270 -Height 38 -BgColor ([System.Drawing.Color]::FromArgb(0, 120, 212)) -Action {
@@ -405,9 +405,9 @@ $tab6.Controls.Add((Create-ModernButton -Text "📡 Déployer Sondes PRTG (XML)"
 
 $tabControl.Controls.Add($tab6)
 
-# --- ONGLET 7 : ELITE AIOPS & CHAOS LAB (v3.9) ---
+# --- ONGLET 7 : ELITE AIOPS & CHAOS LAB (v4.0) ---
 $tab7 = New-Object System.Windows.Forms.TabPage
-$tab7.Text = "🧠 Elite AIOps v3.9"
+$tab7.Text = "🧠 Elite AIOps v4.0"
 $tab7.BackColor = [System.Drawing.Color]::White
 
 $eliteButtons = @(
@@ -447,7 +447,7 @@ $form.Controls.Add($logBox)
 
 
 # Message initial
-Append-Log "Bienvenue dans ESN-Toolkit v3.9 (Environnement Enterprise Initialisé)" "Green"
+Append-Log "Bienvenue dans ESN-Toolkit v4.0 (Environnement Enterprise Initialisé)" "Green"
 Append-Log "Hôte local : $env:COMPUTERNAME | Session : $env:USERNAME" "Cyan"
 Append-Log "Prêt pour le diagnostic, l'astreinte 24/7, la gouvernance COPIL et les projets d'infrastructure." "White"
 

@@ -22,6 +22,7 @@ param(
     [string]$ClientName = "Compte Entreprise Clé",
     [string]$ReportingMonth = (Get-Date -Format "MMMM yyyy"),
     [double]$TargetSla = 99.9,
+    [switch]$Simulate,
     [switch]$OpenInBrowser
 )
 
@@ -32,38 +33,57 @@ Write-Host "   EXECUTIVE COPIL / COTECH REPORT GENERATOR (GOVERNANCE & SLA 99.9%
 Write-Host "==========================================================================" -ForegroundColor Cyan
 Write-Host "[*] Client / Contrat : $ClientName" -ForegroundColor Gray
 Write-Host "[*] Période de suivi : $ReportingMonth" -ForegroundColor Gray
-Write-Host "[*] Cible SLA        : $TargetSla %" -ForegroundColor Gray
+Write-Host "[*] Cible SLA        : $TargetSla % | Simulate : $Simulate" -ForegroundColor Gray
 Write-Host ""
 
-$ReportDir = "$env:SystemDrive\ESN-Reports\COPIL"
+$schemaScript = Join-Path $PSScriptRoot "Core/ESN-OutputSchema.ps1"
+if (Test-Path $schemaScript) { . $schemaScript }
+$ReportDir = if (Get-Command Get-ESNReportRoot -ErrorAction SilentlyContinue) { Get-ESNReportRoot -SubFolder "COPIL" } elseif ($env:ESN_TOOLKIT_ROOT) { Join-Path $env:ESN_TOOLKIT_ROOT "Reports/COPIL" } else { Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/Reports/COPIL" }
 if (-not (Test-Path $ReportDir)) { New-Item -ItemType Directory -Path $ReportDir -Force | Out-Null }
 $Timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
-$HtmlFile = "$ReportDir\COPIL-Executive-$Timestamp.html"
+$HtmlFile = Join-Path $ReportDir "COPIL-Executive-$Timestamp.html"
 
 # 1. Collecte télémétrique locale
 Write-Host "[1/4] Collecte des indicateurs de performance et d'incidents..." -ForegroundColor White
 $OS = Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction SilentlyContinue
-$UptimeDays = if ($OS.LastBootUpTime) { [math]::Round(((Get-Date) - $OS.LastBootUpTime).TotalDays, 1) } else { 14.2 }
+$UptimeDays = if ($OS -and $OS.LastBootUpTime) { [math]::Round(((Get-Date) - $OS.LastBootUpTime).TotalDays, 1) } else { "N/A" }
 
-# Simulation / Calcul métriques COPIL réalistes
-$ActualSLA = 99.94
-$TotalTickets = 47
-$P1Tickets = 1
-$P2Tickets = 4
-$P3Tickets = 42
-$MttrMinutes = 28
-$BackupSuccessRate = 100.0
-$AntivirusCoverage = 100.0
-Write-Host "  -> Disponibilité : $ActualSLA% (Uptime: $UptimeDays j) | Volume tickets : $TotalTickets" -ForegroundColor Gray
+if ($Simulate) {
+    $ActualSLA         = "99.94%"
+    $TotalTickets      = 47
+    $P1Tickets         = 1
+    $P2Tickets         = 4
+    $P3Tickets         = 42
+    $MttrMinutes       = "28 min"
+    $BackupSuccessRate = "100%"
+    $AntivirusCoverage = "100%"
+    $SlaBadgeText      = "MODE SIMULATION — SLA $TargetSla%"
+    $SlaFooterNote     = "Simulation COPIL — Métriques de démonstration (connecteur ITSM non requis en mode -Simulate)."
+} else {
+    $mpStatus = if (Get-Command Get-MpComputerStatus -ErrorAction SilentlyContinue) { Get-MpComputerStatus -ErrorAction SilentlyContinue } else { $null }
+    $veeamSvc = @(Get-Service -Name "*Veeam*" -ErrorAction SilentlyContinue)
+    $ActualSLA         = "N/A (Source ITSM)"
+    $TotalTickets      = "N/A"
+    $P1Tickets         = "N/A"
+    $P2Tickets         = "N/A"
+    $P3Tickets         = "N/A"
+    $MttrMinutes       = "N/A"
+    $BackupSuccessRate = if ($veeamSvc.Count -gt 0) { "$(@($veeamSvc | Where-Object Status -eq 'Running').Count)/$($veeamSvc.Count) svc" } else { "N/A (Veeam absent)" }
+    $AntivirusCoverage = if ($mpStatus -and $mpStatus.RealTimeProtectionEnabled) { "Defender Actif" } else { "N/A (EDR local)" }
+    $SlaBadgeText      = "COLLECTE LOCALE — SOURCE ITSM REQUISE"
+    $SlaFooterNote     = "Télémétrie locale réelle (Uptime : $UptimeDays j). Connecter un export ServiceNow/GLPI/VBR ou passer -Simulate pour les KPI SLA/Tickets."
+}
+Write-Host "  -> Disponibilité : $ActualSLA (Uptime: $UptimeDays j) | Volume tickets : $TotalTickets" -ForegroundColor Gray
 
 Write-Host "[2/4] Analyse des seuils de capacité et de continuité..." -ForegroundColor White
-$Disks = Get-CimInstance -ClassName Win32_LogicalDisk -Filter "DriveType=3" -ErrorAction SilentlyContinue
+$Disks = @(Get-CimInstance -ClassName Win32_LogicalDisk -Filter "DriveType=3" -ErrorAction SilentlyContinue | Where-Object { $_.Size -gt 0 })
 $StorageRows = @()
 foreach ($d in $Disks) {
     $totalGB = [math]::Round($d.Size / 1GB, 1)
     $freeGB = [math]::Round($d.FreeSpace / 1GB, 1)
     $usedPercent = [math]::Round((($d.Size - $d.FreeSpace) / $d.Size) * 100, 1)
-    $StorageRows += "<tr><td>$($d.DeviceID)</td><td>${totalGB} Go</td><td>${freeGB} Go</td><td>${usedPercent}%</td><td>$(if ($usedPercent -lt 85) {'<span style=\"color:#4ade80;\">Optimal</span>'} else {'<span style=\"color:#ef4444;\">Action requise</span>'})</td></tr>"
+    $devHtml = [System.Net.WebUtility]::HtmlEncode([string]$d.DeviceID)
+    $StorageRows += "<tr><td>$devHtml</td><td>${totalGB} Go</td><td>${freeGB} Go</td><td>${usedPercent}%</td><td>$(if ($usedPercent -lt 85) {'<span style=\"color:#4ade80;\">Optimal</span>'} else {'<span style=\"color:#ef4444;\">Action requise</span>'})</td></tr>"
 }
 
 Write-Host "[3/4] Consolidation des recommandations stratégiques d'ingénierie..." -ForegroundColor White
@@ -71,19 +91,25 @@ Write-Host "[3/4] Consolidation des recommandations stratégiques d'ingénierie.
 # 2. Génération du Rapport Exécutif Haute Qualité
 Write-Host "[4/4] Génération de la présentation exécutive..." -ForegroundColor White
 
+$clientHtml  = [System.Net.WebUtility]::HtmlEncode([string]$ClientName)
+$monthHtml   = [System.Net.WebUtility]::HtmlEncode([string]$ReportingMonth)
+$slaTextHtml = [System.Net.WebUtility]::HtmlEncode([string]$SlaBadgeText)
+$slaNoteHtml = [System.Net.WebUtility]::HtmlEncode([string]$SlaFooterNote)
+$badgeBg     = if ($Simulate) { "#d97706" } else { "#0284c7" }
+
 $HtmlContent = @"
 <!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Comité de Pilotage (COPIL) - $ClientName</title>
+    <title>Comité de Pilotage (COPIL) - $clientHtml</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #0b0f19; color: #f1f5f9; margin: 0; padding: 32px; }
         .wrapper { max-width: 1100px; margin: auto; background-color: #111827; border: 1px solid #1f2937; border-radius: 12px; padding: 36px; box-shadow: 0 20px 40px rgba(0,0,0,0.6); }
         .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #374151; padding-bottom: 20px; margin-bottom: 28px; }
         .title-h1 { margin: 0; font-size: 26px; color: #38bdf8; font-weight: 700; letter-spacing: -0.5px; }
         .subtitle { color: #9ca3af; margin: 4px 0 0 0; font-size: 14px; }
-        .badge { background: #0284c7; color: white; padding: 6px 14px; border-radius: 6px; font-weight: 600; font-size: 13px; text-transform: uppercase; }
+        .badge { background: $badgeBg; color: white; padding: 6px 14px; border-radius: 6px; font-weight: 600; font-size: 13px; text-transform: uppercase; }
         .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 32px; }
         .kpi-card { background-color: #1f2937; border-radius: 8px; padding: 20px; border-left: 4px solid #38bdf8; }
         .kpi-title { font-size: 12px; text-transform: uppercase; color: #9ca3af; font-weight: 600; margin-bottom: 8px; }
@@ -105,33 +131,33 @@ $HtmlContent = @"
         <div class="header">
             <div>
                 <h1 class="title-h1">Comité de Pilotage (COPIL) & COTECH Mensuel</h1>
-                <p class="subtitle">Client : <strong>$ClientName</strong> • Période : <strong>$ReportingMonth</strong></p>
+                <p class="subtitle">Client : <strong>$clientHtml</strong> • Période : <strong>$monthHtml</strong></p>
             </div>
             <div>
-                <span class="badge">SLA 99.9% Respecté</span>
+                <span class="badge">$slaTextHtml</span>
             </div>
         </div>
 
         <div class="kpi-grid">
             <div class="kpi-card">
                 <div class="kpi-title">Disponibilité Globale (SLA)</div>
-                <div class="kpi-value">$ActualSLA%</div>
+                <div class="kpi-value">$ActualSLA</div>
                 <div class="kpi-sub">Cible contractuelle : $TargetSla%</div>
             </div>
             <div class="kpi-card" style="border-left-color: #34d399;">
-                <div class="kpi-title">Succès Sauvegardes PRA</div>
-                <div class="kpi-value">$BackupSuccessRate%</div>
-                <div class="kpi-sub">Veeam Immutabilité active</div>
+                <div class="kpi-title">Sauvegardes / PRA</div>
+                <div class="kpi-value">$BackupSuccessRate</div>
+                <div class="kpi-sub">$slaNoteHtml</div>
             </div>
             <div class="kpi-card" style="border-left-color: #f59e0b;">
                 <div class="kpi-title">MTTR Moyen (Résolution)</div>
-                <div class="kpi-value">${MttrMinutes} min</div>
-                <div class="kpi-sub">P1 : < 15 min (SLA P1 4h respecté)</div>
+                <div class="kpi-value">$MttrMinutes</div>
+                <div class="kpi-sub">Volume total : $TotalTickets ticket(s)</div>
             </div>
             <div class="kpi-card" style="border-left-color: #a855f7;">
                 <div class="kpi-title">Couverture Cybersécurité</div>
-                <div class="kpi-value">$AntivirusCoverage%</div>
-                <div class="kpi-sub">EDR SentinelOne + LAPS 100%</div>
+                <div class="kpi-value">$AntivirusCoverage</div>
+                <div class="kpi-sub">Uptime hôte mesuré : $UptimeDays j</div>
             </div>
         </div>
 
@@ -150,23 +176,23 @@ $HtmlContent = @"
                 <tr>
                     <td><strong>P1 - Bloquant (Astreinte 24/7)</strong></td>
                     <td>$P1Tickets</td>
-                    <td>3 minutes</td>
-                    <td>22 minutes</td>
-                    <td><span style="color: #4ade80; font-weight: bold;">100% CONFORME</span></td>
+                    <td>$(if ($Simulate) { '3 minutes' } else { 'N/A (ITSM)' })</td>
+                    <td>$(if ($Simulate) { '22 minutes' } else { 'N/A (ITSM)' })</td>
+                    <td><span style="color: $(if ($Simulate) { '#4ade80' } else { '#facc15' }); font-weight: bold;">$(if ($Simulate) { 'SIMULATION CONFORME' } else { 'NON MESURE' })</span></td>
                 </tr>
                 <tr>
                     <td><strong>P2 - Majeur (Dégradation forte)</strong></td>
                     <td>$P2Tickets</td>
-                    <td>12 minutes</td>
-                    <td>45 minutes</td>
-                    <td><span style="color: #4ade80; font-weight: bold;">100% CONFORME</span></td>
+                    <td>$(if ($Simulate) { '12 minutes' } else { 'N/A (ITSM)' })</td>
+                    <td>$(if ($Simulate) { '45 minutes' } else { 'N/A (ITSM)' })</td>
+                    <td><span style="color: $(if ($Simulate) { '#4ade80' } else { '#facc15' }); font-weight: bold;">$(if ($Simulate) { 'SIMULATION CONFORME' } else { 'NON MESURE' })</span></td>
                 </tr>
                 <tr>
                     <td><strong>P3 / P4 - Demandes & Exploitation</strong></td>
                     <td>$P3Tickets</td>
-                    <td>< 1 heure</td>
-                    <td>1.4 jours</td>
-                    <td><span style="color: #4ade80; font-weight: bold;">99.2% CONFORME</span></td>
+                    <td>$(if ($Simulate) { '&lt; 1 heure' } else { 'N/A (ITSM)' })</td>
+                    <td>$(if ($Simulate) { '1.4 jours' } else { 'N/A (ITSM)' })</td>
+                    <td><span style="color: $(if ($Simulate) { '#4ade80' } else { '#facc15' }); font-weight: bold;">$(if ($Simulate) { 'SIMULATION CONFORME' } else { 'NON MESURE' })</span></td>
                 </tr>
             </tbody>
         </table>
@@ -190,9 +216,9 @@ $HtmlContent = @"
         <div class="reco-box">
             <h4>Recommandations Stratégiques & Arbitrages COTECH</h4>
             <ul>
-                <li><strong>Continuité d'Activité (PRA) :</strong> Simulation annuelle de bascule intersites validée avec RTO mesuré à 38 minutes (conforme à l'engagement contrat).</li>
-                <li><strong>Capacité & Cycle de Vie :</strong> Prévoir l'extension de 4 To sur le cluster SAN/Nutanix à l'horizon S2 pour absorber la croissance de 20% des données applicatives.</li>
-                <li><strong>Cybersécurité :</strong> Déploiement achevé de Windows LAPS sur 100% du parc de serveurs et postes, éliminant les risques de propagation latérale (Pass-the-Hash).</li>
+                <li><strong>Continuité d'Activité (PRA) :</strong> $(if ($Simulate) { 'Simulation annuelle de bascule intersites validée avec RTO mesuré à 38 minutes (conforme à l''engagement contrat).' } else { 'Auditer périodiquement le RPO/RTO et l''immuabilité Veeam via Invoke-DRTest.ps1 et Invoke-VeeamImmutableAudit.ps1.' })</li>
+                <li><strong>Capacité & Cycle de Vie :</strong> Suivre les volumes disques locaux et l''évolution des datastores sous le seuil d''alerte de 85%.</li>
+                <li><strong>Cybersécurité :</strong> Maintenir la rotation Windows LAPS et la couverture EDR temps réel sur 100% du parc.</li>
             </ul>
         </div>
 

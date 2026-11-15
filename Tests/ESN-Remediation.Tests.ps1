@@ -301,10 +301,59 @@ Describe "Invoke-IncidentAnalysis v2 — Intégration Remédiation" -Tag "Integr
             Where-Object { $_ -is [PSCustomObject] } |
             Select-Object -Last 1
 
-        if ($result) {
-            { [int]$result.RemediationsDetected } | Should -Not -Throw
-            { [int]$result.RemediationsFixed }     | Should -Not -Throw
-            { [bool]$result.RebootRequired }       | Should -Not -Throw
+    It "StrictMode + Apply réel (mocké) exécute Add-ESNResult et encode les XSS HTML" {
+        Initialize-ESNSession -ScriptName "test.ps1" -IncidentId "TEST-REM-XSS"
+        $tmpReport = Join-Path ([System.IO.Path]::GetTempPath()) "ESN_Rem_XSS_$(Get-Random).html"
+        $saved = InModuleScope ESN-Remediation {
+            $origDetect = $script:Catalog['DNS'].Detect
+            $origRem    = $script:Catalog['DNS'].Remediate
+            $script:Catalog['DNS'].Detect    = { $true }
+            $script:Catalog['DNS'].Remediate = {
+                param([bool]$sim)
+                $afterTxt = if ($sim) { "DNS Simulated" } else { "DNS Cleared" }
+                return @{
+                    Success        = $true
+                    Before         = "<img src=x onerror=alert(3)>"
+                    After          = $afterTxt
+                    Detail         = "<script>alert(1)</script>"
+                    RebootRequired = $false
+                }
+            }
+            return @{ Detect = $origDetect; Rem = $origRem }
+        }
+        try {
+            $results = Invoke-Remediation `
+                -Fix @("DNS") `
+                -AutoFix -Force `
+                -ComputerName "<script>alert(2)</script>" `
+                -ReportPath $tmpReport
+
+            $dns = $results | Where-Object Id -eq "DNS"
+            $dns         | Should -Not -BeNullOrEmpty
+            $dns.Applied | Should -Be $true
+            $dns.Success | Should -Be $true
+            Test-Path $tmpReport | Should -Be $true
+            $rawHtml = Get-Content $tmpReport -Raw
+            $rawHtml | Should -Not -Match "<script>alert\([12]\)</script>"
+            $rawHtml | Should -Match "&lt;script&gt;alert\(1\)&lt;/script&gt;"
+            $rawHtml | Should -Match "&lt;script&gt;alert\(2\)&lt;/script&gt;"
+            $rawHtml | Should -Match "&lt;img src=x onerror=alert\(3\)&gt;"
+        } finally {
+            InModuleScope ESN-Remediation -Parameters @{ Saved = $saved } {
+                param($Saved)
+                $script:Catalog['DNS'].Detect    = $Saved.Detect
+                $script:Catalog['DNS'].Remediate = $Saved.Rem
+            }
+            Remove-Item $tmpReport -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    It "Outlook.Detect reste sûr sous StrictMode sans propriété Work Offline" {
+        InModuleScope ESN-Remediation {
+            Mock Get-ItemProperty { [PSCustomObject]@{ OtherProp = 1 } }
+            Mock Test-Path { $false }
+            { & $script:Catalog['Outlook'].Detect } | Should -Not -Throw
+            (& $script:Catalog['Outlook'].Detect) | Should -Be $false
         }
     }
 }

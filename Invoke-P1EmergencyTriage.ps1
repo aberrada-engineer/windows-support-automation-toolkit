@@ -1,7 +1,7 @@
 ﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
-    Invoke-P1EmergencyTriage v3.9 - Diagnostic d'Urgence & Triage Flash P1/P2 (Astreinte 24/7).
+    Invoke-P1EmergencyTriage v4.0 - Diagnostic d'Urgence & Triage Flash P1/P2 (Astreinte 24/7).
     Conçu pour les incidents critiques sur environnements de production (Porsche, TAG Heuer, Hublot).
 
 .DESCRIPTION
@@ -62,12 +62,12 @@ try {
         Write-Host " [*] Recherche de Crash Dumps / Écrans Bleus (BSOD)..." -ForegroundColor Yellow
         $dumpPath = "$env:SystemRoot\Minidump"
         if ($dumpPath -and (Test-Path $dumpPath)) {
-            $dumps = Get-ChildItem $dumpPath -Filter "*.dmp" -ErrorAction SilentlyContinue |
+            $dumps = @(Get-ChildItem $dumpPath -Filter "*.dmp" -ErrorAction SilentlyContinue |
                      Where-Object { $_.LastWriteTime -ge (Get-Date).AddHours(-$HoursBack) } |
-                     Sort-Object LastWriteTime -Descending
-            if ($dumps) {
+                     Sort-Object LastWriteTime -Descending)
+            if ($dumps.Count -gt 0) {
                 $triageReport.BSODDetected = $true
-                $triageReport.DumpFiles = @($dumps.Name)
+                $triageReport.DumpFiles = @($dumps | ForEach-Object { $_.Name })
                 Write-Host "  [ALERTE P1] $($dumps.Count) fichier(s) Crash Dump détecté(s) !" -ForegroundColor Red
             } else {
                 Write-Host "  [OK] Aucun Crash Dump récent détecté." -ForegroundColor Green

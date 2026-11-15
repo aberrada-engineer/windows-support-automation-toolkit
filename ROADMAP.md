@@ -22,15 +22,16 @@
 - Console interactive TUI avec menus rapides (`ESN-Console.ps1`).
 - Assistant de migration complète de poste utilisateur (`Invoke-FullStationMigration.ps1`).
 
-### ✅ v3.9.0 — Enterprise, SecOps ANSSI & 7 Projets Référents (Version Actuelle)
+### ✅ v4.0.0 — Enterprise Hardening, WinPS 5.1/7+ StrictMode, SecOps & CI Complète (Version Actuelle)
+- **Qualité & Portabilité StrictMode :** Compatibilité stricte Windows PowerShell 5.1 & PowerShell 7+, gardes `@(...)`/`.Sum`, `Get-ESNReportRoot`, encodage HTML anti-XSS sur tous les rapports et dashboards, et protection `Clear-Host` en mode non interactif.
 - **AIOps & Astreinte 24/7 :** Gardien d'auto-guérison en tâche de fond (`Invoke-SelfHealingService.ps1`), Triage d'urgence P1 (`Invoke-P1EmergencyTriage.ps1`), KillSwitch Ransomware (`Invoke-RansomwareShield.ps1`), Analyse Prédictive de saturation disque et usure SSD (`Invoke-PredictiveHealthAnalysis.ps1`).
-- **Gouvernance & MCO :** Générateur de rapport exécutif mensuel COPIL / COTECH (`Invoke-COPILReportGenerator.ps1`), Simulation PRA/PCA avec certificat SLA (`Invoke-DRTest.ps1`), Sizing de cluster N+1 et stockage Veeam (`Invoke-InfrastructureSizing.ps1`).
+- **Gouvernance & MCO :** Générateur de rapport exécutif mensuel COPIL / COTECH (`Invoke-COPILReportGenerator.ps1`, `Invoke-CopilDashboardGenerator.ps1`), Simulation PRA/PCA avec certificat SLA (`Invoke-DRTest.ps1`), Sizing de cluster N+1 et stockage Veeam (`Invoke-InfrastructureSizing.ps1`).
 - **Playbooks des 7 Projets Référents :** Migration AD inter-domaines avec SID History, Déploiement EDR SentinelOne sur +200 postes, Déploiement de ~20 switches Aruba CX, Windows LAPS anti Pass-the-Hash, Bascule Datacenter Veeam, Déploiement industriel MDT/WDS 200+ postes Texdecor, Refonte WAN multi-sites MPLS & PRA.
 - **Audit Cœur de Réseau & Hyperviseurs :** VMware vSphere & Nutanix, Exchange Hybride & flux SMTP, DHCP Scopes, DNS Scavenging, PKI SSL, Agent GLPI / OCS Inventory.
 
 ---
 
-## 🚀 Prochaines Évolutions (v4.0.0 — Q1/Q2 2027)
+## 🚀 Prochaines Évolutions (v4.1.0 — Q1/Q2 2027)
 
 ### 1. 🤖 Intelligence Opérationnelle & AIOps Avancé
 - [ ] **Détection d'anomalies par Machine Learning local :** Intégration d'un algorithme de détection de dérive comportementale (CPU/RAM/I-O) basé sur l'écart-type mobile sans dépendance cloud.
@@ -69,10 +70,10 @@
 | Interface Graphique & Console TUI | **Livré** | v3.0 | Amine BERRADA |
 | Gardien Self-Healing & Astreinte 24/7 | **Livré** | v3.5 | Amine BERRADA |
 | Durcissement ANSSI & Sécurité | **Livré** | v3.5 | Amine BERRADA |
-| 7 Projets Majeurs (AD, EDR, Aruba, LAPS, Veeam, MDT, WAN) | **Livré** | v3.9 | Amine BERRADA |
+| 7 Projets Majeurs (AD, EDR, Aruba, LAPS, Veeam, MDT, WAN) | **Livré** | v4.0 | Amine BERRADA |
 | Hyperviseurs (VMware / Nutanix) & Exchange | **Livré** | v3.5 | Amine BERRADA |
-| Gouvernance COPIL / COTECH (SLA 99.9%) | **Livré** | v3.5 | Amine BERRADA |
-| Sondes PRTG Avancées | *En cours* | v3.6 | Amine BERRADA |
-| Audit de Parc Hétérogène Linux (SSH) | *En cours* | v3.6 | Amine BERRADA |
-| Générateur de Plan de Reprise d'Activité (DRP) | *En cours* | v3.6 | Amine BERRADA |
-| Connecteur REST API GLPI / ServiceNow | *Prévu* | v4.0 | Amine BERRADA |
+| Gouvernance COPIL / COTECH (SLA 99.9%) | **Livré** | v4.0 | Amine BERRADA |
+| Sondes PRTG Avancées | *En cours* | v4.1 | Amine BERRADA |
+| Audit de Parc Hétérogène Linux (SSH) | **Livré** | v4.0 | Amine BERRADA |
+| Générateur de Plan de Reprise d'Activité (DRP) | **Livré** | v4.0 | Amine BERRADA |
+| Connecteur REST API GLPI / ServiceNow | **Livré** | v4.0 | Amine BERRADA |

@@ -26,7 +26,9 @@ if ([string]::IsNullOrWhiteSpace($SiteToken)) {
     $SiteToken = if ($Simulation) { "<SIMULATED_SITE_TOKEN>" } else { "<SITE_TOKEN_REQUIRED>" }
 }
 
-Clear-Host
+if ([Environment]::UserInteractive) {
+    try { Clear-Host } catch { Write-Verbose "Clear-Host ignored: $($_.Exception.Message)" }
+}
 Write-Host "================================================================================" -ForegroundColor Red
 Write-Host "   🛡️  DEPLOIEMENT INDUSTRIEL EDR / ANCIEN ANTIVIRUS (+200 HOTES)" -ForegroundColor White
 Write-Host "       Projet d'Ingénierie Réalisé en Autonomie — Amine BERRADA" -ForegroundColor Gray
@@ -69,11 +71,11 @@ foreach ($leg in $legacyAVs) {
     if ($inst) {
         $legacyFound = $true
         Write-Host "  -> Découverte de $($inst.DisplayName)..." -ForegroundColor Yellow
-        if (-not $Simulation) {
-            $uninstCmd = $inst.UninstallString
-            Write-Host "  -> Lancement de la désinstallation silencieuse ($uninstCmd)..." -ForegroundColor Cyan
+        if ($Simulation) {
+            Add-RolloutStep "Désinstallation Ancien AV" "SIMULÉ" "[SIMULATION] Purge planifiée pour $($inst.DisplayName)."
+        } else {
+            Add-RolloutStep "Désinstallation Ancien AV" "WARN" "Antivirus détecté ($($inst.DisplayName)) — désinstallation automatique non exécutée (requiert package MSI/GPO éditeur)."
         }
-        Add-RolloutStep "Désinstallation Ancien AV" "OK" "Ancien agent $($inst.DisplayName) purgé."
     }
 }
 if (-not $legacyFound) {
@@ -83,11 +85,30 @@ if (-not $legacyFound) {
 # 3. DEPLOIEMENT DU NOUVEL AGENT EDR (SENTINELONE / DEFENDER)
 Write-Host "`n[3/4] Déploiement silencieux de l'agent EDR ($TargetEDR)..." -ForegroundColor Yellow
 $edrBinary = if ($InstallerPath) { $InstallerPath } else { "SentinelAgent.exe" }
+$maskedToken = if ($SiteToken -match '^<.*>$') {
+    $SiteToken
+} elseif ($SiteToken.Length -gt 6) {
+    "$($SiteToken.Substring(0,3))***$($SiteToken.Substring($SiteToken.Length - 2))"
+} else {
+    "***MASKED***"
+}
+
 if ($TargetEDR -eq "SentinelOne") {
-    $installCmd = "$edrBinary /SITE_TOKEN=$SiteToken /SILENT /NORESTART"
-    Add-RolloutStep "Installation EDR" "OK" "Paramètres SentinelOne configurés ($edrBinary) : commande prête ($installCmd)."
+    $maskedCmd = "$edrBinary /SITE_TOKEN=$maskedToken /SILENT /NORESTART"
+    if ($Simulation) {
+        Add-RolloutStep "Installation EDR" "SIMULÉ" "[SIMULATION] Commande préparée ($maskedCmd)."
+    } elseif ([string]::IsNullOrWhiteSpace($InstallerPath) -or -not (Test-Path $InstallerPath) -or $SiteToken -eq "<SITE_TOKEN_REQUIRED>") {
+        Add-RolloutStep "Installation EDR" "WARN" "Non exécuté : -InstallerPath valide et -SiteToken (ou ESN_EDR_SITE_TOKEN) requis ($maskedCmd)."
+    } else {
+        $proc = Start-Process -FilePath $InstallerPath -ArgumentList "/SITE_TOKEN=$SiteToken /SILENT /NORESTART" -Wait -PassThru -ErrorAction Stop
+        $instStat = if ($proc.ExitCode -eq 0) { "OK" } else { "WARN" }
+        Add-RolloutStep "Installation EDR" $instStat "Installeur SentinelOne exécuté (code sortie $($proc.ExitCode)) : $maskedCmd."
+    }
 } elseif ($TargetEDR -eq "MicrosoftDefender") {
-    Add-RolloutStep "Installation EDR" "OK" "Script d'onboarding WindowsDefenderATPOnboardingScript.cmd prêt."
+    $mdeStat = if ($Simulation) { "SIMULÉ" } else { "INFO" }
+    Add-RolloutStep "Installation EDR" $mdeStat "Script d'onboarding WindowsDefenderATPOnboardingScript.cmd à déployer par GPO."
+} else {
+    Add-RolloutStep "Installation EDR" $(if ($Simulation) { "SIMULÉ" } else { "WARN" }) "Agent personnalisé ($TargetEDR) : fournir package et paramètres silencieux."
 }
 
 # 4. RAPPORT DE DEPLOIEMENT MASSIF (+200 HOTES)

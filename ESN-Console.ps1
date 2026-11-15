@@ -1,16 +1,18 @@
 ﻿#Requires -RunAsAdministrator
 <#
 .SYNOPSIS
-    ESN-Console v3.9 - Console d'Administration, AIOps & Ingénierie d'Infrastructure.
+    ESN-Console v4.0 - Console d'Administration, AIOps & Ingénierie d'Infrastructure.
     Développé pour Amine BERRADA — Administrateur Systèmes & Réseaux / Référent Technique N3.
 #>
 
 $ScriptDir = Split-Path $MyInvocation.PSCommandPath -Parent
 
 function Show-Header {
-    Clear-Host
+    if ([Environment]::UserInteractive) {
+        try { Clear-Host } catch { Write-Verbose "Clear-Host ignored: $($_.Exception.Message)" }
+    }
     Write-Host "================================================================================" -ForegroundColor Cyan
-    Write-Host "   🖥️  ESN-TOOLKIT v3.9 — CONSOLE D'EXPLOITATION & AIOPS TOTALE" -ForegroundColor White
+    Write-Host "   🖥️  ESN-TOOLKIT v4.0 — CONSOLE D'EXPLOITATION & AIOPS TOTALE" -ForegroundColor White
     Write-Host "       Astreinte 24/7, SecOps, PRA/PCA, Virtualisation & Gouvernance — Amine BERRADA" -ForegroundColor Gray
     Write-Host "================================================================================" -ForegroundColor Cyan
     Write-Host "  Hôte : $env:COMPUTERNAME  |  Utilisateur : $env:USERNAME  |  Date : $(Get-Date -Format 'dd/MM/yyyy HH:mm')" -ForegroundColor DarkCyan
@@ -118,7 +120,9 @@ do {
             Read-Host "`nAppuyez sur Entrée pour continuer..."
         }
         "26" {
-            Clear-Host
+            if ([Environment]::UserInteractive) {
+                try { Clear-Host } catch { Write-Verbose "Clear-Host ignored: $($_.Exception.Message)" }
+            }
             Write-Host "================================================================================" -ForegroundColor Cyan
             Write-Host "   PROJETS MAJEURS RÉALISÉS PAR AMINE BERRADA (ESN & CLIENTS FINAUX)            " -ForegroundColor White
             Write-Host "================================================================================" -ForegroundColor Cyan
@@ -163,7 +167,7 @@ do {
         "35" { & "$ScriptDir\Invoke-CentralDashboard.ps1"; Start-Sleep -Seconds 2 }
         "36" {
             $repDir = if ($env:ESN_TOOLKIT_ROOT) { Join-Path $env:ESN_TOOLKIT_ROOT "Reports" } elseif ($env:SystemDrive) { "$($env:SystemDrive)\ESN-Toolkit\Reports" } else { Join-Path ([System.IO.Path]::GetTempPath()) "ESN-Toolkit/Reports" }
-            $latestReport = Get-ChildItem (Join-Path $repDir "*.html"), "$env:SystemDrive\ESN-Reports\*\*.html" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+            $latestReport = Get-ChildItem (Join-Path $repDir "*.html"), (Join-Path $repDir "*\*.html"), "$env:SystemDrive\ESN-Reports\*\*.html" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
             if ($latestReport) {
                 Start-Process $latestReport.FullName
                 Write-Host "[OK] Rapport ouvert : $($latestReport.FullName)" -ForegroundColor Green
