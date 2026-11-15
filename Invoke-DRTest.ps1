@@ -51,7 +51,16 @@ function Add-DRCheck {
 
 # 1. ANALYSE DU RPO (ÂGE DE LA DERNIÈRE SAUVEGARDE)
 Write-Host " [*] Calcul du Recovery Point Objective (RPO) réel..." -ForegroundColor Yellow
-$veeamLog = Get-WinEvent -FilterHashtable @{ LogName = 'Veeam Backup'; Level = 4 } -MaxEvents 1 -ErrorAction SilentlyContinue
+$veeamLog = if (-not $Simulate) {
+    try {
+        Get-WinEvent -FilterHashtable @{ LogName = 'Veeam Backup'; Level = 4 } -MaxEvents 1 -ErrorAction Stop
+    } catch {
+        Write-Verbose "Journal 'Veeam Backup' indisponible : $($_.Exception.Message)"
+        $null
+    }
+} else {
+    $null
+}
 if ($Simulate -and -not $veeamLog) {
     $simDate = (Get-Date).AddHours(-6)
     Add-DRCheck -Element "RPO (Perte de données max)" -Target "< $TargetRPOHours h" -Actual "6 h (Simulé)" -Status "CONFORME" -Detail "[SIMULATION] Sauvegarde théorique à $($simDate.ToString('dd/MM HH:mm'))."
