@@ -144,7 +144,8 @@ function Build-ESNReport {
         param([string]$Status)
         $bg   = switch ($Status) { "OK"{"#d4edda"} "WARN"{"#fff3cd"} "WARNING"{"#fff3cd"} "ERROR"{"#f8d7da"} "CRITICAL"{"#f8d7da"} "INFO"{"#e2f3fd"} "SKIP"{"#f8f9fa"} default{"#f8f9fa"} }
         $tc   = switch ($Status) { "OK"{"#155724"} "WARN"{"#856404"} "WARNING"{"#856404"} "ERROR"{"#721c24"} "CRITICAL"{"#721c24"} "INFO"{"#0c5460"} "SKIP"{"#6c757d"} default{"#333"} }
-        $lbl  = [System.Net.WebUtility]::HtmlEncode([string](switch ($Status) { "WARN"{"WARNING"} "ERROR"{"CRITICAL"} default{$Status} }))
+        $rawLbl = switch ($Status) { "WARN"{"WARNING"} "ERROR"{"CRITICAL"} default{$Status} }
+        $lbl    = [System.Net.WebUtility]::HtmlEncode([string]$rawLbl)
         return "<span style='background:$bg;color:$tc;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700'>$lbl</span>"
     }
 
@@ -350,10 +351,10 @@ function Build-ESNReport {
     $eComp  = [System.Net.WebUtility]::HtmlEncode([string]$ComputerName)
     $eOp    = [System.Net.WebUtility]::HtmlEncode([string]$env:USERNAME)
     $eDur   = [System.Net.WebUtility]::HtmlEncode([string]$duration)
-    $eOS    = [System.Net.WebUtility]::HtmlEncode([string](if ($machineOS)  { $machineOS }  else { "N/A" }))
-    $eRAM   = [System.Net.WebUtility]::HtmlEncode([string](if ($machineRAM) { $machineRAM } else { "N/A" }))
-    $eCPU   = [System.Net.WebUtility]::HtmlEncode([string](if ($machineCPU) { $machineCPU } else { "N/A" }))
-    $eUp    = [System.Net.WebUtility]::HtmlEncode([string](if ($machineUp)  { $machineUp }  else { "N/A" }))
+    $eOS    = [System.Net.WebUtility]::HtmlEncode([string]$(if ($machineOS)  { $machineOS }  else { "N/A" }))
+    $eRAM   = [System.Net.WebUtility]::HtmlEncode([string]$(if ($machineRAM) { $machineRAM } else { "N/A" }))
+    $eCPU   = [System.Net.WebUtility]::HtmlEncode([string]$(if ($machineCPU) { $machineCPU } else { "N/A" }))
+    $eUp    = [System.Net.WebUtility]::HtmlEncode([string]$(if ($machineUp)  { $machineUp }  else { "N/A" }))
     $eDom   = [System.Net.WebUtility]::HtmlEncode([string]$domRaw)
     $eJson  = [System.Net.WebUtility]::HtmlEncode([string]$jsonPayload)
 
