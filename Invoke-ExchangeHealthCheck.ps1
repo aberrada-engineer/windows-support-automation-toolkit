@@ -64,7 +64,7 @@ if ($exchServices) {
 Write-Host "`n[2/4] Audit des enregistrements DNS publics (Protection anti-spoofing)..." -ForegroundColor Yellow
 
 # MX
-$mx = @(try { Resolve-DnsName -Name $DomainName -Type MX -ErrorAction Stop } catch { })
+$mx = @(try { Resolve-DnsName -Name $DomainName -Type MX -ErrorAction Stop } catch { Write-Verbose "Resolution MX echouee: $($_.Exception.Message)" })
 if ($mx.Count -gt 0 -and $mx[0]) {
     Add-MailCheck -Element "Enregistrement MX" -Value "$($mx[0].NameExchange)" -Status "OK" -Detail "Serveur de messagerie récepteur public joignable."
 } else {

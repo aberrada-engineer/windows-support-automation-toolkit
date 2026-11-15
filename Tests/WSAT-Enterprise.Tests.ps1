@@ -345,6 +345,9 @@ Describe "PS 5.1 Compatibility, Security Hardening & Live Guards" {
                 $declared = @()
                 if ($tAst.ParamBlock) {
                     $declared = @($tAst.ParamBlock.Parameters | ForEach-Object { $_.Name.VariablePath.UserPath })
+                    if ($tAst.ParamBlock.Extent.Text -match 'SupportsShouldProcess\s*=\s*\$true') {
+                        $declared += @('Confirm', 'WhatIf')
+                    }
                 }
 
                 $argMatches = [regex]::Matches($tail, '(?:^|\s)-([A-Za-z][A-Za-z0-9_]*)')

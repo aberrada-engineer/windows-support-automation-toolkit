@@ -39,6 +39,7 @@ $earnedPoints = 0
 
 function Check-Rule {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseApprovedVerbs', '')]
+    [CmdletBinding(SupportsShouldProcess = $true)]
     param(
         [string]$Name,
         [int]$Weight,
