@@ -374,16 +374,15 @@ Describe "PS 5.1 Compatibility, Security Hardening & Live Guards" {
         }
 
         if (Get-Command New-NetFirewallRule -ErrorAction SilentlyContinue) {
-            $script:fwCalls = 0
             Mock Get-NetFirewallRule { $null }
             Mock Remove-NetFirewallRule { }
-            Mock New-NetFirewallRule { $script:fwCalls++ }
+            Mock New-NetFirewallRule { }
             if (Get-Command Get-NetAdapter -ErrorAction SilentlyContinue) {
                 Mock Get-NetAdapter { @() }
                 Mock Disable-NetAdapter { }
             }
             { & $shieldPath -IsolateHost -CollectForensics:$false -OutputPath $script:TmpOut -Confirm:$false } | Should -Not -Throw
-            $script:fwCalls | Should -BeGreaterOrEqual 2
+            Should -Invoke New-NetFirewallRule -Times 2 -Exactly
         }
         { & $shieldPath -IsolateHost -Simulate -WhatIf -OutputPath $script:TmpOut } | Should -Not -Throw
     }
@@ -410,7 +409,7 @@ Describe "PS 5.1 Compatibility, Security Hardening & Live Guards" {
             $null = $tk
             $er.Count | Should -Be 0
             $raw = Get-Content $full -Raw
-            $raw | Should -Not -Match 'AdminPassword\s*=\s*[^<\r\n]|P@ssw0rd|Admin123|Password123'
+            $raw | Should -Not -Match '(?<![A-Za-z])(AdminPassword|DomainAdminPassword|UserPassword)\s*=\s*[^<\r\n]|P@ssw0rd|Admin123|Password123'
         }
 
         $prevRoot = $env:ESN_TOOLKIT_ROOT

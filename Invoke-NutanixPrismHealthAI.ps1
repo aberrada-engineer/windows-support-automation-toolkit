@@ -84,7 +84,8 @@ begin {
             [Parameter(Mandatory = $true)][string]$RelativeUri,
             [Parameter(Mandatory = $false)][string]$Method = 'GET',
             [Parameter(Mandatory = $false)][hashtable]$Headers = @{},
-            [Parameter(Mandatory = $false)][object]$Body
+            [Parameter(Mandatory = $false)][object]$Body,
+            [Parameter(Mandatory = $false)][switch]$SkipCertCheck
         )
         $baseUri = if ($Endpoint -match '^https?://') { $Endpoint.TrimEnd('/') } else { "https://$($Endpoint.TrimEnd('/'))" }
         $fullUri = "$baseUri/$($RelativeUri.TrimStart('/'))"
@@ -96,7 +97,7 @@ begin {
             TimeoutSec  = 15
             ErrorAction = 'Stop'
         }
-        if ($AllowUntrustedCert) {
+        if ($SkipCertCheck) {
             Write-Warning "TLS certificate validation disabled via -AllowUntrustedCert for $Endpoint"
             if ($PSVersionTable.PSVersion.Major -ge 6) {
                 $invokeParams['SkipCertificateCheck'] = $true
@@ -159,7 +160,7 @@ process {
             $encodedAuth = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes($pair))
             $headers = @{ Authorization = "Basic $encodedAuth"; Accept = "application/json" }
 
-            $clusterRaw = Invoke-PrismRestMethod -Endpoint $PrismEndpoint -RelativeUri "/PrismGateway/services/rest/v2.0/cluster/" -Headers $headers
+            $clusterRaw = Invoke-PrismRestMethod -Endpoint $PrismEndpoint -RelativeUri "/PrismGateway/services/rest/v2.0/cluster/" -Headers $headers -SkipCertCheck:$AllowUntrustedCert
             $usedBytes  = if ($null -ne $clusterRaw.usage_stats.'storage.usage_bytes') { [double]$clusterRaw.usage_stats.'storage.usage_bytes' } else { 0.0 }
             $capBytes   = if ($null -ne $clusterRaw.usage_stats.'storage.capacity_bytes') { [double]$clusterRaw.usage_stats.'storage.capacity_bytes' } else { 1.0 }
             $usedPct    = [Math]::Round(($usedBytes / [Math]::Max($capBytes, 1.0)) * 100, 1)
@@ -168,7 +169,7 @@ process {
 
             $liveNodes = @()
             try {
-                $hostsResp = Invoke-PrismRestMethod -Endpoint $PrismEndpoint -RelativeUri "/PrismGateway/services/rest/v2.0/hosts/" -Headers $headers
+                $hostsResp = Invoke-PrismRestMethod -Endpoint $PrismEndpoint -RelativeUri "/PrismGateway/services/rest/v2.0/hosts/" -Headers $headers -SkipCertCheck:$AllowUntrustedCert
                 if ($null -ne $hostsResp.entities) {
                     $liveNodes = @($hostsResp.entities | ForEach-Object {
                         $cpuPpm = if ($null -ne $_.stats.hypervisor_cpu_usage_ppm) { [Math]::Round([double]$_.stats.hypervisor_cpu_usage_ppm / 10000.0, 1) } else { 0.0 }
@@ -188,7 +189,7 @@ process {
 
             $alertCount = 0
             try {
-                $alertsResp = Invoke-PrismRestMethod -Endpoint $PrismEndpoint -RelativeUri "/PrismGateway/services/rest/v2.0/alerts/?resolved=false" -Headers $headers
+                $alertsResp = Invoke-PrismRestMethod -Endpoint $PrismEndpoint -RelativeUri "/PrismGateway/services/rest/v2.0/alerts/?resolved=false" -Headers $headers -SkipCertCheck:$AllowUntrustedCert
                 if ($null -ne $alertsResp.entities) { $alertCount = @($alertsResp.entities).Count }
             } catch { Write-Warning "Unable to query Prism alerts endpoint: $($_.Exception.Message)" }
 
