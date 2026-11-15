@@ -80,11 +80,13 @@ $regPaths = @(
 )
 foreach ($rp in $regPaths) {
     $apps += Get-ItemProperty $rp -ErrorAction SilentlyContinue |
-        Where-Object { $_.DisplayName -and $_.DisplayName -notmatch "^(KB[0-9]+|Update for)" } |
-        Select-Object @{N="Nom";E={$_.DisplayName}}, @{N="Version";E={$_.DisplayVersion}}, @{N="Editeur";E={$_.Publisher}}
+        Where-Object { $_.PSObject.Properties['DisplayName'] -and $_.DisplayName -and $_.DisplayName -notmatch "^(KB[0-9]+|Update for)" } |
+        Select-Object @{N="Nom";E={$_.DisplayName}},
+                      @{N="Version";E={if ($_.PSObject.Properties['DisplayVersion']) { $_.DisplayVersion } else { '' }}},
+                      @{N="Editeur";E={if ($_.PSObject.Properties['Publisher']) { $_.Publisher } else { '' }}}
 }
-$uniqueApps = $apps | Sort-Object Nom -Unique
-Write-Host "  -> $(@($uniqueApps).Count) application(s) recensée(s)." -ForegroundColor Green
+$uniqueApps = @($apps | Sort-Object Nom -Unique)
+Write-Host "  -> $($uniqueApps.Count) application(s) recensée(s)." -ForegroundColor Green
 
 # STRUCTURE DE L'OBJET GLPI
 $glpiPayload = [PSCustomObject]@{

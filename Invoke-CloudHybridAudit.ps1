@@ -43,11 +43,17 @@ function Add-CloudMetric {
 
 # 1. AUDIT ENRÔLEMENT INTUNE MDM
 Write-Host " [*] Audit de l'enrôlement Microsoft Intune (MDM)..." -ForegroundColor Yellow
-$enrollments = Get-ChildItem "HKLM:\SOFTWARE\Microsoft\Enrollments" -ErrorAction SilentlyContinue |
-               Where-Object { (Get-ItemProperty $_.PSPath).UPN -or (Get-ItemProperty $_.PSPath).ProviderID -match "MS DM Server" }
+$enrollments = @(
+    Get-ChildItem "HKLM:\SOFTWARE\Microsoft\Enrollments" -ErrorAction SilentlyContinue |
+        ForEach-Object { Get-ItemProperty $_.PSPath -ErrorAction SilentlyContinue } |
+        Where-Object {
+            ($_.PSObject.Properties['UPN'] -and $_.UPN) -or
+            ($_.PSObject.Properties['ProviderID'] -and $_.ProviderID -match "MS DM Server")
+        }
+)
 
-if ($enrollments) {
-    $upn = (Get-ItemProperty $enrollments[0].PSPath).UPN
+if ($enrollments.Count -gt 0) {
+    $upn = if ($enrollments[0].PSObject.Properties['UPN']) { $enrollments[0].UPN } else { "N/A" }
     Add-CloudMetric -Element "Enrôlement Intune MDM" -Value "Enrôlé ($upn)" -Status "CONFORME" -Detail "Machine gérée sous stratégie de gestion de flotte Microsoft Intune."
 } else {
     Add-CloudMetric -Element "Enrôlement Intune MDM" -Value "Non enrôlé" -Status "WARN" -Detail "Machine non rattachée à Intune (Gestion locale ou AD on-premise uniquement)."
@@ -56,7 +62,8 @@ if ($enrollments) {
 # 2. AUDIT DEFENDER FOR ENDPOINT (MDE - SENSE)
 Write-Host "`n [*] Contrôle de l'agent Microsoft Defender for Endpoint (Sense)..." -ForegroundColor Yellow
 $senseSvc = Get-Service -Name "Sense" -ErrorAction SilentlyContinue
-$mdeOnboarding = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows Advanced Threat Protection\Status" -Name "OnboardingState" -ErrorAction SilentlyContinue).OnboardingState
+$mdeProp = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows Advanced Threat Protection\Status" -Name "OnboardingState" -ErrorAction SilentlyContinue
+$mdeOnboarding = if ($null -ne $mdeProp -and $mdeProp.PSObject.Properties['OnboardingState']) { $mdeProp.OnboardingState } else { $null }
 
 if ($senseSvc -and $senseSvc.Status -eq "Running" -and $mdeOnboarding -eq 1) {
     Add-CloudMetric -Element "Defender for Endpoint (MDE)" -Value "Actif & Onboardé" -Status "CONFORME" -Detail "Connecté au portail Microsoft Defender XDR (Service Sense en cours)."

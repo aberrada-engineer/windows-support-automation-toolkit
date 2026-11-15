@@ -53,8 +53,10 @@ Write-Host "[1/4] Détection de la solution antivirus actuellement en place..." 
 $avQuery = Get-CimInstance -Namespace root\SecurityCenter2 -ClassName AntiVirusProduct -ErrorAction SilentlyContinue
 
 if ($avQuery) {
-    foreach ($av in $avQuery) {
-        Add-RolloutStep "Antivirus Détecté" "WARN" "Solution présente : $($av.displayName) (État: $($av.productState))"
+    foreach ($av in @($avQuery)) {
+        $avName  = if ($av.PSObject.Properties['displayName']) { $av.displayName } else { "Inconnu" }
+        $avState = if ($av.PSObject.Properties['productState']) { $av.productState } else { "N/A" }
+        Add-RolloutStep "Antivirus Détecté" "WARN" "Solution présente : $avName (État: $avState)"
     }
 } else {
     Add-RolloutStep "Antivirus Détecté" "OK" "Aucune solution tierce active détectée (Defender par défaut)."
@@ -64,17 +66,21 @@ if ($avQuery) {
 Write-Host "`n[2/4] Préparation de la désinstallation de l'ancien antivirus..." -ForegroundColor Yellow
 $legacyAVs = @("Symantec", "McAfee", "Trend Micro", "Kaspersky", "Avast")
 $legacyFound = $false
+$uninstallApps = @(
+    Get-ItemProperty "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" -ErrorAction SilentlyContinue |
+        Where-Object { $_.PSObject.Properties['DisplayName'] -and $_.DisplayName }
+)
 
 foreach ($leg in $legacyAVs) {
-    $inst = Get-ItemProperty "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" -ErrorAction SilentlyContinue |
-            Where-Object { $_.DisplayName -match $leg }
-    if ($inst) {
+    $inst = @($uninstallApps | Where-Object { $_.DisplayName -match $leg })
+    if ($inst.Count -gt 0) {
         $legacyFound = $true
-        Write-Host "  -> Découverte de $($inst.DisplayName)..." -ForegroundColor Yellow
+        $avNames = ($inst | ForEach-Object { $_.DisplayName }) -join ", "
+        Write-Host "  -> Découverte de $avNames..." -ForegroundColor Yellow
         if ($Simulation) {
-            Add-RolloutStep "Désinstallation Ancien AV" "SIMULÉ" "[SIMULATION] Purge planifiée pour $($inst.DisplayName)."
+            Add-RolloutStep "Désinstallation Ancien AV" "SIMULÉ" "[SIMULATION] Purge planifiée pour $avNames."
         } else {
-            Add-RolloutStep "Désinstallation Ancien AV" "WARN" "Antivirus détecté ($($inst.DisplayName)) — désinstallation automatique non exécutée (requiert package MSI/GPO éditeur)."
+            Add-RolloutStep "Désinstallation Ancien AV" "WARN" "Antivirus détecté ($avNames) — désinstallation automatique non exécutée (requiert package MSI/GPO éditeur)."
         }
     }
 }
