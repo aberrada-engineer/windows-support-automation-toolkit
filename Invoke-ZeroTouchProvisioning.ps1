@@ -145,12 +145,14 @@ if ($Simulation) {
 
 # 5. CONFIGURATION SYSTÈME, BITLOCKER, DOMAINE ET ÉNERGIE
 Write-Host "`n[5/6] Configuration des paramètres d'entreprise..." -ForegroundColor Yellow
-if (-not $Simulation) {
+if (-not $Simulation -and $PSCmdlet.ShouldProcess($newName, "Configurer fuseau horaire Europe/Paris et profil d'alimentation")) {
     Set-TimeZone -Id "Romance Standard Time" -ErrorAction SilentlyContinue
     powercfg /change standby-timeout-ac 0
 }
 if ($EnableBitLocker) {
-    if (-not $Simulation) { Enable-BitLocker -MountPoint "C:" -EncryptionMethod XtsAes256 -UsedSpaceOnly -TpmProtector -ErrorAction SilentlyContinue | Out-Null }
+    if (-not $Simulation -and $PSCmdlet.ShouldProcess("C:", "Activer chiffrement BitLocker TPM XTS-AES 256")) {
+        Enable-BitLocker -MountPoint "C:" -EncryptionMethod XtsAes256 -UsedSpaceOnly -TpmProtector -ErrorAction SilentlyContinue | Out-Null
+    }
     Add-StepResult "Chiffrement BitLocker" "OK" "Protection TPM XTS-AES 256 activée sur C:."
 }
 if ($DomainName) {

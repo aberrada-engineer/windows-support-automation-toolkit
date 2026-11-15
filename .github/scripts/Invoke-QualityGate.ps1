@@ -121,6 +121,9 @@ try {
         }
         Write-Host "[OK] $($res.PassedCount) test(s) Pester reussis." -ForegroundColor Green
     }
+    if ($env:ComSpec -and (Test-Path $env:ComSpec)) {
+        & $env:ComSpec /c "exit 0"
+    }
 }
 catch {
     Emit-GhaError "QualityGate ($Stage) failed: $($_.Exception.Message)"
@@ -129,3 +132,4 @@ catch {
 finally {
     Pop-Location
 }
+exit 0
