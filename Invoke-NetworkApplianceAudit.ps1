@@ -48,7 +48,8 @@ function Add-NetCheck {
 
 # 1. TEST DE LA PASSERELLE PAR DEFAUT (GATEWAY)
 if ([string]::IsNullOrWhiteSpace($GatewayIP)) {
-    $GatewayIP = (Get-NetRoute -DestinationPrefix "0.0.0.0/0" -ErrorAction SilentlyContinue | Select-Object -First 1).NextHop
+    $defRoute = Get-NetRoute -DestinationPrefix "0.0.0.0/0" -ErrorAction SilentlyContinue | Select-Object -First 1
+    $GatewayIP = if ($defRoute -and $defRoute.PSObject.Properties['NextHop']) { $defRoute.NextHop } else { "" }
 }
 
 Import-Module "$PSScriptRoot\Core\ESN-Core.psm1" -ErrorAction SilentlyContinue

@@ -110,12 +110,14 @@ echo "===OS==="; grep PRETTY_NAME /etc/os-release 2>/dev/null | cut -d= -f2 | tr
 echo "===FAILED_SERVICES==="; systemctl --failed --no-legend --no-pager 2>/dev/null | wc -l
 echo "===DISK==="; df -h -x tmpfs -x devtmpfs -x squashfs 2>/dev/null | tail -n +2 | awk '{print $NF"|"$2"|"$3"|"$4"|"$5}'
 echo "===SSH_CONFIG==="; grep -hE "^[[:space:]]*(PermitRootLogin|PasswordAuthentication)[[:space:]]+" /etc/ssh/sshd_config.d/*.conf /etc/ssh/sshd_config 2>/dev/null || true
-echo "===SERVICES==="; echo "UFW:$((sudo -n ufw status 2>/dev/null || ufw status 2>/dev/null) | head -n 1)"; echo "SMB:$(systemctl is-active smbd 2>/dev/null || echo inactive)"
+echo "===SERVICES==="; echo "UFW:$({ sudo -n ufw status 2>/dev/null || ufw status 2>/dev/null; } | head -n 1)"; echo "SMB:$(systemctl is-active smbd 2>/dev/null || echo inactive)"
 echo "===UPDATES==="; (apt-get -s upgrade 2>/dev/null | grep -i '^Inst ' | grep -ic 'security') || echo "0"
 '@ -replace "`r", ""
+    # Base64 evite le stripping des guillemets/sauts de ligne par WinPS 5.1 vers ssh.exe
+    $cmdB64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($LinuxAuditCommands))
     $sshArgs = @("-p", $SshPort, "-o", "StrictHostKeyChecking=accept-new", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5")
     if ($SshKeyPath) { $sshArgs += @("-i", $SshKeyPath) }
-    $sshArgs += @("$Username@$TargetHost", $LinuxAuditCommands)
+    $sshArgs += @("$Username@$TargetHost", "echo $cmdB64 | base64 -d | sh")
 
     $rawOutput = (& $SshCmd.Source @sshArgs 2>&1) -join "`n"
     if ($LASTEXITCODE -eq 0 -and $rawOutput -match "===OS===") {
@@ -125,12 +127,12 @@ echo "===UPDATES==="; (apt-get -s upgrade 2>/dev/null | grep -i '^Inst ' | grep 
             if ($line -match '^===([A-Z_]+)===$') { $cur = $Matches[1]; $sections[$cur] = @() }
             elseif ($cur -and -not [string]::IsNullOrWhiteSpace($line)) { $sections[$cur] += $line.Trim() }
         }
-        $osLines = if ($sections.ContainsKey("OS")) { @($sections["OS"]) } else { @() }
+        $osLines = @(if ($sections.ContainsKey("OS")) { $sections["OS"] })
         if ($osLines.Count -ge 1) { $LinuxOS = $osLines[0] }
         if ($osLines.Count -ge 2) { $LinuxKernel = $osLines[1] }
-        $failArr = if ($sections.ContainsKey("FAILED_SERVICES")) { @($sections["FAILED_SERVICES"]) } else { @() }
+        $failArr = @(if ($sections.ContainsKey("FAILED_SERVICES")) { $sections["FAILED_SERVICES"] })
         $FailedServicesCount = if ($failArr.Count -gt 0 -and $failArr[0] -match '^\d+$') { [int]$failArr[0] } else { 0 }
-        $updArr = if ($sections.ContainsKey("UPDATES")) { @($sections["UPDATES"]) } else { @() }
+        $updArr = @(if ($sections.ContainsKey("UPDATES")) { $sections["UPDATES"] })
         $AptSecurityUpdates = if ($updArr.Count -gt 0 -and $updArr[0] -match '^\d+$') { [int]$updArr[0] } else { 0 }
         $sshConf = if ($sections.ContainsKey("SSH_CONFIG")) { @($sections["SSH_CONFIG"]) -join "`n" } else { "" }
         $RootLoginPermitted = if ($sshConf -match 'PermitRootLogin\s+(\S+)') { $Matches[1] } else { "default/non-explicit" }
@@ -138,7 +140,7 @@ echo "===UPDATES==="; (apt-get -s upgrade 2>/dev/null | grep -i '^Inst ' | grep 
         $svcConf = if ($sections.ContainsKey("SERVICES")) { @($sections["SERVICES"]) -join "`n" } else { "" }
         $UfwStatus = if ($svcConf -match 'UFW:Status:\s*(\S+)') { $Matches[1] } else { "inactive/unknown" }
         $SambaStatus = if ($svcConf -match 'SMB:(\S+)') { $Matches[1] } else { "inactive" }
-        $diskLines = if ($sections.ContainsKey("DISK")) { @($sections["DISK"]) } else { @() }
+        $diskLines = @(if ($sections.ContainsKey("DISK")) { $sections["DISK"] })
         $DiskMetrics = @(foreach ($dl in $diskLines) {
             $p = @($dl -split '\|')
             if ($p.Count -ge 5) { @{ Mount = $p[0]; Size = $p[1]; Used = $p[2]; Avail = $p[3]; Pct = $p[4] } }
@@ -297,10 +299,13 @@ $HtmlContent = @"
 "@
 
 Set-Content -Path $HtmlReport -Value $HtmlContent -Encoding UTF8
+$bannerOk    = ($BadgeLabel -notin @("Échec SSH", "Injoignable"))
+$bannerColor = if ($bannerOk) { "Green" } else { "Red" }
+$bannerText  = if ($bannerOk) { "   AUDIT LINUX TERMINÉ AVEC SUCCÈS                                        " } else { "   AUDIT LINUX NON ABOUTI ($BadgeLabel)                                   " }
 Write-Host ""
-Write-Host "==========================================================================" -ForegroundColor Green
-Write-Host "   AUDIT LINUX TERMINÉ AVEC SUCCÈS                                        " -ForegroundColor Green
-Write-Host "==========================================================================" -ForegroundColor Green
+Write-Host "==========================================================================" -ForegroundColor $bannerColor
+Write-Host $bannerText -ForegroundColor $bannerColor
+Write-Host "==========================================================================" -ForegroundColor $bannerColor
 Write-Host "[+] Rapport HTML généré : $HtmlReport" -ForegroundColor White
 
 if ($OpenReport) {

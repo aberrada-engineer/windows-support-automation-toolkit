@@ -291,6 +291,14 @@ Describe "ESN-Migration — Module migration" -Tag "Migration" {
     BeforeAll {
         $migPath = Join-Path (Split-Path $PSScriptRoot -Parent) "Modules\Migration\ESN-Migration.psm1"
         Import-Module $migPath -Force
+        $script:MigTestUser = if ($env:USERNAME -and (Test-Path "$env:SystemDrive\Users\$env:USERNAME")) {
+            $env:USERNAME
+        } else {
+            $cand = Get-ChildItem "$env:SystemDrive\Users" -Directory -ErrorAction SilentlyContinue |
+                Where-Object { $_.Name -notin @('Public','Default','Default User','All Users','defaultuser0') } |
+                Select-Object -First 1 -ExpandProperty Name
+            if ($cand) { $cand } else { $env:USERNAME }
+        }
     }
 
     It "Exporte Invoke-UserStateCapture" {
@@ -307,7 +315,7 @@ Describe "ESN-Migration — Module migration" -Tag "Migration" {
 
         $dir = Invoke-UserStateCapture `
             -SourceComputer $env:COMPUTERNAME `
-            -Username       $env:USERNAME `
+            -Username       $script:MigTestUser `
             -BackupRoot     $tmpRoot `
             -All `
             -Simulation
@@ -326,12 +334,12 @@ Describe "ESN-Migration — Module migration" -Tag "Migration" {
 
         $dir = Invoke-UserStateCapture `
             -SourceComputer $env:COMPUTERNAME `
-            -Username       $env:USERNAME `
+            -Username       $script:MigTestUser `
             -BackupRoot     $tmpRoot `
             -Simulation
 
         $mf = Get-Content (Join-Path $dir "manifest.json") -Raw | ConvertFrom-Json
-        $mf.Username       | Should -Be $env:USERNAME
+        $mf.Username       | Should -Be $script:MigTestUser
         $mf.SourceComputer | Should -Be $env:COMPUTERNAME
         $mf.Simulation     | Should -Be $true
         $mf.CaptureDate    | Should -Not -BeNullOrEmpty
@@ -388,9 +396,17 @@ Describe "ESN-Migration, Infra & M365 — Régression v4.0" -Tag "Integration" {
         Initialize-ESNSession -ScriptName "test.ps1" -IncidentId "TEST-MIG-V4"
         $tmpRoot = Join-Path ([System.IO.Path]::GetTempPath()) "ESN_Test_MigV4_$(Get-Random)"
         try {
+            $migUser = if ($env:USERNAME -and (Test-Path "$env:SystemDrive\Users\$env:USERNAME")) {
+                $env:USERNAME
+            } else {
+                $cand = Get-ChildItem "$env:SystemDrive\Users" -Directory -ErrorAction SilentlyContinue |
+                    Where-Object { $_.Name -notin @('Public','Default','Default User','All Users','defaultuser0') } |
+                    Select-Object -First 1 -ExpandProperty Name
+                if ($cand) { $cand } else { $env:USERNAME }
+            }
             $dir = Invoke-UserStateCapture `
                 -SourceComputer $env:COMPUTERNAME `
-                -Username       $env:USERNAME `
+                -Username       $migUser `
                 -BackupRoot     $tmpRoot `
                 -Simulation
 
@@ -414,7 +430,7 @@ Describe "ESN-Migration, Infra & M365 — Régression v4.0" -Tag "Integration" {
             $restored = Invoke-UserStateRestore `
                 -BackupDir      $dir `
                 -TargetComputer $env:COMPUTERNAME `
-                -Username       $env:USERNAME `
+                -Username       $migUser `
                 -Simulation
 
             $restored.ValidationResults.BrowsersOK | Should -Be $true

@@ -63,7 +63,7 @@ try {
     else {
         # 1. TPM 2.0
         Write-Host "[1/7] Contrôle du module cryptographique TPM 2.0..." -ForegroundColor White
-        $Tpm = if (Get-Command Get-Tpm -ErrorAction SilentlyContinue) { Get-Tpm -ErrorAction SilentlyContinue } else { $null }
+        $Tpm = if (Get-Command Get-Tpm -ErrorAction SilentlyContinue) { try { Get-Tpm -ErrorAction Stop } catch { Write-Verbose "Get-Tpm indisponible: $($_.Exception.Message)"; $null } } else { $null }
         if ($Tpm -and $Tpm.TpmPresent -and $Tpm.TpmReady) {
             $Checks.Add([PSCustomObject]@{ Check = "Module TPM 2.0"; Detail = "TPM Présent et Prêt (Ready)"; Score = 15; Max = 15; Status = "CONFORME" })
             $TotalScore += 15
@@ -83,7 +83,7 @@ try {
 
         # 3. Virtualization-Based Security (VBS) & HVCI
         Write-Host "[3/7] Contrôle de la Sécurité Basée sur la Virtualisation (VBS)..." -ForegroundColor White
-        $DeviceGuard = if (Get-Command Get-CimInstance -ErrorAction SilentlyContinue) { Get-CimInstance -ClassName Win32_DeviceGuard -Namespace root\Microsoft\Windows\DeviceGuard -ErrorAction SilentlyContinue } else { $null }
+        $DeviceGuard = if (Get-Command Get-CimInstance -ErrorAction SilentlyContinue) { try { Get-CimInstance -ClassName Win32_DeviceGuard -Namespace root\Microsoft\Windows\DeviceGuard -ErrorAction Stop } catch { $null } } else { $null }
         if ($DeviceGuard -and $DeviceGuard.VirtualizationBasedSecurityStatus -eq 2) {
             $Checks.Add([PSCustomObject]@{ Check = "Virtualization-Based Security (VBS)"; Detail = "VBS En service (Statut: Running)"; Score = 15; Max = 15; Status = "CONFORME" })
             $TotalScore += 15
@@ -105,7 +105,7 @@ try {
 
         # 5. Chiffrement BitLocker
         Write-Host "[5/7] Audit du chiffrement matériel BitLocker..." -ForegroundColor White
-        $Blt = if (Get-Command Get-BitLockerVolume -ErrorAction SilentlyContinue) { Get-BitLockerVolume -MountPoint "C:" -ErrorAction SilentlyContinue } else { $null }
+        $Blt = if (Get-Command Get-BitLockerVolume -ErrorAction SilentlyContinue) { try { Get-BitLockerVolume -MountPoint "C:" -ErrorAction Stop } catch { $null } } else { $null }
         if ($Blt -and $Blt.ProtectionStatus -eq "On") {
             $Checks.Add([PSCustomObject]@{ Check = "Chiffrement BitLocker"; Detail = "Volume C: chiffré ($($Blt.EncryptionMethod))"; Score = 15; Max = 15; Status = "CONFORME" })
             $TotalScore += 15
@@ -115,7 +115,7 @@ try {
 
         # 6. EDR & Antivirus Temps Réel (Defender ou EDR tiers : SentinelOne, Sophos, CrowdStrike...)
         Write-Host "[6/7] Vérification EDR / Defender Real-Time Protection..." -ForegroundColor White
-        $DefStatus = if (Get-Command Get-MpComputerStatus -ErrorAction SilentlyContinue) { Get-MpComputerStatus -ErrorAction SilentlyContinue } else { $null }
+        $DefStatus = if (Get-Command Get-MpComputerStatus -ErrorAction SilentlyContinue) { try { Get-MpComputerStatus -ErrorAction Stop } catch { $null } } else { $null }
         $edrSvc = @(Get-Service -Name @('SentinelAgent','SophosEndpointDefense','CSFalconService','SavService','McShield') -ErrorAction SilentlyContinue | Where-Object { $_.Status -eq 'Running' })
         if (($DefStatus -and $DefStatus.RealTimeProtectionEnabled) -or $edrSvc.Count -gt 0) {
             $edrDetail = if ($edrSvc.Count -gt 0) { "EDR tiers actif ($($edrSvc[0].Name))" } else { "Defender temps réel actif" }

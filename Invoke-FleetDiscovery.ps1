@@ -78,6 +78,7 @@ $scanWorker = {
 
     $type = "Inconnu"
     if ($openPorts -contains 445 -and $openPorts -contains 3389) { $type = "Windows (Poste / Serveur)" }
+    elseif ($openPorts -contains 22 -and $openPorts -contains 445) { $type = "Linux / Samba (SSH + SMB)" }
     elseif ($openPorts -contains 445) { $type = "Windows / Partage SMB" }
     elseif ($openPorts -contains 22) { $type = "Linux / Réseau (SSH)" }
     elseif ($openPorts -contains 80 -or $openPorts -contains 443) { $type = "Équipement Web (Switch / Imprimante / Pare-feu)" }

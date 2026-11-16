@@ -36,7 +36,7 @@ Push-Location $repoRoot
 try {
     if ($Stage -in @('All', 'AST')) {
         Write-Host "=== Validation syntaxique AST ($($PSVersionTable.PSVersion)) ===" -ForegroundColor Cyan
-        $scripts = @(Get-ChildItem -Path . -Include '*.ps1', '*.psm1' -Recurse | Where-Object { $_.FullName -notmatch '[/\\]Tests[/\\]' })
+        $scripts = @(Get-ChildItem -Path . -File | Where-Object { $_.Extension -in @('.ps1', '.psm1') }) + @(Get-ChildItem -Path . -Directory -Force | Where-Object { $_.Name -notin @('ESN-Toolkit', 'ESN-Toolkits', '.git', '.tmp') } | ForEach-Object { Get-ChildItem -Path $_.FullName -Include '*.ps1', '*.psm1' -Recurse })
         $errorsCount = 0
         foreach ($s in $scripts) {
             $parseErrors = $null
@@ -110,15 +110,17 @@ try {
                 Write-Host "::warning::GITHUB_STEP_SUMMARY error: $($_.Exception.Message)"
             }
         }
-        if ($res.FailedCount -gt 0) {
-            Emit-GhaError "Pester summary ($($PSVersionTable.PSVersion)): Passed=$($res.PassedCount) Failed=$($res.FailedCount) Skipped=$($res.SkippedCount)"
+        $failedContainers = if ($res.PSObject.Properties['FailedContainersCount'] -and $null -ne $res.FailedContainersCount) { [int]$res.FailedContainersCount } else { 0 }
+        $failedBlocks     = if ($res.PSObject.Properties['FailedBlocksCount'] -and $null -ne $res.FailedBlocksCount) { [int]$res.FailedBlocksCount } else { 0 }
+        if ($res.FailedCount -gt 0 -or $failedContainers -gt 0 -or $failedBlocks -gt 0) {
+            Emit-GhaError "Pester summary ($($PSVersionTable.PSVersion)): Passed=$($res.PassedCount) Failed=$($res.FailedCount) FailedContainers=$failedContainers FailedBlocks=$failedBlocks Skipped=$($res.SkippedCount)"
             foreach ($t in ($res.Failed | Select-Object -First 9)) {
                 $errObj = @($t.ErrorRecord) | Select-Object -First 1
                 $msg = if ($errObj -and $errObj.Exception) { $errObj.Exception.Message } else { ($t.ErrorRecord | Out-String) }
                 $line = if ($errObj -and $errObj.InvocationInfo) { "$($errObj.InvocationInfo.ScriptName):$($errObj.InvocationInfo.ScriptLineNumber) $($errObj.InvocationInfo.Line)" } else { "" }
                 Emit-GhaError "Pester FAIL [$($t.ExpandedPath)] $msg | $line"
             }
-            throw "Echec Pester : $($res.FailedCount) test(s) en erreur."
+            throw "Echec Pester : $($res.FailedCount) test(s), $failedContainers conteneur(s), $failedBlocks bloc(s) en erreur."
         }
         Write-Host "[OK] $($res.PassedCount) test(s) Pester reussis." -ForegroundColor Green
     }

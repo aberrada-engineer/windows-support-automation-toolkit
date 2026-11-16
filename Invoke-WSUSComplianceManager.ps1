@@ -136,7 +136,7 @@ if ($ForceSync -and $PSCmdlet.ShouldProcess("UsoClient", "Déclencher scan Windo
 
 # 5. Inventaire des derniers Hotfixes installés
 $Hotfixes = Get-CimInstance -ClassName Win32_QuickFixEngineering -ErrorAction SilentlyContinue |
-    Sort-Object { $dt = $null; if ([datetime]::TryParse([string]$_.InstalledOn, [ref]$dt)) { $dt } else { [datetime]::MinValue } } -Descending |
+    Sort-Object { $dt = [datetime]::MinValue; if ([datetime]::TryParse([string]$_.InstalledOn, [ref]$dt)) { $dt } else { [datetime]::MinValue } } -Descending |
     Select-Object -First 5
 $HotfixRows = if ($Hotfixes) {
     (@($Hotfixes) | ForEach-Object {

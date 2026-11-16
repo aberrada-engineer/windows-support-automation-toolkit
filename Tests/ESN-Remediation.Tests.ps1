@@ -301,6 +301,13 @@ Describe "Invoke-IncidentAnalysis v2 — Intégration Remédiation" -Tag "Integr
             Where-Object { $_ -is [PSCustomObject] } |
             Select-Object -Last 1
 
+        if ($result) {
+            { [int]$result.RemediationsDetected } | Should -Not -Throw
+            { [int]$result.RemediationsFixed }     | Should -Not -Throw
+            { [bool]$result.RebootRequired }       | Should -Not -Throw
+        }
+    }
+
     It "StrictMode + Apply réel (mocké) exécute Add-ESNResult et encode les XSS HTML" {
         Initialize-ESNSession -ScriptName "test.ps1" -IncidentId "TEST-REM-XSS"
         $tmpReport = Join-Path ([System.IO.Path]::GetTempPath()) "ESN_Rem_XSS_$(Get-Random).html"
@@ -322,6 +329,15 @@ Describe "Invoke-IncidentAnalysis v2 — Intégration Remédiation" -Tag "Integr
             return @{ Detect = $origDetect; Rem = $origRem }
         }
         try {
+            Mock Invoke-Command -ModuleName ESN-Remediation {
+                param($ComputerName, $ScriptBlock, $ArgumentList)
+                $null = $ComputerName
+                if ($null -ne $ArgumentList -and @($ArgumentList).Count -gt 0) {
+                    & $ScriptBlock $ArgumentList[0]
+                } else {
+                    & $ScriptBlock
+                }
+            }
             $results = Invoke-Remediation `
                 -Fix @("DNS") `
                 -AutoFix -Force `

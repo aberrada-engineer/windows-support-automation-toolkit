@@ -20,6 +20,7 @@
 Set-StrictMode -Version Latest
 
 function Build-ESNReport {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseApprovedVerbs', '')]
 <#
 .SYNOPSIS
     Génère le rapport HTML complet à partir des données collectées.

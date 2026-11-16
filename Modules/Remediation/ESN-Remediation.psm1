@@ -306,11 +306,15 @@ $script:Catalog = [ordered]@{
                 if ($om -and $om.PSObject.Properties['Sum'] -and $null -ne $om.Sum) { $om.Sum / 1GB } else { 0 }
             } else { 0 }
 
-            $crashedAddins = Get-ItemProperty `
-                "HKCU:\Software\Microsoft\Office\16.0\Outlook\Resiliency\CrashedExtensibility" `
-                -EA SilentlyContinue
+            $resPath = "HKCU:\Software\Microsoft\Office\16.0\Outlook\Resiliency\CrashedExtensibility"
+            $crashedCount = if (Test-Path $resPath) {
+                $props = Get-ItemProperty $resPath -ErrorAction SilentlyContinue
+                if ($null -ne $props) {
+                    @($props.PSObject.Properties | Where-Object { $_.Name -notmatch '^PS' }).Count
+                } else { 0 }
+            } else { 0 }
 
-            return ($offlineMode -eq 1) -or ($ostSize -gt 25) -or ($null -ne $crashedAddins)
+            return ($offlineMode -eq 1) -or ($ostSize -gt 25) -or ($crashedCount -gt 0)
         }
         Remediate     = {
             param([bool]$sim)
@@ -873,11 +877,15 @@ function Invoke-Remediation {
 
         try {
             # Passer les paramètres selon le type de remédiation
+            $acceptsSvc = ($null -ne $rem.Remediate.Ast.ParamBlock) -and
+                (@($rem.Remediate.Ast.ParamBlock.Parameters | ForEach-Object { $_.Name.VariablePath.UserPath }) -contains 'serviceList')
             $remResult = if ($isRemote) {
                 Invoke-Command -ComputerName $ComputerName -ScriptBlock $rem.Remediate `
                     -ArgumentList $Simulation.IsPresent, $ServiceList -ErrorAction Stop
-            } else {
+            } elseif ($acceptsSvc) {
                 & $rem.Remediate -sim $Simulation.IsPresent -serviceList $ServiceList
+            } else {
+                & $rem.Remediate -sim $Simulation.IsPresent
             }
 
             $sw.Stop()

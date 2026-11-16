@@ -64,7 +64,7 @@ if ($expiredCerts.Count -gt 0) {
 Write-Host "`n[2/4] Audit des étendues DHCP et baux disponibles..." -ForegroundColor Yellow
 $dhcpSvc = Get-Service -Name "DHCPServer" -ErrorAction SilentlyContinue
 if ($dhcpSvc -and $dhcpSvc.Status -eq "Running") {
-    $scopes = if (Get-Command Get-DhcpServerv4ScopeStatistics -ErrorAction SilentlyContinue) { @(Get-DhcpServerv4ScopeStatistics -ErrorAction SilentlyContinue) } else { @() }
+    $scopes = @(if (Get-Command Get-DhcpServerv4ScopeStatistics -ErrorAction SilentlyContinue) { Get-DhcpServerv4ScopeStatistics -ErrorAction SilentlyContinue })
     $hotScopes = @($scopes | Where-Object { $_.PercentageInUse -ge 85 })
     if ($hotScopes.Count -gt 0) {
         $maxPct = [math]::Round(($hotScopes | Measure-Object PercentageInUse -Maximum).Maximum, 1)
