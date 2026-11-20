@@ -31,8 +31,8 @@ param(
     [ValidateSet("P1-Bloquant", "P2-Majeur", "P3-Mineur", "Info")]
     [string]$Severity = "P2-Majeur",
     [string]$GlpiApiUrl = "https://support.corp.lan/apirest.php",
-    [string]$GlpiAppToken,
-    [string]$GlpiUserToken,
+    [securestring]$GlpiAppToken,
+    [securestring]$GlpiUserToken,
     [string]$ServiceNowInstance,
     [string]$ServiceNowUser,
     [securestring]$ServiceNowPassword,
@@ -40,10 +40,19 @@ param(
 )
 Set-StrictMode -Version Latest
 
+function ConvertFrom-ESNSecureSecret {
+    param([securestring]$Secret, [string]$FallbackEnvValue = "")
+    if ($null -ne $Secret -and $Secret.Length -gt 0) {
+        return ([System.Net.NetworkCredential]::new('', $Secret)).Password
+    }
+    return $FallbackEnvValue
+}
+
 $ErrorActionPreference = "Continue"
 [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 $hostLabel = if ($env:COMPUTERNAME) { $env:COMPUTERNAME } else { [System.Environment]::MachineName }
 $userLabel = if ($env:USERNAME) { $env:USERNAME } elseif ($env:USER) { $env:USER } else { "operator" }
+$dispatchError = $null
 
 Write-Host "==========================================================================" -ForegroundColor Cyan
 Write-Host "   ITSM & ALERTING INTEGRATION CONNECTOR (GLPI / SERVICENOW / TEAMS)      " -ForegroundColor Cyan
@@ -63,8 +72,7 @@ $ThemeColor = switch ($Severity) {
 # 1. Envoi Webhook Microsoft Teams (MessageCard - format historique Webhook Office 365; pour Workflows Power Automate, utiliser AdaptiveCard)
 if ($Target -eq "Teams") {
     if (-not $WebhookUrl) {
-        Write-Host "[-] Erreur : URL de Webhook Teams obligatoire." -ForegroundColor Red
-        return
+        throw "URL de Webhook Teams obligatoire (-WebhookUrl)."
     }
 
     $Payload = @{
@@ -91,24 +99,27 @@ if ($Target -eq "Teams") {
         [void](Invoke-RestMethod -Uri $WebhookUrl -Method Post -Body $Payload -ContentType "application/json" -TimeoutSec 15)
         Write-Host "[+] Alerte transmise avec succès au canal Teams !" -ForegroundColor Green
     } catch {
-        Write-Host "[-] Échec de transmission Teams : $_" -ForegroundColor Red
+        $dispatchError = "Échec de transmission Teams : $($_.Exception.Message)"
+        Write-Host "[-] $dispatchError" -ForegroundColor Red
     }
 }
 
 # 2. Création de Ticket GLPI REST API
 elseif ($Target -eq "GLPI") {
     Write-Host "[*] Connexion à l'API GLPI ($GlpiApiUrl)..." -ForegroundColor White
-    if ($GlpiAppToken -and $GlpiUserToken) {
+    $glpiAppPlain  = ConvertFrom-ESNSecureSecret -Secret $GlpiAppToken  -FallbackEnvValue ([string]$env:ESN_GLPI_APP_TOKEN)
+    $glpiUserPlain = ConvertFrom-ESNSecureSecret -Secret $GlpiUserToken -FallbackEnvValue ([string]$env:ESN_GLPI_USER_TOKEN)
+    if ($glpiAppPlain -and $glpiUserPlain) {
         $sessionToken = $null
         $ticketHeader = $null
         try {
             # 1. Init Session
-            $initHeader = @{ "App-Token" = $GlpiAppToken; "Authorization" = "user_token $GlpiUserToken" }
+            $initHeader = @{ "App-Token" = $glpiAppPlain; "Authorization" = "user_token $glpiUserPlain" }
             $sessionResp = Invoke-RestMethod -Uri "$GlpiApiUrl/initSession" -Headers $initHeader -Method Get -TimeoutSec 15
             $sessionToken = $sessionResp.session_token
 
             # 2. Create Ticket
-            $ticketHeader = @{ "App-Token" = $GlpiAppToken; "Session-Token" = $sessionToken }
+            $ticketHeader = @{ "App-Token" = $glpiAppPlain; "Session-Token" = $sessionToken }
             $osCaption = try { (Get-CimInstance Win32_OperatingSystem -ErrorAction Stop).Caption } catch { [System.Environment]::OSVersion.VersionString }
             $ticketBody = @{
                 "input" = @{
@@ -122,7 +133,8 @@ elseif ($Target -eq "GLPI") {
             $newTicket = Invoke-RestMethod -Uri "$GlpiApiUrl/Ticket" -Headers $ticketHeader -Method Post -Body $ticketBody -ContentType "application/json" -TimeoutSec 15
             Write-Host "[+] Ticket GLPI créé avec succès (ID: $($newTicket.id)) !" -ForegroundColor Green
         } catch {
-            Write-Host "[-] Échec de communication avec l'API GLPI : $_" -ForegroundColor Red
+            $dispatchError = "Échec de communication avec l'API GLPI : $($_.Exception.Message)"
+            Write-Host "[-] $dispatchError" -ForegroundColor Red
         } finally {
             # 3. Kill Session toujours exécuté si initSession a réussi
             if ($sessionToken -and $ticketHeader) {
@@ -134,15 +146,14 @@ elseif ($Target -eq "GLPI") {
             }
         }
     } else {
-        Write-Host "[!] Mode Simulation GLPI : Paramètres d'authentification App-Token ou User-Token absents." -ForegroundColor Yellow
+        Write-Host "[!] Mode Simulation GLPI : Paramètres d'authentification App-Token ou User-Token absents (-GlpiAppToken/-GlpiUserToken ou ESN_GLPI_*)." -ForegroundColor Yellow
     }
 }
 
 # 3. Envoi Webhook Slack
 elseif ($Target -eq "Slack") {
     if (-not $WebhookUrl) {
-        Write-Host "[-] Erreur : URL de Webhook Slack obligatoire." -ForegroundColor Red
-        return
+        throw "URL de Webhook Slack obligatoire (-WebhookUrl)."
     }
     $slackPayload = @{
         text = "[$Severity] $Title ($hostLabel) - $Message"
@@ -151,7 +162,8 @@ elseif ($Target -eq "Slack") {
         Invoke-RestMethod -Uri $WebhookUrl -Method Post -Body $slackPayload -ContentType "application/json" -TimeoutSec 15 | Out-Null
         Write-Host "[+] Alerte transmise avec succès sur Slack !" -ForegroundColor Green
     } catch {
-        Write-Host "[-] Échec de transmission Slack : $_" -ForegroundColor Red
+        $dispatchError = "Échec de transmission Slack : $($_.Exception.Message)"
+        Write-Host "[-] $dispatchError" -ForegroundColor Red
     }
 }
 
@@ -161,13 +173,13 @@ elseif ($Target -eq "ServiceNow") {
     $snPass = if ($ServiceNowCredential) {
         $ServiceNowCredential.GetNetworkCredential().Password
     } elseif ($ServiceNowPassword) {
-        ([PSCredential]::new("u", $ServiceNowPassword)).GetNetworkCredential().Password
+        ConvertFrom-ESNSecureSecret -Secret $ServiceNowPassword
     } else { $null }
     if ($ServiceNowInstance -and $snUser -and $snPass) {
         $baseUrl = if ($ServiceNowInstance -match '^https?://') { $ServiceNowInstance.TrimEnd('/') } else { "https://$($ServiceNowInstance.TrimEnd('/'))" }
         $pair = "$snUser`:$snPass"
         $headers = @{
-            "Authorization" = "Basic $([Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes($pair)))"
+            "Authorization" = "Basic $([Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($pair)))"
             "Accept"        = "application/json"
         }
         $snBody = @{
@@ -180,7 +192,8 @@ elseif ($Target -eq "ServiceNow") {
             $resp = Invoke-RestMethod -Uri "$baseUrl/api/now/table/incident" -Method Post -Headers $headers -Body $snBody -ContentType "application/json" -TimeoutSec 15
             Write-Host "[+] Incident ServiceNow créé : $($resp.result.number)" -ForegroundColor Green
         } catch {
-            Write-Host "[-] Échec de communication avec ServiceNow : $_" -ForegroundColor Red
+            $dispatchError = "Échec de communication avec ServiceNow : $($_.Exception.Message)"
+            Write-Host "[-] $dispatchError" -ForegroundColor Red
         }
     } else {
         Write-Host "[!] Mode Simulation ServiceNow : ServiceNowInstance ou identifiants manquants." -ForegroundColor Yellow
@@ -196,6 +209,12 @@ else {
 }
 
 Write-Host ""
+if ($dispatchError) {
+    Write-Host "==========================================================================" -ForegroundColor Red
+    Write-Host "   DISPATCHING ITSM EN ÉCHEC                                              " -ForegroundColor Red
+    Write-Host "==========================================================================" -ForegroundColor Red
+    throw $dispatchError
+}
 Write-Host "==========================================================================" -ForegroundColor Green
 Write-Host "   DISPATCHING ITSM TERMINÉ                                               " -ForegroundColor Green
 Write-Host "==========================================================================" -ForegroundColor Green

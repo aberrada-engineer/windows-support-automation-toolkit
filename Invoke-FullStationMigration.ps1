@@ -18,6 +18,7 @@
 param(
     [string]$DefaultBackupPath = ""
 )
+Set-StrictMode -Version Latest
 
 $ScriptDir = Split-Path $MyInvocation.PSCommandPath -Parent
 Import-Module "$ScriptDir\Core\ESN-Core.psm1" -ErrorAction SilentlyContinue
@@ -177,12 +178,14 @@ elseif ($choice -eq "2") {
         Write-Host " [OK] Profils Wi-Fi importés." -ForegroundColor Green
     }
 
-    if ($res -and $res.ReportPath -and (Test-Path $res.ReportPath)) {
-        Start-Process $res.ReportPath
+    $reportPath = if ($res -and $res.PSObject.Properties['ReportPath']) { $res.ReportPath } else { $null }
+    $scoreVal   = if ($res -and $res.PSObject.Properties['Score']) { $res.Score } else { "N/A" }
+    if ($reportPath -and (Test-Path $reportPath)) {
+        Start-Process $reportPath
     }
 
     Write-Host "`n================================================================================" -ForegroundColor Green
-    Write-Host "   RESTAURATION TERMINEE ! SCORE : $($res.Score)/100" -ForegroundColor White
+    Write-Host "   RESTAURATION TERMINEE ! SCORE : $scoreVal/100" -ForegroundColor White
     Write-Host "   Rapport ouvert dans le navigateur." -ForegroundColor Cyan
     Write-Host "================================================================================" -ForegroundColor Green
     Read-Host "`nAppuyez sur Entrée pour quitter..."

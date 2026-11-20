@@ -56,12 +56,25 @@ param(
     [int]$ManualL3Escalations = 28,
 
     [Parameter(Mandatory = $false)]
-    [string]$OutputFile = ""
+    [string]$OutputFile = "",
+
+    [Parameter(Mandatory = $false)]
+    [switch]$Simulate
 )
 
 process {
     Set-StrictMode -Version Latest
     try {
+        $hasLiveKpi = $PSBoundParameters.ContainsKey('SlaP1CompliancePct') -or
+                      $PSBoundParameters.ContainsKey('SlaP2CompliancePct') -or
+                      $PSBoundParameters.ContainsKey('GlobalAvailabilityPct') -or
+                      $PSBoundParameters.ContainsKey('MttrMinutes') -or
+                      $PSBoundParameters.ContainsKey('SelfHealedIncidents') -or
+                      $PSBoundParameters.ContainsKey('ManualL3Escalations')
+        $isDemoMode     = [bool]$Simulate -or (-not $hasLiveKpi)
+        $modeBadgeText  = if ($isDemoMode) { "DEMO / SAMPLE METRICS" } else { "PROVIDED KPI INPUTS" }
+        $modeBadgeClass = if ($isDemoMode) { "badge-demo" } else { "badge-ok" }
+        $domainBadge    = if ($isDemoMode) { "SAMPLE" } else { "REPORTED" }
         if ([string]::IsNullOrWhiteSpace($OutputFile)) {
             $reportDir = if (Get-Command Get-ESNReportRoot -ErrorAction SilentlyContinue) {
                 Get-ESNReportRoot
@@ -114,12 +127,13 @@ process {
   th, td { padding: 10px 12px; border-bottom: 1px solid var(--border); text-align: left; }
   th { color: var(--muted); font-weight: 600; }
   .badge-ok { background: rgba(16,185,129,0.15); color: #34d399; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .badge-demo { background: rgba(245,158,11,0.18); color: #fbbf24; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
 </style>
 </head>
 <body>
   <div class="header">
     <div>
-      <h1>Executive IT Steering Dashboard (COPIL / COTECH)</h1>
+      <h1>Executive IT Steering Dashboard (COPIL / COTECH) <span class="$modeBadgeClass">$modeBadgeText</span></h1>
       <div class="meta">Scope: <strong>$safeClientName</strong> &bull; Period: <strong>$safePeriodLabel</strong></div>
     </div>
     <div class="meta">Generated: $generatedAt<br/>Lead: Amine BERRADA (L3 Technical Lead)</div>
@@ -171,10 +185,10 @@ process {
       <table>
         <thead><tr><th>Domain</th><th>Stack</th><th>SLA Status</th></tr></thead>
         <tbody>
-          <tr><td>Identity &amp; Hybrid Cloud</td><td>Active Directory, Entra ID, M365</td><td><span class="badge-ok">OPTIMAL</span></td></tr>
-          <tr><td>HCI &amp; Virtualization</td><td>VMware vSphere, Nutanix AHV/AOS</td><td><span class="badge-ok">OPTIMAL</span></td></tr>
-          <tr><td>Perimeter &amp; SecOps</td><td>FortiGate, Aruba, SentinelOne EDR</td><td><span class="badge-ok">HARDENED</span></td></tr>
-          <tr><td>Backup &amp; Continuity</td><td>Veeam Immutable XFS, Cross-Site DRP</td><td><span class="badge-ok">CERTIFIED</span></td></tr>
+          <tr><td>Identity &amp; Hybrid Cloud</td><td>Active Directory, Entra ID, M365</td><td><span class="$modeBadgeClass">$domainBadge</span></td></tr>
+          <tr><td>HCI &amp; Virtualization</td><td>VMware vSphere, Nutanix AHV/AOS</td><td><span class="$modeBadgeClass">$domainBadge</span></td></tr>
+          <tr><td>Perimeter &amp; SecOps</td><td>FortiGate, Aruba, SentinelOne EDR</td><td><span class="$modeBadgeClass">$domainBadge</span></td></tr>
+          <tr><td>Backup &amp; Continuity</td><td>Veeam Immutable XFS, Cross-Site DRP</td><td><span class="$modeBadgeClass">$domainBadge</span></td></tr>
         </tbody>
       </table>
     </div>
@@ -202,6 +216,7 @@ process {
             SelfHealedIncidents   = $SelfHealedIncidents
             ManualL3Escalations   = $ManualL3Escalations
             AutoRemediationPct    = $autoRatePct
+            Simulated             = $isDemoMode
             DashboardPath         = $OutputFile
         }
     }

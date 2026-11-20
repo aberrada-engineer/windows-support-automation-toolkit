@@ -80,7 +80,7 @@ end {
         }
         $isSimulated = $true
     } elseif ($targetList.Count -eq 0) {
-        throw "Aucune cible fournie (-ComputerName ou -InputFile requis sans -Simulate)."
+        throw "Aucune cible fournie (-ComputerName requis sans -Simulate)."
     }
     else {
         $isSimulated = $false

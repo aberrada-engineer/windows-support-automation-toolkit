@@ -5,6 +5,7 @@
     Développé pour Amine BERRADA — Administrateur Systèmes & Réseaux / Référent Technique N3.
 #>
 
+Set-StrictMode -Version Latest
 $ScriptDir = Split-Path $MyInvocation.PSCommandPath -Parent
 
 function Show-Header {
@@ -90,8 +91,18 @@ do {
         "8" { & "$ScriptDir\Invoke-P1EmergencyTriage.ps1"; Read-Host "`nAppuyez sur Entrée pour continuer..." }
         "9" {
             $sub = Read-Host "Souhaitez-vous ISOLER la machine (1) ou RESTAURER le réseau (2) ?"
-            if ($sub -eq "2") { & "$ScriptDir\Invoke-RansomwareShield.ps1" -RestoreNetwork }
-            else { & "$ScriptDir\Invoke-RansomwareShield.ps1" }
+            if ($sub -eq "2") {
+                & "$ScriptDir\Invoke-RansomwareShield.ps1" -RestoreNetwork
+            } elseif ($sub -eq "1") {
+                $confirmIso = Read-Host "CONFIRMATION CRITIQUE : couper immédiatement tout le réseau de cet hôte ? (O/N)"
+                if ($confirmIso.ToUpper() -eq "O") {
+                    & "$ScriptDir\Invoke-RansomwareShield.ps1" -IsolateHost
+                } else {
+                    Write-Host "[i] Isolement annulé par l'opérateur." -ForegroundColor Yellow
+                }
+            } else {
+                Write-Host "[i] Choix invalide — aucune action exécutée." -ForegroundColor Yellow
+            }
             Read-Host "`nAppuyez sur Entrée pour continuer..."
         }
         "10" { & "$ScriptDir\Invoke-DRTest.ps1"; Read-Host "`nAppuyez sur Entrée pour continuer..." }
@@ -186,7 +197,7 @@ do {
         "39" { try { & "$ScriptDir\Invoke-ActiveDirectoryThreatHunter.ps1" -Simulate } catch { Write-Warning $_.Exception.Message }; Read-Host "`nAppuyez sur Entrée pour continuer..." }
         "40" { try { & "$ScriptDir\Invoke-HighSpeedParallelAuditor.ps1" -Simulate } catch { Write-Warning $_.Exception.Message }; Read-Host "`nAppuyez sur Entrée pour continuer..." }
         "41" { try { & "$ScriptDir\Invoke-VeeamImmutableAudit.ps1" -Simulate } catch { Write-Warning $_.Exception.Message }; Read-Host "`nAppuyez sur Entrée pour continuer..." }
-        "42" { try { & "$ScriptDir\Invoke-CopilDashboardGenerator.ps1" } catch { Write-Warning $_.Exception.Message }; Read-Host "`nAppuyez sur Entrée pour continuer..." }
+        "42" { try { & "$ScriptDir\Invoke-CopilDashboardGenerator.ps1" -Simulate } catch { Write-Warning $_.Exception.Message }; Read-Host "`nAppuyez sur Entrée pour continuer..." }
         "43" {
             $sc = Read-Host "Scénario Chaos (1=DNS/NTP Storm, 2=Disque 99%, 3=Coupure DFS-R)"
             $map = @{ "1" = "Chaos-DnsNtpStorm"; "2" = "Chaos-DiskSaturation99"; "3" = "Chaos-DfsrClusterOutage" }

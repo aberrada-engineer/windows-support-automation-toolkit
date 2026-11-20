@@ -500,4 +500,52 @@ Describe "PS 5.1 Compatibility, Security Hardening & Live Guards" {
         $adModRaw  | Should -Match '\-512'
         $adHygRaw  | Should -Match '\-512'
     }
+
+    It "ESN-Console.ps1, ESN-GUI.ps1 and Invoke-FullStationMigration.ps1 enforce StrictMode and KillSwitch passes -IsolateHost" {
+        foreach ($rel in @("ESN-Console.ps1", "ESN-GUI.ps1", "Invoke-FullStationMigration.ps1")) {
+            $raw = Get-Content (Join-Path $script:RootDir $rel) -Raw
+            $raw | Should -Match 'Set-StrictMode\s+-Version\s+Latest' -Because "$rel must enforce StrictMode"
+        }
+        $consoleRaw = Get-Content (Join-Path $script:RootDir "ESN-Console.ps1") -Raw
+        $consoleRaw | Should -Match 'Invoke-RansomwareShield\.ps1"\s+-IsolateHost'
+    }
+
+    It "Invoke-SelfHealingService.ps1 uses valid Task Scheduler repetition triggers and configurable DNS probe" {
+        $shRaw = Get-Content (Join-Path $script:RootDir "Invoke-SelfHealingService.ps1") -Raw
+        $shRaw | Should -Not -Match '\$trigger\.RepetitionInterval'
+        $shRaw | Should -Match '-RepetitionInterval'
+        $shRaw | Should -Match '\[string\]\$DnsProbeHost'
+    }
+
+    It "Invoke-ITSMConnector.ps1 uses UTF8 Basic Auth, SecureString GLPI tokens and throws on real HTTP failure" {
+        $itsmPath = Join-Path $script:RootDir "Invoke-ITSMConnector.ps1"
+        $itsmRaw  = Get-Content $itsmPath -Raw
+        $itsmRaw | Should -Match '\[Text\.Encoding\]::UTF8\.GetBytes'
+        $itsmRaw | Should -Not -Match '\[Text\.Encoding\]::ASCII\.GetBytes'
+        $itsmRaw | Should -Match '\[securestring\]\$GlpiAppToken'
+
+        Mock Invoke-RestMethod { throw "Simulated HTTP 500" }
+        { & $itsmPath -Target "Teams" -WebhookUrl "https://hooks.mock.local/test" } | Should -Throw "*Simulated HTTP 500*"
+    }
+
+    It "Invoke-LinuxHeterogeneousAudit.ps1 enforces LC_ALL=C for ufw and -- before SSH target" {
+        $linRaw = Get-Content (Join-Path $script:RootDir "Invoke-LinuxHeterogeneousAudit.ps1") -Raw
+        $linRaw | Should -Match 'LC_ALL=C'
+        $linRaw | Should -Match '"--",\s*"\$Username@\$TargetHost"'
+    }
+
+    It "COPIL generators avoid broken HTML quotes and mark default demo KPIs honestly" {
+        $copilRaw = Get-Content (Join-Path $script:RootDir "Invoke-COPILReportGenerator.ps1") -Raw
+        $copilRaw | Should -Not -Match 'style=\\"'
+
+        $dashDemo = Join-Path $script:TmpOut "copil-demo-flag.html"
+        $resDemo  = & (Join-Path $script:RootDir "Invoke-CopilDashboardGenerator.ps1") -OutputFile $dashDemo
+        $resDemo.Simulated | Should -BeTrue
+        (Get-Content $dashDemo -Raw) | Should -Match 'DEMO / SAMPLE METRICS'
+
+        $dashLive = Join-Path $script:TmpOut "copil-live-kpi.html"
+        $resLive  = & (Join-Path $script:RootDir "Invoke-CopilDashboardGenerator.ps1") -GlobalAvailabilityPct 99.95 -OutputFile $dashLive
+        $resLive.Simulated | Should -BeFalse
+        (Get-Content $dashLive -Raw) | Should -Match 'PROVIDED KPI INPUTS'
+    }
 }

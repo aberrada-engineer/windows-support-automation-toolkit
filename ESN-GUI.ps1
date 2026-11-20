@@ -6,12 +6,15 @@
     Développé pour Amine BERRADA — Administrateur Systèmes & Réseaux / Référent Technique N3.
 #>
 
+Set-StrictMode -Version Latest
+
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 Add-Type -AssemblyName Microsoft.VisualBasic
 
 $ScriptDir = Split-Path $MyInvocation.PSCommandPath -Parent
 $script:PwshHost = if ($PSVersionTable.PSEdition -eq "Core" -and (Get-Command pwsh -ErrorAction SilentlyContinue)) { "pwsh" } else { "powershell.exe" }
+$script:logBox = $null
 
 function Write-GuiLog {
     param([string]$Message, [string]$Color = "White")
@@ -420,7 +423,7 @@ $eliteButtons = @(
     @{ Text = "🕵️ AD Threat Hunter (Kerberoast)"; Script = "Invoke-ActiveDirectoryThreatHunter.ps1"; Args = "-Simulate"; Log = "Active Directory Threat Hunter (MITRE ATT&CK)..."; R = 190; G = 40; B = 40; X = 310; Y = 20 },
     @{ Text = "⚡ Audit Parallèle 500+ Serveurs"; Script = "Invoke-HighSpeedParallelAuditor.ps1"; Args = "-Simulate"; Log = "RunspacePool Haute Vitesse (500 noeuds)..."; R = 0; G = 120; B = 212; X = 600; Y = 20 },
     @{ Text = "🔒 Veeam Immutabilité Linux XFS"; Script = "Invoke-VeeamImmutableAudit.ps1"; Args = "-Simulate"; Log = "Audit Veeam Hardened Repo (chattr +i)..."; R = 120; G = 60; B = 140; X = 20; Y = 85 },
-    @{ Text = "📈 Dashboard COPIL HTML5 SVG"; Script = "Invoke-CopilDashboardGenerator.ps1"; Args = ""; Log = "Génération Dashboard COPIL Dark Mode SVG..."; R = 0; G = 130; B = 90; X = 310; Y = 85 },
+    @{ Text = "📈 Dashboard COPIL HTML5 SVG"; Script = "Invoke-CopilDashboardGenerator.ps1"; Args = "-Simulate"; Log = "Génération Dashboard COPIL Dark Mode SVG (mode démo)..."; R = 0; G = 130; B = 90; X = 310; Y = 85 },
     @{ Text = "🧪 Chaos Lab (DNS/Disk/DFSR)"; Script = "Invoke-IncidentLabSimulator.ps1"; Args = "-Scenario Chaos-DnsNtpStorm -Simulate"; Log = "Chaos Engineering Lab Simulator..."; R = 200; G = 120; B = 0; X = 600; Y = 85 }
 )
 foreach ($eb in $eliteButtons) {

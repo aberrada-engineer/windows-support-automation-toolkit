@@ -54,7 +54,7 @@
 ### Scénario B : Suspicion d'Attaque par Ransomware
 1. **Activation du KillSwitch d'isolement :**
    ```powershell
-   powershell.exe -ExecutionPolicy Bypass -File .\Invoke-RansomwareShield.ps1
+   powershell.exe -ExecutionPolicy Bypass -File .\Invoke-RansomwareShield.ps1 -IsolateHost
    ```
    *Effet : Blocage de toutes les interfaces réseau, coupure des partages SMB et protection des VSS.*
 2. **Dump mémoire et connexions :** Analyse des fichiers `netstat.txt` et `processes.txt` générés dans `C:\ESN-Toolkit\Forensics`.

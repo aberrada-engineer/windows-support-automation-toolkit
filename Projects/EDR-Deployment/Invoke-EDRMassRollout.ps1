@@ -18,13 +18,18 @@ param(
     [ValidateSet("SentinelOne", "MicrosoftDefender", "Sophos", "Custom")]
     [string]$TargetEDR = "SentinelOne",
     [string]$InstallerPath = "",
-    [string]$SiteToken = $env:ESN_EDR_SITE_TOKEN,
+    [securestring]$SiteToken,
     [switch]$Simulation
 )
 Set-StrictMode -Version Latest
 
-if ([string]::IsNullOrWhiteSpace($SiteToken)) {
-    $SiteToken = if ($Simulation) { "<SIMULATED_SITE_TOKEN>" } else { "<SITE_TOKEN_REQUIRED>" }
+$plainSiteToken = if ($null -ne $SiteToken -and $SiteToken.Length -gt 0) {
+    ([System.Net.NetworkCredential]::new('', $SiteToken)).Password
+} else {
+    [string]$env:ESN_EDR_SITE_TOKEN
+}
+if ([string]::IsNullOrWhiteSpace($plainSiteToken)) {
+    $plainSiteToken = if ($Simulation) { "<SIMULATED_SITE_TOKEN>" } else { "<SITE_TOKEN_REQUIRED>" }
 }
 
 if ([Environment]::UserInteractive) {
@@ -92,10 +97,10 @@ if (-not $legacyFound) {
 # 3. DEPLOIEMENT DU NOUVEL AGENT EDR (SENTINELONE / DEFENDER)
 Write-Host "`n[3/4] Déploiement silencieux de l'agent EDR ($TargetEDR)..." -ForegroundColor Yellow
 $edrBinary = if ($InstallerPath) { $InstallerPath } else { "SentinelAgent.exe" }
-$maskedToken = if ($SiteToken -match '^<.*>$') {
-    $SiteToken
-} elseif ($SiteToken.Length -gt 6) {
-    "$($SiteToken.Substring(0,3))***$($SiteToken.Substring($SiteToken.Length - 2))"
+$maskedToken = if ($plainSiteToken -match '^<.*>$') {
+    $plainSiteToken
+} elseif ($plainSiteToken.Length -gt 6) {
+    "$($plainSiteToken.Substring(0,3))***$($plainSiteToken.Substring($plainSiteToken.Length - 2))"
 } else {
     "***MASKED***"
 }
@@ -104,10 +109,10 @@ if ($TargetEDR -eq "SentinelOne") {
     $maskedCmd = "$edrBinary /SITE_TOKEN=$maskedToken /SILENT /NORESTART"
     if ($Simulation) {
         Add-RolloutStep "Installation EDR" "SIMULÉ" "[SIMULATION] Commande préparée ($maskedCmd)."
-    } elseif ([string]::IsNullOrWhiteSpace($InstallerPath) -or -not (Test-Path $InstallerPath) -or $SiteToken -eq "<SITE_TOKEN_REQUIRED>") {
-        Add-RolloutStep "Installation EDR" "WARN" "Non exécuté : -InstallerPath valide et -SiteToken (ou ESN_EDR_SITE_TOKEN) requis ($maskedCmd)."
+    } elseif ([string]::IsNullOrWhiteSpace($InstallerPath) -or -not (Test-Path $InstallerPath) -or $plainSiteToken -eq "<SITE_TOKEN_REQUIRED>") {
+        Add-RolloutStep "Installation EDR" "WARN" "Non exécuté : -InstallerPath valide et -SiteToken (SecureString) ou ESN_EDR_SITE_TOKEN requis ($maskedCmd)."
     } else {
-        $proc = Start-Process -FilePath $InstallerPath -ArgumentList "/SITE_TOKEN=$SiteToken /SILENT /NORESTART" -Wait -PassThru -ErrorAction Stop
+        $proc = Start-Process -FilePath $InstallerPath -ArgumentList "/SITE_TOKEN=$plainSiteToken /SILENT /NORESTART" -Wait -PassThru -ErrorAction Stop
         $instStat = if ($proc.ExitCode -eq 0) { "OK" } else { "WARN" }
         Add-RolloutStep "Installation EDR" $instStat "Installeur SentinelOne exécuté (code sortie $($proc.ExitCode)) : $maskedCmd."
     }

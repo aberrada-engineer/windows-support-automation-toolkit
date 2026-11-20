@@ -14,8 +14,8 @@
 [CmdletBinding()]
 param(
     [string]$GLPIApiUrl = "",
-    [string]$GLPIAppToken = "",
-    [string]$GLPIUserToken = "",
+    [securestring]$GLPIAppToken,
+    [securestring]$GLPIUserToken,
     [string]$OutputDir = "",
     [switch]$OpenReport
 )
@@ -116,16 +116,18 @@ $glpiPayload = [PSCustomObject]@{
 $jsonFile = Join-Path $OutputDir "GLPI_Inventory_$hostLabel.json"
 $glpiPayload | ConvertTo-Json -Depth 6 | Out-File $jsonFile -Encoding UTF8
 Write-Host "`n [OK] Fichier d'inventaire GLPI généré : $jsonFile" -ForegroundColor Green
-if ($GLPIApiUrl -and $GLPIUserToken -and $GLPIAppToken) {
+$glpiAppPlain  = if ($null -ne $GLPIAppToken -and $GLPIAppToken.Length -gt 0) { ([System.Net.NetworkCredential]::new('', $GLPIAppToken)).Password } else { [string]$env:ESN_GLPI_APP_TOKEN }
+$glpiUserPlain = if ($null -ne $GLPIUserToken -and $GLPIUserToken.Length -gt 0) { ([System.Net.NetworkCredential]::new('', $GLPIUserToken)).Password } else { [string]$env:ESN_GLPI_USER_TOKEN }
+if ($GLPIApiUrl -and $glpiUserPlain -and $glpiAppPlain) {
     [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
     $apiBase = $GLPIApiUrl.TrimEnd('/')
     $sessionToken = $null
     $sessHeaders = $null
     try {
-        $initHeaders = @{ "App-Token" = $GLPIAppToken; "Authorization" = "user_token $GLPIUserToken" }
+        $initHeaders = @{ "App-Token" = $glpiAppPlain; "Authorization" = "user_token $glpiUserPlain" }
         $sess = Invoke-RestMethod -Uri "$apiBase/initSession" -Headers $initHeaders -Method Get -TimeoutSec 15
         $sessionToken = $sess.session_token
-        $sessHeaders = @{ "App-Token" = $GLPIAppToken; "Session-Token" = $sessionToken }
+        $sessHeaders = @{ "App-Token" = $glpiAppPlain; "Session-Token" = $sessionToken }
         $compBody = @{ input = @{ name = $hostLabel; serial = $serial; comment = "ESN-Toolkit RAM=${ramGB}GB OS=$osCap" } } | ConvertTo-Json -Depth 3
         $pushed = Invoke-RestMethod -Uri "$apiBase/Computer" -Headers $sessHeaders -Method Post -Body $compBody -ContentType "application/json" -TimeoutSec 15
         Write-Host " [OK] Poste poussé vers API REST GLPI (ID: $($pushed.id))." -ForegroundColor Green
@@ -136,7 +138,7 @@ if ($GLPIApiUrl -and $GLPIUserToken -and $GLPIAppToken) {
             try { Invoke-RestMethod -Uri "$apiBase/killSession" -Headers $sessHeaders -Method Get -TimeoutSec 10 | Out-Null } catch { Write-Verbose "killSession: $($_.Exception.Message)" }
         }
     }
-} elseif ($GLPIApiUrl -or $GLPIUserToken) {
+} elseif ($GLPIApiUrl -or $glpiUserPlain) {
     Write-Host " [LOCAL JSON ONLY] GLPIAppToken ou paramètres API incomplets — export JSON local prêt sans envoi HTTP." -ForegroundColor Yellow
 }
 

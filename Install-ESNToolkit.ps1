@@ -51,12 +51,18 @@ foreach ($dir in $Directories) {
 Write-Host ""
 Write-Host "[2/5] Deploiement des fichiers du toolkit..." -ForegroundColor Yellow
 try {
-    # Copie récursive en excluant les dossiers temporaires et logs
-    $Exclude = @('.git', 'Logs', 'Reports', 'ZipIncidents', '.vscode')
-    Get-ChildItem -Path $SourceDir | Where-Object { $_.Name -notin $Exclude } | ForEach-Object {
-        Copy-Item -Path $_.FullName -Destination $TargetDir -Recurse -Force
+    $srcFull = [System.IO.Path]::GetFullPath($SourceDir).TrimEnd('\', '/')
+    $dstFull = [System.IO.Path]::GetFullPath($TargetDir).TrimEnd('\', '/')
+    if ($srcFull -ieq $dstFull) {
+        Write-Host "  [OK] Source et destination identiques ($TargetDir) — copie ignorée." -ForegroundColor DarkGray
+    } else {
+        # Copie récursive en excluant les dossiers dev, CI, tests et logs
+        $Exclude = @('.git', '.github', 'Tests', 'Presentation', 'index.html', 'Logs', 'Reports', 'ZipIncidents', '.vscode', 'ESN-Toolkit', 'ESN-Toolkits')
+        Get-ChildItem -Path $SourceDir | Where-Object { $_.Name -notin $Exclude } | ForEach-Object {
+            Copy-Item -Path $_.FullName -Destination $TargetDir -Recurse -Force
+        }
+        Write-Host "  [OK] Tous les modules, scripts et ressources ont ete synchronises." -ForegroundColor Green
     }
-    Write-Host "  [OK] Tous les modules, scripts et ressources ont ete synchronises." -ForegroundColor Green
 } catch {
     Write-Host "  [ERREUR] Impossible de copier certains fichiers : $($_.Exception.Message)" -ForegroundColor Red
 }

@@ -110,14 +110,14 @@ echo "===OS==="; grep PRETTY_NAME /etc/os-release 2>/dev/null | cut -d= -f2 | tr
 echo "===FAILED_SERVICES==="; systemctl --failed --no-legend --no-pager 2>/dev/null | wc -l
 echo "===DISK==="; df -h -x tmpfs -x devtmpfs -x squashfs 2>/dev/null | tail -n +2 | awk '{print $NF"|"$2"|"$3"|"$4"|"$5}'
 echo "===SSH_CONFIG==="; grep -hE "^[[:space:]]*(PermitRootLogin|PasswordAuthentication)[[:space:]]+" /etc/ssh/sshd_config.d/*.conf /etc/ssh/sshd_config 2>/dev/null || true
-echo "===SERVICES==="; echo "UFW:$({ sudo -n ufw status 2>/dev/null || ufw status 2>/dev/null; } | head -n 1)"; echo "SMB:$(systemctl is-active smbd 2>/dev/null || echo inactive)"
-echo "===UPDATES==="; (apt-get -s upgrade 2>/dev/null | grep -i '^Inst ' | grep -ic 'security') || echo "0"
+echo "===SERVICES==="; echo "UFW:$({ LC_ALL=C sudo -n ufw status 2>/dev/null || LC_ALL=C ufw status 2>/dev/null; } | head -n 1)"; echo "SMB:$(systemctl is-active smbd 2>/dev/null || echo inactive)"
+echo "===UPDATES==="; (LC_ALL=C apt-get -s upgrade 2>/dev/null | grep -i '^Inst ' | grep -ic 'security') || echo "0"
 '@ -replace "`r", ""
     # Base64 evite le stripping des guillemets/sauts de ligne par WinPS 5.1 vers ssh.exe
     $cmdB64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($LinuxAuditCommands))
     $sshArgs = @("-p", $SshPort, "-o", "StrictHostKeyChecking=accept-new", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5")
     if ($SshKeyPath) { $sshArgs += @("-i", $SshKeyPath) }
-    $sshArgs += @("$Username@$TargetHost", "echo $cmdB64 | base64 -d | sh")
+    $sshArgs += @("--", "$Username@$TargetHost", "echo $cmdB64 | base64 -d | sh")
 
     $rawOutput = (& $SshCmd.Source @sshArgs 2>&1) -join "`n"
     if ($LASTEXITCODE -eq 0 -and $rawOutput -match "===OS===") {
@@ -138,7 +138,7 @@ echo "===UPDATES==="; (apt-get -s upgrade 2>/dev/null | grep -i '^Inst ' | grep 
         $RootLoginPermitted = if ($sshConf -match 'PermitRootLogin\s+(\S+)') { $Matches[1] } else { "default/non-explicit" }
         $PasswordAuth = if ($sshConf -match 'PasswordAuthentication\s+(\S+)') { $Matches[1] } else { "default/non-explicit" }
         $svcConf = if ($sections.ContainsKey("SERVICES")) { @($sections["SERVICES"]) -join "`n" } else { "" }
-        $UfwStatus = if ($svcConf -match 'UFW:Status:\s*(\S+)') { $Matches[1] } else { "inactive/unknown" }
+        $UfwStatus = if ($svcConf -match 'UFW:(?:Status|[EÉ]tat)\s*:\s*(\S+)') { $Matches[1] } else { "inactive/unknown" }
         $SambaStatus = if ($svcConf -match 'SMB:(\S+)') { $Matches[1] } else { "inactive" }
         $diskLines = @(if ($sections.ContainsKey("DISK")) { $sections["DISK"] })
         $DiskMetrics = @(foreach ($dl in $diskLines) {
@@ -178,7 +178,7 @@ $sshHardened = ($RootLoginPermitted -eq "no" -and $PasswordAuth -eq "no")
 $sshVerdict  = if ($RootLoginPermitted -eq "inconnu") { "Non vérifié" } elseif ($sshHardened) { "Conforme ANSSI" } elseif ($RootLoginPermitted -eq "no") { "Partiel (PasswordAuth=$escPwdAuth)" } else { "Non conforme" }
 $sshClass    = if ($sshHardened) { "status-ok" } elseif ($RootLoginPermitted -eq "inconnu" -or $RootLoginPermitted -eq "no") { "status-warn" } else { "status-err" }
 
-$ufwActive   = ($UfwStatus -match '(?i)^active')
+$ufwActive   = ($UfwStatus -match '(?i)^(active|actif)')
 $ufwClass    = if ($ufwActive) { "status-ok" } elseif ($UfwStatus -eq "inconnu") { "status-warn" } else { "status-err" }
 $ufwLabel    = if ($ufwActive) { "ACTIF" } elseif ($UfwStatus -eq "inconnu") { "NON VÉRIFIÉ" } else { "INACTIF / NON FILTRÉ" }
 

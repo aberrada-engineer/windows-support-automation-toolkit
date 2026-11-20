@@ -127,7 +127,7 @@ $pvHtml = @"
 <html>
 <head>
     <meta charset='utf-8'>
-    <title>Procès-Verbal de Restitution IT - $Username</title>
+    <title>Procès-Verbal de Restitution IT - $([System.Net.WebUtility]::HtmlEncode([string]$Username))</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f8fafc; color: #1e293b; padding: 30px; }
         .sheet { background: white; border: 1px solid #cbd5e1; border-radius: 8px; padding: 40px; max-width: 800px; margin: auto; }

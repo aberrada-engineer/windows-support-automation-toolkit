@@ -49,7 +49,8 @@ Projects/
 - **Cas d'usage :** Remplacement d'antivirus legacy par SentinelOne ou Defender for Endpoint.
 - **Exemple d'exécution :**
   ```powershell
-  .\Projects\EDR-Deployment\Invoke-EDRMassRollout.ps1 -SiteToken "eyJhbGciOi..." -ReportOnly
+  $env:ESN_EDR_SITE_TOKEN = "<votre_token_site>"
+  .\Projects\EDR-Deployment\Invoke-EDRMassRollout.ps1 -Simulation
   ```
 
 ### 3. 🔌 Configuration Durcie Commutateurs Aruba CX

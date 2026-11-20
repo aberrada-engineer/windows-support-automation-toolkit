@@ -84,7 +84,7 @@ foreach ($d in $Disks) {
     $freeGB = [math]::Round($d.FreeSpace / 1GB, 1)
     $usedPercent = [math]::Round((($d.Size - $d.FreeSpace) / $d.Size) * 100, 1)
     $devHtml = [System.Net.WebUtility]::HtmlEncode([string]$d.DeviceID)
-    $StorageRows += "<tr><td>$devHtml</td><td>${totalGB} Go</td><td>${freeGB} Go</td><td>${usedPercent}%</td><td>$(if ($usedPercent -lt 85) {'<span style=\"color:#4ade80;\">Optimal</span>'} else {'<span style=\"color:#ef4444;\">Action requise</span>'})</td></tr>"
+    $StorageRows += "<tr><td>$devHtml</td><td>${totalGB} Go</td><td>${freeGB} Go</td><td>${usedPercent}%</td><td>$(if ($usedPercent -lt 85) {'<span style=''color:#4ade80;''>Optimal</span>'} else {'<span style=''color:#ef4444;''>Action requise</span>'})</td></tr>"
 }
 
 Write-Host "[3/4] Consolidation des recommandations stratégiques d'ingénierie..." -ForegroundColor White

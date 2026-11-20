@@ -22,6 +22,7 @@ param(
     [switch]$InstallServiceTask,
     [switch]$UninstallTask,
     [string]$OutputPath         = "",
+    [string]$DnsProbeHost       = "",
     [switch]$Simulate
 )
 Set-StrictMode -Version Latest
@@ -60,15 +61,15 @@ try {
 
     if ($InstallServiceTask -and $PSCmdlet.ShouldProcess($hostLabel, "Installation tâche planifiée ESN-SelfHealing-Daemon")) {
         Write-Host "[*] Installation de la tâche planifiée d'auto-guérison..." -ForegroundColor Cyan
-        $taskName = "ESN-SelfHealing-Daemon"
-        $action   = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$PSCommandPath`""
-        $trigger  = New-ScheduledTaskTrigger -AtStartup
-        $trigger.RepetitionInterval = (New-TimeSpan -Minutes 15)
-        $trigger.RepetitionDuration = (New-TimeSpan -Days 3650)
-        $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Minutes 10)
-        $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
-        Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Settings $settings -Principal $principal -Force | Out-Null
-        Write-Host "[OK] Tâche '$taskName' installée. S'exécute toutes les 15 minutes en SYSTEM." -ForegroundColor Green
+        $taskName        = "ESN-SelfHealing-Daemon"
+        $action          = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$PSCommandPath`""
+        $bootTrigger     = New-ScheduledTaskTrigger -AtStartup
+        $periodicTrigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes 15)
+        $triggers        = @($bootTrigger, $periodicTrigger)
+        $settings        = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Minutes 10)
+        $principal       = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
+        Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $triggers -Settings $settings -Principal $principal -Force | Out-Null
+        Write-Host "[OK] Tâche '$taskName' installée. S'exécute au démarrage puis toutes les 15 minutes en SYSTEM." -ForegroundColor Green
         return [PSCustomObject]@{ Action = "InstallTask"; Status = "OK" }
     }
 
@@ -119,7 +120,7 @@ try {
             if ($usedPercent -ge $DiskWarningPercent -and $PSCmdlet.ShouldProcess("Disque C:", "Purge temporaires ($usedPercent% utilisé)")) {
                 $diskSev = if ($usedPercent -ge $DiskCriticalPercent) { "CRITICAL" } else { "WARN" }
                 Log-SelfHealing "Alerte espace disque C: $usedPercent% utilisé ($freeGB Go libres, critique >= $DiskCriticalPercent%)" $diskSev
-                $tempDirs = @("$env:SystemRoot\Temp\*", "$env:LOCALAPPDATA\Temp\*", "$env:SystemRoot\SoftwareDistribution\Download\*")
+                $tempDirs = @("$env:SystemRoot\Temp\*", "$env:LOCALAPPDATA\Temp\*")
                 $clearedMB = 0
                 foreach ($td in $tempDirs) {
                     $sizeM = Get-ChildItem $td -Recurse -Force -ErrorAction SilentlyContinue | Measure-Object Length -Sum
@@ -127,14 +128,37 @@ try {
                     if ($size) { $clearedMB += [math]::Round($size / 1MB, 1) }
                     Remove-Item $td -Recurse -Force -ErrorAction SilentlyContinue
                 }
+                $wuDir = "$env:SystemRoot\SoftwareDistribution\Download"
+                if (Test-Path $wuDir) {
+                    $wuSvc = Get-Service -Name "wuauserv" -ErrorAction SilentlyContinue
+                    $wuWasRunning = ($null -ne $wuSvc -and $wuSvc.Status -eq 'Running')
+                    try {
+                        if ($wuWasRunning) { Stop-Service -Name "wuauserv" -Force -ErrorAction Stop }
+                        $wuSizeM = Get-ChildItem "$wuDir\*" -Recurse -Force -ErrorAction SilentlyContinue | Measure-Object Length -Sum
+                        $wuSize = if ($wuSizeM -and $wuSizeM.PSObject.Properties['Sum'] -and $null -ne $wuSizeM.Sum) { $wuSizeM.Sum } else { 0 }
+                        if ($wuSize) { $clearedMB += [math]::Round($wuSize / 1MB, 1) }
+                        Remove-Item "$wuDir\*" -Recurse -Force -ErrorAction SilentlyContinue
+                    } catch [System.Exception] {
+                        Log-SelfHealing "Purge SoftwareDistribution ignorée (wuauserv verrouillé) : $($_.Exception.Message)" "WARN"
+                    } finally {
+                        if ($wuWasRunning) { Start-Service -Name "wuauserv" -ErrorAction SilentlyContinue }
+                    }
+                }
                 Clear-RecycleBin -Force -ErrorAction SilentlyContinue
                 Log-SelfHealing "AUTO-HEAL : Purge automatique de $clearedMB Mo." "HEALED"
                 $actionsHealed.Add("Disque C: purge automatique de $clearedMB Mo")
             }
         }
 
-        # C. AUTO-RÉSOLUTION DNS
-        $testDNS = try { Resolve-DnsName "www.microsoft.com" -ErrorAction Stop; $true } catch { $false }
+        # C. AUTO-RÉSOLUTION DNS (cible AD interne prioritaire pour réseaux cloisonnés)
+        $probeHost = if (-not [string]::IsNullOrWhiteSpace($DnsProbeHost)) {
+            $DnsProbeHost
+        } elseif (-not [string]::IsNullOrWhiteSpace($env:USERDNSDOMAIN)) {
+            $env:USERDNSDOMAIN
+        } else {
+            "www.microsoft.com"
+        }
+        $testDNS = try { Resolve-DnsName $probeHost -ErrorAction Stop; $true } catch { $false }
         if (-not $testDNS -and $PSCmdlet.ShouldProcess("Pile DNS", "Flush cache DNS")) {
             Clear-DnsClientCache -ErrorAction SilentlyContinue
             ipconfig /flushdns 2>&1 | Out-Null

@@ -72,7 +72,7 @@ flowchart LR
 
 ## 🏗️ Architecture Modulaire
 
-La plateforme compte **plus de 16 000 lignes de code PowerShell & Batch**, structurées en 4 couches opérationnelles :
+La plateforme compte **plus de 15 000 lignes de code PowerShell & Batch**, structurées en 4 couches opérationnelles :
 
 ```
 ESN-Toolkit/
@@ -81,7 +81,7 @@ ESN-Toolkit/
 │   ├── Setup.bat                          # Installateur 1-clic autonome avec élévation de privilèges
 │   ├── Install-ESNToolkit.ps1             # Déploiement silencieux vers C:\ESN-Toolkit, config execution policy & raccourcis
 │   ├── Install-EnterpriseSilent.bat       # Script de déploiement de masse pour GPO / Intune Win32 App / SCCM
-│   ├── ESN-GUI.ps1 & ESN-Launcher.bat     # Interface Graphique Windows Forms (6 onglets métiers, RichTextBox logs)
+│   ├── ESN-GUI.ps1 & ESN-Launcher.bat     # Interface Graphique Windows Forms (7 onglets métiers, RichTextBox logs)
 │   ├── ESN-Console.ps1 & ESN-Console.bat  # Console Interactive TUI avec 43 options d'administration directe
 │   └── WebDashboard/ & Invoke-CentralDashboard.ps1 # Dashboard Web offline Datadog-style avec jauges SVG
 │
